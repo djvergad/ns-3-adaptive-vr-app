@@ -160,7 +160,7 @@ BurstyApplication::StartApplication ()
 
       m_socket->Connect (m_peer);
       m_socket->SetAllowBroadcast (true);
-      m_socket->ShutdownRecv ();
+      // m_socket->ShutdownRecv ();
 
       m_socket->SetConnectCallback (MakeCallback (&BurstyApplication::ConnectionSucceeded, this),
                                     MakeCallback (&BurstyApplication::ConnectionFailed, this));

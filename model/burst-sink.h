@@ -122,7 +122,7 @@ public:
 protected:
   virtual void DoDispose (void);
 
-private:
+// private:
   // inherited from Application base class.
   virtual void StartApplication (void); // Called at time specified by Start
   virtual void StopApplication (void); // Called at time specified by Stop
@@ -170,7 +170,7 @@ private:
    * The method assembles a received byte stream and extracts SeqTsSizeFragHeader
    * instances from the stream to export in a trace source.
    */
-  void FragmentReceived (BurstHandler &burstHandler, const Ptr<Packet> &f, const Address &from,
+  virtual void FragmentReceived (BurstHandler &burstHandler, const Ptr<Packet> &f, const Address &from,
                          const Address &localAddress);
 
   /**

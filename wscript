@@ -10,9 +10,14 @@ def build(bld):
         'model/seq-ts-size-frag-header.cc',
         'model/simple-burst-generator.cc',
         'model/trace-file-burst-generator.cc',
+        'model/vr-adaptive-burst-sink.cc',
+        'model/vr-adaptive-bursty-application.cc',
+        'model/vr-adaptive-header.cc',
         'model/vr-burst-generator.cc',
         'helper/burst-sink-helper.cc',
         'helper/bursty-helper.cc',
+        'helper/vr-adaptive-burst-sink-helper.cc',
+        'helper/vr-adaptive-bursty-helper.cc',
         ]
     
     headers = bld(features='ns3header')
@@ -25,9 +30,14 @@ def build(bld):
         'model/seq-ts-size-frag-header.h',
         'model/simple-burst-generator.h',
         'model/trace-file-burst-generator.h',
+        'model/vr-adaptive-burst-sink.h',
+        'model/vr-adaptive-bursty-application.h',
+        'model/vr-adaptive-header.h',
         'model/vr-burst-generator.h',
         'helper/burst-sink-helper.h',
         'helper/bursty-helper.h',
+        'helper/vr-adaptive-burst-sink-helper.h',
+        'helper/vr-adaptive-bursty-helper.h',
         ]
     
     if (bld.env['ENABLE_EXAMPLES']):
