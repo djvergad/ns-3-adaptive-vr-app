@@ -89,7 +89,7 @@ private:
                          const Address &localAddress);
 
   Time m_lastFragmentTime;
-
+  Time m_started_at = Seconds(0);
   std::multimap<Time, std::tuple<uint64_t, Time>> m_rateBuffer;
 };
 

@@ -26,8 +26,8 @@
 #include "ns3/applications-module.h"
 
 #include "ns3/seq-ts-size-frag-header.h"
-#include "ns3/vr-adaptive-bursty-helper.h"
-#include "ns3/vr-adaptive-burst-sink-helper.h"
+#include "ns3/bursty-helper.h"
+#include "ns3/burst-sink-helper.h"
 #include "ns3/burst-generator.h"
 
 using namespace ns3;
@@ -113,8 +113,8 @@ main (int argc, char *argv[])
   Ipv4Address sinkAddress = Ipv4Address::GetAny (); // 0.0.0.0
 
   // Create bursty application helper
-  VrAdaptiveBurstyHelper burstyHelper ("ns3::UdpSocketFactory",
-                                       InetSocketAddress (serverAddress, portNumber));
+  BurstyHelper burstyHelper ("ns3::UdpSocketFactory",
+                                       InetSocketAddress (serverAddress, portNumber), true);
 
   burstyHelper.SetAttribute ("FragmentSize", UintegerValue (1200));
   burstyHelper.SetBurstGenerator ("ns3::VrBurstGenerator", "FrameRate", DoubleValue (frameRate),
@@ -123,16 +123,16 @@ main (int argc, char *argv[])
 
   // Install bursty application
   ApplicationContainer serverApps = burstyHelper.Install (nodes.Get (1));
-  Ptr<VrAdaptiveBurstyApplication> burstyApp =
-      serverApps.Get (0)->GetObject<VrAdaptiveBurstyApplication> ();
+  Ptr<BurstyApplication> burstyApp =
+      serverApps.Get (0)->GetObject<BurstyApplication> ();
 
   // Create burst sink helper
-  VrAdaptiveBurstSinkHelper burstSinkHelper ("ns3::UdpSocketFactory",
-                                             InetSocketAddress (sinkAddress, portNumber));
+  BurstSinkHelper burstSinkHelper ("ns3::UdpSocketFactory",
+                                             InetSocketAddress (sinkAddress, portNumber), true);
 
   // Install HTTP client
   ApplicationContainer clientApps = burstSinkHelper.Install (nodes.Get (0));
-  Ptr<VrAdaptiveBurstSink> burstSink = clientApps.Get (0)->GetObject<VrAdaptiveBurstSink> ();
+  Ptr<BurstSink> burstSink = clientApps.Get (0)->GetObject<BurstSink> ();
 
   // Example of connecting to the trace sources
   burstSink->TraceConnectWithoutContext ("BurstRx", MakeCallback (&BurstRx));

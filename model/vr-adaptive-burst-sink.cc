@@ -71,67 +71,105 @@ VrAdaptiveBurstSink::FragmentReceived (BurstHandler &burstHandler, const Ptr<Pac
   f->PeekHeader (header);
 
   uint64_t m_fragment_size = f->GetSize ();
-  Time delay = Simulator::Now () - header.GetTs ();
 
-  m_rateBuffer.insert (std::pair<Time, std::pair<uint32_t, Time>> (
-      Simulator::Now (), std::pair<uint32_t, Time> (m_fragment_size, delay)));
+  // std::cout << "Received fragment size " << m_fragment_size << " Now " << Simulator::Now ()
+  //           << " last frag time " << m_lastFragmentTime << std::endl;
 
-  DataRate instant_throughput =
-      DataRate (m_fragment_size * 8 / (Simulator::Now () - m_lastFragmentTime).GetSeconds ());
-
-  uint64_t bytes = 0;
-  Time sum_time = Seconds (0);
-  Time window = MilliSeconds (140);
-  for (auto it = m_rateBuffer.begin (); it != m_rateBuffer.end ();)
+  if (m_started_at == Seconds (0))
     {
-      if (it->first < Simulator::Now () - window)
+      m_started_at = Simulator::Now ();
+    }
+
+  else if (Simulator::Now () != m_lastFragmentTime)
+    {
+
+      Time delay = Simulator::Now () - header.GetTs ();
+
+      m_rateBuffer.insert (std::pair<Time, std::pair<uint32_t, Time>> (
+          Simulator::Now (), std::pair<uint32_t, Time> (m_fragment_size, delay)));
+
+      DataRate instant_throughput =
+          DataRate (m_fragment_size * 8 / (Simulator::Now () - m_lastFragmentTime).GetSeconds ());
+
+      uint64_t bytes = 0;
+      Time sum_time = Seconds (0);
+      Time window = MilliSeconds (140);
+      for (auto it = m_rateBuffer.begin (); it != m_rateBuffer.end ();)
         {
-          it = m_rateBuffer.erase (it);
+          if (it->first < Simulator::Now () - window)
+            {
+              it = m_rateBuffer.erase (it);
+            }
+          else
+            {
+              bytes += std::get<0> (it->second);
+              sum_time += std::get<1> (it->second);
+              ++it;
+            }
+        }
+
+      DataRate avg_throughput = DataRate (
+          bytes * 8 /
+          (Simulator::Now () - m_started_at > window ? window : (Simulator::Now () - m_started_at))
+              .GetSeconds ());
+
+      Time avg_delay = Seconds (sum_time.GetSeconds () / m_rateBuffer.size ());
+
+      m_lastFragmentTime = Simulator::Now ();
+
+      Ptr<Packet> packet = Create<Packet> (100);
+      VrAdaptiveHeader responseHeader;
+
+      double arate =
+          0.7 * avg_throughput.GetBitRate () + 0.3 * instant_throughput.GetBitRate ();
+
+      // double bdp = avg_delay.GetSeconds () * arate;
+
+      if (std::max (avg_delay, delay) > MilliSeconds (30))
+        {
+          arate = arate * 0.4;
+        }
+      else if (std::max (avg_delay, delay) > MilliSeconds (20))
+        {
+          arate = arate * 0.8;
+        }
+      else if (std::max(avg_delay,delay) < MilliSeconds (2))
+        {
+          arate = arate * 1.4;
+        }
+      else if (avg_delay < MilliSeconds (5))
+        {
+          arate = arate * 1.2;
         }
       else
         {
-          bytes += std::get<0> (it->second);
-          sum_time += std::get<1> (it->second);
-          ++it;
+          arate = arate * 1.05;
         }
-    }
 
-  DataRate avg_throughput = DataRate (
-      bytes * 8 / (Simulator::Now () > window ? window : Simulator::Now ()).GetSeconds ());
+      // if (avg_delay > MilliSeconds (70))
+      //   {
+      //     arate = arate * 0.4;
+      //   }
+      // else
+      //   {
+      //     arate = arate * 0.8;
+      //   }
 
-  Time avg_delay = Seconds (sum_time.GetSeconds () / m_rateBuffer.size ());
+      // std::cout << "Time " << Simulator::Now ().GetSeconds () << " sec delay "
+      //           << delay.GetMilliSeconds () << " msec avg_delay " << avg_delay.GetMilliSeconds ()
+      //           << " msec instant_throughput " << instant_throughput.GetBitRate () / 1e6
+      //           << " Mbps avg_throughput " << avg_throughput.GetBitRate () / 1e6
+      //           << " Mbps req_throughput " << arate / 1e6 << " Mbps" << std::endl;
 
-  m_lastFragmentTime = Simulator::Now ();
+      responseHeader.SetTargetDataRate (DataRate (arate));
+      packet->AddHeader (responseHeader);
 
-  Ptr<Packet> packet = Create<Packet> (100);
-  VrAdaptiveHeader responseHeader;
+      int64_t bytes_sent = m_socket->SendTo (packet, 0, from);
 
-  double arate = (avg_throughput.GetBitRate () + instant_throughput.GetBitRate ()) / 2;
-
-  if (avg_delay > MilliSeconds (70))
-    {
-      arate = arate * 0.4;
-    }
-  else
-    {
-      arate = arate * 0.8;
-    }
-
-  NS_LOG_DEBUG ("Time " << Simulator::Now ().GetSeconds () << " sec delay "
-                        << delay.GetMilliSeconds () << " msec avg_delay "
-                        << avg_delay.GetMilliSeconds () << " msec instant_throughput "
-                        << instant_throughput.GetBitRate () / 1e6 << " Mbps avg_throughput "
-                        << avg_throughput.GetBitRate () / 1e6 << " Mbps req_throughput "
-                        << arate / 1e6 << " Mbps");
-
-  responseHeader.SetTargetDataRate (DataRate (arate));
-  packet->AddHeader (responseHeader);
-
-  int64_t bytes_sent = m_socket->SendTo (packet, 0, from);
-
-  if (bytes_sent == -1)
-    {
-      NS_FATAL_ERROR ("Cannot sent  " << bytes_sent << " errno " << m_socket->GetErrno ());
+      if (bytes_sent == -1)
+        {
+          NS_FATAL_ERROR ("Cannot sent  " << bytes_sent << " errno " << m_socket->GetErrno ());
+        }
     }
 
   BurstSink::FragmentReceived (burstHandler, f, from, localAddress);

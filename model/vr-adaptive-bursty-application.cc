@@ -98,8 +98,15 @@ VrAdaptiveBurstyApplication::HandleRead (Ptr<Socket> socket)
     {
       VrAdaptiveHeader header;
       packet->RemoveHeader (header);
-      (DynamicCast<VrBurstGenerator> (m_burstGenerator))
-          ->SetTargetDataRate (header.GetTargetDataRate ());
+
+      Ptr<VrBurstGenerator> vrBurstGenerator = DynamicCast<VrBurstGenerator> (m_burstGenerator);
+      if (initRate == 0 ) {
+        initRate = vrBurstGenerator->GetTargetDataRate();
+      }
+
+      DataRate new_rate = std::min(header.GetTargetDataRate (), initRate);
+      // std::cout << "New rate: " << new_rate << std::endl;
+      vrBurstGenerator->SetTargetDataRate (new_rate);
     }
 }
 

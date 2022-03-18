@@ -93,6 +93,8 @@ private:
    * \brief Sends a packet burst and schedules the next one
    */
   void HandleRead (Ptr<Socket>); // Called when a request is received
+
+  DataRate initRate = DataRate(0);
 };
 
 } // namespace ns3

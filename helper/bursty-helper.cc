@@ -39,6 +39,13 @@ BurstyHelper::BurstyHelper (std::string protocol, Address address)
   m_burstyApplicationFactory.Set ("Remote", AddressValue (address));
 }
 
+BurstyHelper::BurstyHelper (std::string protocol, Address address, bool adaptive)
+{
+  m_burstyApplicationFactory.SetTypeId (adaptive? "ns3::VrAdaptiveBurstyApplication" : "ns3::BurstyApplication");
+  m_burstyApplicationFactory.Set ("Protocol", StringValue (protocol));
+  m_burstyApplicationFactory.Set ("Remote", AddressValue (address));
+}
+
 void
 BurstyHelper::SetAttribute (std::string name, const AttributeValue &value)
 {

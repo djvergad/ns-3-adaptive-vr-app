@@ -47,6 +47,8 @@ public:
    */
   BurstSinkHelper (std::string protocol, Address address);
 
+  BurstSinkHelper (std::string protocol, Address address, bool adaptive);
+
   /**
    * Helper function used to set the underlying application attributes.
    *

@@ -16,8 +16,6 @@ def build(bld):
         'model/vr-burst-generator.cc',
         'helper/burst-sink-helper.cc',
         'helper/bursty-helper.cc',
-        'helper/vr-adaptive-burst-sink-helper.cc',
-        'helper/vr-adaptive-bursty-helper.cc',
         ]
     
     headers = bld(features='ns3header')
@@ -36,8 +34,6 @@ def build(bld):
         'model/vr-burst-generator.h',
         'helper/burst-sink-helper.h',
         'helper/bursty-helper.h',
-        'helper/vr-adaptive-burst-sink-helper.h',
-        'helper/vr-adaptive-bursty-helper.h',
         ]
     
     if (bld.env['ENABLE_EXAMPLES']):
