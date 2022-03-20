@@ -72,18 +72,6 @@ public:
    */
   uint16_t GetFrags (void) const;
 
-  /**
-   * \brief Set the number of bytes in the fragment
-   * \param frags the total number of bytes in the fragment
-   */
-  void SetFragBytes (uint32_t frags);
-
-  /**
-   * \brief Get the total number of bytes in the fragment
-   * \return the total number of bytes in the fragment
-   */
-  uint32_t GetFragBytes (void) const;
-
   // Inherited
   virtual TypeId GetInstanceTypeId (void) const override;
   virtual void Print (std::ostream &os) const override;
@@ -94,7 +82,6 @@ public:
 private:
   uint16_t m_fragSeq{0}; //!< The sequence number of the fragment
   uint16_t m_frags{0}; //!< The total number of fragments in the burst
-  uint32_t m_fragBytes{0}; //!< The total number of bytes in the fragment
 };
 
 } // namespace ns3

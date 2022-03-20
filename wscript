@@ -14,6 +14,8 @@ def build(bld):
         'model/vr-adaptive-bursty-application.cc',
         'model/vr-adaptive-header.cc',
         'model/vr-burst-generator.cc',
+        'model/burst-sink-tcp.cc',
+        'model/bursty-application-tcp.cc',
         'helper/burst-sink-helper.cc',
         'helper/bursty-helper.cc',
         ]
@@ -32,6 +34,8 @@ def build(bld):
         'model/vr-adaptive-bursty-application.h',
         'model/vr-adaptive-header.h',
         'model/vr-burst-generator.h',
+        'model/burst-sink-tcp.h',
+        'model/bursty-application-tcp.h',
         'helper/burst-sink-helper.h',
         'helper/bursty-helper.h',
         ]

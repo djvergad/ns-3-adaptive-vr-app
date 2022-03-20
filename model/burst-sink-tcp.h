@@ -17,8 +17,18 @@
  * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  */
 
-#ifndef VR_ADAPTIVE_BURST_SINK_H
-#define VR_ADAPTIVE_BURST_SINK_H
+#ifndef BURST_SINK_TCP_H
+#define BURST_SINK_TCP_H
+
+#include "ns3/application.h"
+#include "ns3/event-id.h"
+#include "ns3/ptr.h"
+#include "ns3/traced-callback.h"
+#include "ns3/address.h"
+#include "ns3/inet-socket-address.h"
+#include "ns3/socket.h"
+#include "ns3/seq-ts-size-frag-header.h"
+#include <unordered_map>
 
 #include "burst-sink.h"
 
@@ -63,7 +73,7 @@ class Packet;
  * successfully received.
  * 
  */
-class VrAdaptiveBurstSink : public BurstSink
+class BurstSinkTcp : public BurstSink
 {
 public:
   /**
@@ -72,27 +82,25 @@ public:
    */
   static TypeId GetTypeId (void);
 
-  VrAdaptiveBurstSink ();
-  virtual ~VrAdaptiveBurstSink ();
+  BurstSinkTcp ();
+  virtual ~BurstSinkTcp ();
 
-private:
+protected:
+  virtual void DoDispose (void);
+
+// private:
+  // inherited from Application base class.
+  virtual void StartApplication (void); // Called at time specified by Start
+  virtual void StopApplication (void); // Called at time specified by Stop
   /**
-   * \brief Fragment received: assemble byte stream to extract SeqTsSizeFragHeader
-   * \param f received fragment
-   * \param from from address
-   * \param localAddress local address
-   *
-   * The method assembles a received byte stream and extracts SeqTsSizeFragHeader
-   * instances from the stream to export in a trace source.
+   * \brief Handle a fragment received by the application
+   * \param socket the receiving socket
    */
-  void FragmentReceived (BurstHandler &burstHandler, const Ptr<Packet> &f, const Address &from,
-                         const Address &localAddress);
+  virtual void HandleRead (Ptr<Socket> socket);
 
-  std::map<Address, Time> m_lastFragmentTimes;
-  std::map<Address, Time> m_started_ats;
-  std::map<Address, std::multimap<Time, std::tuple<uint64_t, Time>>> m_rateBuffers;
+  std::map<Ptr<Socket>,Ptr<Packet>> m_incomplete_packets;
 };
 
 } // namespace ns3
 
-#endif /* VR_ADAPTIVE_BURST_SINK_H */
+#endif /* BURST_SINK_TCP_H */

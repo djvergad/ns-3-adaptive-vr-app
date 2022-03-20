@@ -54,7 +54,7 @@ public:
    */
   BurstyHelper (std::string protocol, Address address);
 
-  BurstyHelper (std::string protocol, Address address, bool adaptive);
+  BurstyHelper (std::string protocol, Address address, std::string variant);
 
   /**
    * Helper function used to set the underlying application attributes.

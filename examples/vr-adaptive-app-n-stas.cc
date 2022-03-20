@@ -151,9 +151,11 @@ main (int argc, char *argv[])
 
   LogComponentEnableAll (LOG_PREFIX_ALL);
   LogComponentEnable ("VrAdaptiveAppNStas", LOG_INFO);
-  LogComponentEnable ("BurstSink", LOG_INFO);
-  // LogComponentEnable ("VrAdaptiveBurstSink", LOG_ALL);
-
+  LogComponentEnable ("BurstSink", LOG_ALL);
+  LogComponentEnable ("VrAdaptiveBurstSink", LOG_ALL);
+  LogComponentEnable ("BurstSinkTcp", LOG_ALL);
+  LogComponentEnable ("BurstyApplicationTcp", LOG_ALL);
+  LogComponentEnable ("BurstyApplication", LOG_ALL);
 
   // Disable RTS/CTS
   Config::SetDefault ("ns3::WifiRemoteStationManager::RtsCtsThreshold", StringValue ("999999"));
@@ -226,18 +228,26 @@ main (int argc, char *argv[])
 
   // Setting applications
   uint16_t port = 50000;
-  BurstSinkHelper server ("ns3::UdpSocketFactory", InetSocketAddress (Ipv4Address::GetAny (), port),
-                          burstGeneratorType == "adaptive");
+  BurstSinkHelper server (burstGeneratorType == "tcp" ? "ns3::TcpSocketFactory"
+                                                      : "ns3::UdpSocketFactory",
+                          InetSocketAddress (Ipv4Address::GetAny (), port),
+                          burstGeneratorType == "adaptive" ? "ns3::VrAdaptiveBurstSink"
+                          : burstGeneratorType == "tcp"    ? "ns3::BurstSinkTcp"
+                                                           : "ns3::BurstSink");
   ApplicationContainer serverApp = server.Install (wifiApNode);
   serverApp.Start (Seconds (0.0));
   serverApp.Stop (Seconds (simulationTime + 1));
 
-  BurstyHelper client ("ns3::UdpSocketFactory",
+  BurstyHelper client (burstGeneratorType == "tcp" ? "ns3::TcpSocketFactory"
+                                                   : "ns3::UdpSocketFactory",
                        InetSocketAddress (ApInterface.GetAddress (0), port),
-                       burstGeneratorType == "adaptive");
+                       burstGeneratorType == "adaptive" ? "ns3::VrAdaptiveBurstyApplication"
+                       : burstGeneratorType == "tcp "   ? "ns3::BurstyApplicationTcp"
+                                                        : "ns3::BurstyApplication");
   client.SetAttribute ("FragmentSize", UintegerValue (fragmentSize));
 
-  if (burstGeneratorType == "model" || burstGeneratorType == "adaptive")
+  if (burstGeneratorType == "model" || burstGeneratorType == "adaptive" ||
+      burstGeneratorType == "tcp")
     {
       NS_LOG_DEBUG ("VR generator with framerate=" << frameRate << ", appRate=" << appRate
                                                    << ", vrAppName=" << vrAppName);

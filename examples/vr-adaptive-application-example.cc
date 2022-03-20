@@ -114,7 +114,7 @@ main (int argc, char *argv[])
 
   // Create bursty application helper
   BurstyHelper burstyHelper ("ns3::UdpSocketFactory",
-                                       InetSocketAddress (serverAddress, portNumber), true);
+                                       InetSocketAddress (serverAddress, portNumber), "ns3::VrAdaptiveBurstyApplication");
 
   burstyHelper.SetAttribute ("FragmentSize", UintegerValue (1200));
   burstyHelper.SetBurstGenerator ("ns3::VrBurstGenerator", "FrameRate", DoubleValue (frameRate),
@@ -128,7 +128,7 @@ main (int argc, char *argv[])
 
   // Create burst sink helper
   BurstSinkHelper burstSinkHelper ("ns3::UdpSocketFactory",
-                                             InetSocketAddress (sinkAddress, portNumber), true);
+                                             InetSocketAddress (sinkAddress, portNumber), "ns3::VrAdaptiveBurstSink");
 
   // Install HTTP client
   ApplicationContainer clientApps = burstSinkHelper.Install (nodes.Get (0));

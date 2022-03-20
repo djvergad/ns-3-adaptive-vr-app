@@ -131,7 +131,7 @@ protected:
    * \brief Handle a fragment received by the application
    * \param socket the receiving socket
    */
-  void HandleRead (Ptr<Socket> socket);
+  virtual void HandleRead (Ptr<Socket> socket);
   /**
    * \brief Handle an incoming connection
    * \param socket the incoming connection socket

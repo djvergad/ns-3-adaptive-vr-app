@@ -47,39 +47,37 @@ NS_OBJECT_ENSURE_REGISTERED (BurstyApplication);
 TypeId
 BurstyApplication::GetTypeId (void)
 {
-  static TypeId tid = TypeId ("ns3::BurstyApplication")
-    .SetParent<Application> ()
-    .SetGroupName ("Applications")
-    .AddConstructor<BurstyApplication> ()
-    .AddAttribute ("FragmentSize", "The size of packets sent in a burst including SeqTsSizeFragHeader",
-                   UintegerValue (1200),
-                   MakeUintegerAccessor (&BurstyApplication::m_fragSize),
-                   MakeUintegerChecker<uint32_t> (1))
-    .AddAttribute ("Remote", "The address of the destination",
-                   AddressValue (),
-                   MakeAddressAccessor (&BurstyApplication::m_peer),
-                   MakeAddressChecker ())
-    .AddAttribute ("Local",
-                   "The Address on which to bind the socket. If not set, it is generated automatically.",
-                   AddressValue (),
-                   MakeAddressAccessor (&BurstyApplication::m_local),
-                   MakeAddressChecker ())
-    .AddAttribute ("BurstGenerator", "The BurstGenerator used by this application",
-                   PointerValue (0),
-                   MakePointerAccessor (&BurstyApplication::m_burstGenerator),
-                   MakePointerChecker <BurstGenerator>())
-    .AddAttribute ("Protocol", "The type of protocol to use. This should be "
-                   "a subclass of ns3::SocketFactory",
-                   TypeIdValue (UdpSocketFactory::GetTypeId ()),
-                   MakeTypeIdAccessor (&BurstyApplication::m_socketTid),
-                   MakeTypeIdChecker ())
-    .AddTraceSource ("FragmentTx", "A fragment of the burst is sent",
-                     MakeTraceSourceAccessor (&BurstyApplication::m_txFragmentTrace),
-                     "ns3::BurstSink::SeqTsSizeFragCallback")
-    .AddTraceSource ("BurstTx", "A burst of packet is created and sent",
-                     MakeTraceSourceAccessor (&BurstyApplication::m_txBurstTrace),
-                     "ns3::BurstSink::SeqTsSizeFragCallback")
-  ;
+  static TypeId tid =
+      TypeId ("ns3::BurstyApplication")
+          .SetParent<Application> ()
+          .SetGroupName ("Applications")
+          .AddConstructor<BurstyApplication> ()
+          .AddAttribute (
+              "FragmentSize", "The size of packets sent in a burst including SeqTsSizeFragHeader",
+              UintegerValue (1200), MakeUintegerAccessor (&BurstyApplication::m_fragSize),
+              MakeUintegerChecker<uint32_t> (1))
+          .AddAttribute ("Remote", "The address of the destination", AddressValue (),
+                         MakeAddressAccessor (&BurstyApplication::m_peer), MakeAddressChecker ())
+          .AddAttribute (
+              "Local",
+              "The Address on which to bind the socket. If not set, it is generated automatically.",
+              AddressValue (), MakeAddressAccessor (&BurstyApplication::m_local),
+              MakeAddressChecker ())
+          .AddAttribute ("BurstGenerator", "The BurstGenerator used by this application",
+                         PointerValue (0),
+                         MakePointerAccessor (&BurstyApplication::m_burstGenerator),
+                         MakePointerChecker<BurstGenerator> ())
+          .AddAttribute ("Protocol",
+                         "The type of protocol to use. This should be "
+                         "a subclass of ns3::SocketFactory",
+                         TypeIdValue (UdpSocketFactory::GetTypeId ()),
+                         MakeTypeIdAccessor (&BurstyApplication::m_socketTid), MakeTypeIdChecker ())
+          .AddTraceSource ("FragmentTx", "A fragment of the burst is sent",
+                           MakeTraceSourceAccessor (&BurstyApplication::m_txFragmentTrace),
+                           "ns3::BurstSink::SeqTsSizeFragCallback")
+          .AddTraceSource ("BurstTx", "A burst of packet is created and sent",
+                           MakeTraceSourceAccessor (&BurstyApplication::m_txBurstTrace),
+                           "ns3::BurstSink::SeqTsSizeFragCallback");
   return tid;
 }
 
@@ -206,17 +204,24 @@ BurstyApplication::SendBurst ()
   uint32_t burstSize = 0;
   Time period;
   // packets must be at least as big as the header
-  while (burstSize < 24) // TODO: find a way to improve this
+  //while (burstSize < 24) // TODO: find a way to improve this
+  //{
+  if (!m_burstGenerator->HasNextBurst ())
     {
-      if (!m_burstGenerator->HasNextBurst ())
-        {
-          NS_LOG_LOGIC ("Burst generator has no next burst: stopping application");
-          StopApplication ();
-          return;
-        }
+      NS_LOG_LOGIC ("Burst generator has no next burst: stopping application");
+      StopApplication ();
+      return;
+    }
 
-      std::tie (burstSize, period) = m_burstGenerator->GenerateBurst ();
-      NS_LOG_DEBUG ("Generated burstSize=" << burstSize << ", period=" << period.As (Time::MS));
+  std::tie (burstSize, period) = m_burstGenerator->GenerateBurst ();
+  NS_LOG_DEBUG ("Generated burstSize=" << burstSize << ", period=" << period.As (Time::MS));
+  //}
+  //
+  SeqTsSizeFragHeader hdrTmp;
+
+  if (burstSize <= hdrTmp.GetSerializedSize ())
+    {
+      burstSize = hdrTmp.GetSerializedSize () + 1;
     }
 
   NS_ASSERT_MSG (period.IsPositive (),
@@ -340,9 +345,18 @@ BurstyApplication::SendFragment (Ptr<Packet> fragment, uint64_t burstSize, uint1
   header.SetSize (burstSize);
   header.SetFrags (totFrags);
   header.SetFragSeq (fragmentSeq);
+  header.SetFragBytes (fragment->GetSize () + header.GetSerializedSize ());
   fragment->AddHeader (header);
 
   uint32_t fragmentSize = fragment->GetSize ();
+
+  if (m_socket->GetTxAvailable () < fragment->GetSize ())
+    {
+      NS_LOG_DEBUG (
+          "Unable to send fragment: TxBuffer is full, disgarding. = " << fragment->GetSize ());
+      return;
+    }
+
   int actual = m_socket->Send (fragment);
   if (uint32_t (actual) == fragmentSize)
     {
@@ -377,9 +391,10 @@ BurstyApplication::SendFragment (Ptr<Packet> fragment, uint64_t burstSize, uint1
     }
   else
     {
-      NS_LOG_DEBUG ("Unable to send fragment: fragment size=" << fragment->GetSize ()
-                                                              << ", socket sent=" << actual
-                                                              << "; ignoring unexpected behavior");
+
+      NS_LOG_DEBUG ("Unable to send fragment: fragment size="
+                    << fragment->GetSize () << ", socket sent=" << actual << " errno "
+                    << m_socket->GetErrno () << "; ignoring unexpected behavior");
     }
 }
 

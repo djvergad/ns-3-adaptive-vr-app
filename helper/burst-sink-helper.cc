@@ -31,9 +31,9 @@ BurstSinkHelper::BurstSinkHelper (std::string protocol, Address address)
   m_factory.Set ("Local", AddressValue (address));
 }
 
-BurstSinkHelper::BurstSinkHelper (std::string protocol, Address address, bool adaptive)
+BurstSinkHelper::BurstSinkHelper (std::string protocol, Address address, std::string variant)
 {
-  m_factory.SetTypeId (adaptive? "ns3::VrAdaptiveBurstSink": "ns3::BurstSink");
+  m_factory.SetTypeId (variant);
   m_factory.Set ("Protocol", StringValue (protocol));
   m_factory.Set ("Local", AddressValue (address));
 }
