@@ -47,39 +47,38 @@ NS_OBJECT_ENSURE_REGISTERED (BurstyApplicationTcp);
 TypeId
 BurstyApplicationTcp::GetTypeId (void)
 {
-  static TypeId tid = TypeId ("ns3::BurstyApplicationTcp")
-    .SetParent<Application> ()
-    .SetGroupName ("Applications")
-    .AddConstructor<BurstyApplicationTcp> ()
-    .AddAttribute ("FragmentSize", "The size of packets sent in a burst including SeqTsSizeFragHeader",
-                   UintegerValue (1200),
-                   MakeUintegerAccessor (&BurstyApplicationTcp::m_fragSize),
-                   MakeUintegerChecker<uint32_t> (1))
-    .AddAttribute ("Remote", "The address of the destination",
-                   AddressValue (),
-                   MakeAddressAccessor (&BurstyApplicationTcp::m_peer),
-                   MakeAddressChecker ())
-    .AddAttribute ("Local",
-                   "The Address on which to bind the socket. If not set, it is generated automatically.",
-                   AddressValue (),
-                   MakeAddressAccessor (&BurstyApplicationTcp::m_local),
-                   MakeAddressChecker ())
-    .AddAttribute ("BurstGenerator", "The BurstGenerator used by this application",
-                   PointerValue (0),
-                   MakePointerAccessor (&BurstyApplicationTcp::m_burstGenerator),
-                   MakePointerChecker <BurstGenerator>())
-    .AddAttribute ("Protocol", "The type of protocol to use. This should be "
-                   "a subclass of ns3::SocketFactory",
-                   TypeIdValue (UdpSocketFactory::GetTypeId ()),
-                   MakeTypeIdAccessor (&BurstyApplicationTcp::m_socketTid),
-                   MakeTypeIdChecker ())
-    .AddTraceSource ("FragmentTx", "A fragment of the burst is sent",
-                     MakeTraceSourceAccessor (&BurstyApplicationTcp::m_txFragmentTrace),
-                     "ns3::BurstSink::SeqTsSizeFragCallback")
-    .AddTraceSource ("BurstTx", "A burst of packet is created and sent",
-                     MakeTraceSourceAccessor (&BurstyApplicationTcp::m_txBurstTrace),
-                     "ns3::BurstSink::SeqTsSizeFragCallback")
-  ;
+  static TypeId tid =
+      TypeId ("ns3::BurstyApplicationTcp")
+          .SetParent<Application> ()
+          .SetGroupName ("Applications")
+          .AddConstructor<BurstyApplicationTcp> ()
+          .AddAttribute (
+              "FragmentSize", "The size of packets sent in a burst including SeqTsSizeFragHeader",
+              UintegerValue (1200), MakeUintegerAccessor (&BurstyApplicationTcp::m_fragSize),
+              MakeUintegerChecker<uint32_t> (1))
+          .AddAttribute ("Remote", "The address of the destination", AddressValue (),
+                         MakeAddressAccessor (&BurstyApplicationTcp::m_peer), MakeAddressChecker ())
+          .AddAttribute (
+              "Local",
+              "The Address on which to bind the socket. If not set, it is generated automatically.",
+              AddressValue (), MakeAddressAccessor (&BurstyApplicationTcp::m_local),
+              MakeAddressChecker ())
+          .AddAttribute ("BurstGenerator", "The BurstGenerator used by this application",
+                         PointerValue (0),
+                         MakePointerAccessor (&BurstyApplicationTcp::m_burstGenerator),
+                         MakePointerChecker<BurstGenerator> ())
+          .AddAttribute ("Protocol",
+                         "The type of protocol to use. This should be "
+                         "a subclass of ns3::SocketFactory",
+                         TypeIdValue (UdpSocketFactory::GetTypeId ()),
+                         MakeTypeIdAccessor (&BurstyApplicationTcp::m_socketTid),
+                         MakeTypeIdChecker ())
+          .AddTraceSource ("FragmentTx", "A fragment of the burst is sent",
+                           MakeTraceSourceAccessor (&BurstyApplicationTcp::m_txFragmentTrace),
+                           "ns3::BurstSink::SeqTsSizeFragCallback")
+          .AddTraceSource ("BurstTx", "A burst of packet is created and sent",
+                           MakeTraceSourceAccessor (&BurstyApplicationTcp::m_txBurstTrace),
+                           "ns3::BurstSink::SeqTsSizeFragCallback");
   return tid;
 }
 
@@ -121,7 +120,6 @@ BurstyApplicationTcp::StartApplication ()
                           "In other words, use TCP instead of UDP.");
         }
 
-
       if (!m_local.IsInvalid ())
         {
           NS_ABORT_MSG_IF ((Inet6SocketAddress::IsMatchingType (m_peer) &&
@@ -155,8 +153,8 @@ BurstyApplicationTcp::StartApplication ()
 
       m_socket->SetConnectCallback (MakeCallback (&BurstyApplicationTcp::ConnectionSucceeded, this),
                                     MakeCallback (&BurstyApplicationTcp::ConnectionFailed, this));
+      m_socket->SetSendCallback (MakeCallback (&BurstyApplicationTcp::DataSend, this));
     }
-
 }
 
 void

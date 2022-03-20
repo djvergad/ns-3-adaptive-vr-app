@@ -17,18 +17,10 @@
 // Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 //
 
-#ifndef BURSTY_APPLICATION_TCP_H
-#define BURSTY_APPLICATION_TCP_H
+#ifndef VR_ADAPTIVE_BURSTY_APPLICATION_TCP_H
+#define VR_ADAPTIVE_BURSTY_APPLICATION_TCP_H
 
-#include "ns3/address.h"
-#include "ns3/application.h"
-#include "ns3/event-id.h"
-#include "ns3/ptr.h"
-#include "ns3/data-rate.h"
-#include "ns3/traced-callback.h"
-#include "ns3/seq-ts-size-frag-header.h"
-
-#include "bursty-application.h"
+#include "bursty-application-tcp.h"
 
 namespace ns3 {
 
@@ -79,7 +71,7 @@ class BurstGenerator;
  * queried to the generator.
  * 
  */
-class BurstyApplicationTcp : public BurstyApplication
+class VrAdaptiveBurstyApplicationTcp : public BurstyApplicationTcp
 {
 public:
   /**
@@ -88,31 +80,29 @@ public:
    */
   static TypeId GetTypeId (void);
 
-  BurstyApplicationTcp ();
+  VrAdaptiveBurstyApplicationTcp ();
 
-  virtual ~BurstyApplicationTcp ();
+  virtual ~VrAdaptiveBurstyApplicationTcp ();
 
 protected:
-  virtual void DoDispose (void);
-
-  // private:
-  // inherited from Application base class.
   virtual void StartApplication (void); // Called at time specified by Start
-  virtual void StopApplication (void); // Called at time specified by Stop
 
+  // Event handlers
   /**
+   * \brief Sends a packet burst and schedules the next one
+   */
+  void HandleRead (Ptr<Socket>); // Called when a request is received
+
+    /**
    * \brief Handle a Connection Succeed event
    * \param socket the connected socket
    */
   virtual void ConnectionSucceeded (Ptr<Socket> socket);
 
-  /**
-   * \brief Connection Failed (called by Socket through a callback)
-   * \param socket the connected socket
-   */
-  void ConnectionFailed (Ptr<Socket> socket);
+
+  DataRate initRate = DataRate (0);
 };
 
 } // namespace ns3
 
-#endif /* BURSTY_APPLICATION_TCP_H */
+#endif /* VR_ADAPTIVE_BURSTY_APPLICATION_TCP_H */

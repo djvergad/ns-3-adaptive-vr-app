@@ -20,50 +20,61 @@
 #include "ns3/log.h"
 #include "ns3/simulator.h"
 #include "ns3/udp-socket-factory.h"
-#include "vr-adaptive-burst-sink.h"
+#include "vr-adaptive-burst-sink-tcp.h"
 #include "vr-adaptive-header.h"
 
 namespace ns3 {
 
-NS_LOG_COMPONENT_DEFINE ("VrAdaptiveBurstSink");
+NS_LOG_COMPONENT_DEFINE ("VrAdaptiveBurstSinkTcp");
 
-NS_OBJECT_ENSURE_REGISTERED (VrAdaptiveBurstSink);
+NS_OBJECT_ENSURE_REGISTERED (VrAdaptiveBurstSinkTcp);
 
 TypeId
-VrAdaptiveBurstSink::GetTypeId (void)
+VrAdaptiveBurstSinkTcp::GetTypeId (void)
 {
   static TypeId tid =
-      TypeId ("ns3::VrAdaptiveBurstSink")
+      TypeId ("ns3::VrAdaptiveBurstSinkTcp")
           .SetParent<Application> ()
           .SetGroupName ("Applications")
-          .AddConstructor<VrAdaptiveBurstSink> ()
+          .AddConstructor<VrAdaptiveBurstSinkTcp> ()
           .AddAttribute ("Local", "The Address on which to Bind the rx socket.", AddressValue (),
-                         MakeAddressAccessor (&VrAdaptiveBurstSink::m_local), MakeAddressChecker ())
+                         MakeAddressAccessor (&VrAdaptiveBurstSinkTcp::m_local),
+                         MakeAddressChecker ())
           .AddAttribute ("Protocol", "The type id of the protocol to use for the rx socket.",
                          TypeIdValue (UdpSocketFactory::GetTypeId ()),
-                         MakeTypeIdAccessor (&VrAdaptiveBurstSink::m_tid), MakeTypeIdChecker ())
+                         MakeTypeIdAccessor (&VrAdaptiveBurstSinkTcp::m_tid), MakeTypeIdChecker ())
           .AddTraceSource ("FragmentRx", "A fragment has been received",
-                           MakeTraceSourceAccessor (&VrAdaptiveBurstSink::m_rxFragmentTrace),
+                           MakeTraceSourceAccessor (&VrAdaptiveBurstSinkTcp::m_rxFragmentTrace),
                            "ns3::BurstSink::SeqTsSizeFragCallback")
           .AddTraceSource ("BurstRx", "A burst has been successfully received",
-                           MakeTraceSourceAccessor (&VrAdaptiveBurstSink::m_rxBurstTrace),
+                           MakeTraceSourceAccessor (&VrAdaptiveBurstSinkTcp::m_rxBurstTrace),
                            "ns3::BurstSink::SeqTsSizeFragCallback");
   return tid;
 }
 
-VrAdaptiveBurstSink::VrAdaptiveBurstSink ()
+VrAdaptiveBurstSinkTcp::VrAdaptiveBurstSinkTcp ()
 {
   NS_LOG_FUNCTION (this);
 }
 
-VrAdaptiveBurstSink::~VrAdaptiveBurstSink ()
+VrAdaptiveBurstSinkTcp::~VrAdaptiveBurstSinkTcp ()
 {
   NS_LOG_FUNCTION (this);
 }
 
 void
-VrAdaptiveBurstSink::FragmentReceived (BurstHandler &burstHandler, const Ptr<Packet> &f,
-                                       const Address &from, const Address &localAddress)
+VrAdaptiveBurstSinkTcp::HandleRead (Ptr<Socket> socket)
+{
+  NS_LOG_FUNCTION (this << socket);
+
+  m_tempSocket = socket;
+
+  BurstSinkTcp::HandleRead (socket);
+}
+
+void
+VrAdaptiveBurstSinkTcp::FragmentReceived (BurstHandler &burstHandler, const Ptr<Packet> &f,
+                                          const Address &from, const Address &localAddress)
 {
   NS_LOG_FUNCTION (this << f);
 
@@ -121,7 +132,7 @@ VrAdaptiveBurstSink::FragmentReceived (BurstHandler &burstHandler, const Ptr<Pac
   Ptr<Packet> packet = Create<Packet> (100);
   VrAdaptiveHeader responseHeader;
 
-  //  double arate = 0.7 * avg_throughput.GetBitRate () + 0.3 * instant_throughput.GetBitRate ();
+  // double arate = 0.7 * avg_throughput.GetBitRate () + 0.3 * instant_throughput.GetBitRate ();
 
   double arate = avg_throughput.GetBitRate ();
 
@@ -163,7 +174,7 @@ VrAdaptiveBurstSink::FragmentReceived (BurstHandler &burstHandler, const Ptr<Pac
   //           << " Mbps avg_throughput " << avg_throughput.GetBitRate () / 1e6
   //           << " Mbps req_throughput " << arate / 1e6 << " Mbps" << std::endl;
 
-  NS_LOG_DEBUG ("Time " << Simulator::Now ().GetSeconds () << " sec delay "
+  NS_LOG_DEBUG ("Time " << Simulator::Now ().GetSeconds () << " from " << from << " sec delay "
                         << delay.GetMilliSeconds () << " msec avg_delay "
                         << avg_delay.GetMilliSeconds () << " msec instant_throughput "
                         << instant_throughput.GetBitRate () / 1e6 << " Mbps avg_throughput "
@@ -173,15 +184,19 @@ VrAdaptiveBurstSink::FragmentReceived (BurstHandler &burstHandler, const Ptr<Pac
   responseHeader.SetTargetDataRate (DataRate (arate));
   packet->AddHeader (responseHeader);
 
-  int64_t bytes_sent = m_socket->SendTo (packet, 0, from);
+  int64_t bytes_sent = m_tempSocket->Send (packet);
 
   if (bytes_sent == -1)
     {
-      NS_FATAL_ERROR ("Cannot sent  " << bytes_sent << " errno " << m_socket->GetErrno ());
+      int my_errno = m_socket->GetErrno ();
+      if (my_errno != Socket::ERROR_NOTERROR)
+        {
+          NS_FATAL_ERROR ("Cannot sent  " << bytes_sent << " errno " << my_errno);
+        }
     }
-  //}
+  // }
 
-  BurstSink::FragmentReceived (burstHandler, f, from, localAddress);
+  BurstSinkTcp::FragmentReceived (burstHandler, f, from, localAddress);
 }
 
 } // Namespace ns3

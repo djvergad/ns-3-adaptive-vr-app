@@ -28,6 +28,9 @@
 #include "ns3/traced-callback.h"
 #include "ns3/seq-ts-size-frag-header.h"
 
+#include <queue>
+
+
 namespace ns3 {
 
 class Address;
@@ -187,6 +190,10 @@ protected:
   /// Callback for transmitted fragment
   TracedCallback<Ptr<const Packet>, const Address &, const Address &, const SeqTsSizeFragHeader &>
       m_txFragmentTrace;
+
+  void DataSend (Ptr<Socket>, uint32_t); // Called when a new segment is transmitted
+  // A structure that contains the generated MPEG frames, for each client.
+  std::deque<Packet> m_queue;
 };
 
 } // namespace ns3

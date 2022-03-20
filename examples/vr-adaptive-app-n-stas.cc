@@ -125,7 +125,7 @@ int
 main (int argc, char *argv[])
 {
   uint32_t nStas = 2; // the number of STAs around the AP
-  double distance = 10; // the distance from the AP [m]
+  double distance = 9; // the distance from the AP [m]
   std::string appRate = "50Mbps"; // the app target data rate
   double frameRate = 60; // the app frame rate [FPS]
   std::string vrAppName = "VirusPopper"; // the app name
@@ -152,10 +152,16 @@ main (int argc, char *argv[])
   LogComponentEnableAll (LOG_PREFIX_ALL);
   LogComponentEnable ("VrAdaptiveAppNStas", LOG_INFO);
   LogComponentEnable ("BurstSink", LOG_ALL);
+  LogComponentEnable ("BurstyApplication", LOG_ALL);
   LogComponentEnable ("VrAdaptiveBurstSink", LOG_ALL);
+  LogComponentEnable ("VrAdaptiveBurstyApplication", LOG_ALL);
   LogComponentEnable ("BurstSinkTcp", LOG_ALL);
   LogComponentEnable ("BurstyApplicationTcp", LOG_ALL);
-  LogComponentEnable ("BurstyApplication", LOG_ALL);
+  LogComponentEnable ("VrAdaptiveBurstSinkTcp", LOG_ALL);
+  LogComponentEnable ("VrAdaptiveBurstyApplicationTcp", LOG_ALL);
+
+  Config::SetDefault ("ns3::TcpL4Protocol::SocketType",
+                      TypeIdValue (TypeId::LookupByName ("ns3::TcpHtcp")));
 
   // Disable RTS/CTS
   Config::SetDefault ("ns3::WifiRemoteStationManager::RtsCtsThreshold", StringValue ("999999"));
@@ -228,26 +234,31 @@ main (int argc, char *argv[])
 
   // Setting applications
   uint16_t port = 50000;
-  BurstSinkHelper server (burstGeneratorType == "tcp" ? "ns3::TcpSocketFactory"
-                                                      : "ns3::UdpSocketFactory",
+  BurstSinkHelper server ((burstGeneratorType == "tcp" || burstGeneratorType == "tcp_adaptive")
+                              ? "ns3::TcpSocketFactory"
+                              : "ns3::UdpSocketFactory",
                           InetSocketAddress (Ipv4Address::GetAny (), port),
-                          burstGeneratorType == "adaptive" ? "ns3::VrAdaptiveBurstSink"
-                          : burstGeneratorType == "tcp"    ? "ns3::BurstSinkTcp"
-                                                           : "ns3::BurstSink");
+                          burstGeneratorType == "adaptive"       ? "ns3::VrAdaptiveBurstSink"
+                          : burstGeneratorType == "tcp"          ? "ns3::BurstSinkTcp"
+                          : burstGeneratorType == "tcp_adaptive" ? "ns3::VrAdaptiveBurstSinkTcp"
+                                                                 : "ns3::BurstSink");
   ApplicationContainer serverApp = server.Install (wifiApNode);
   serverApp.Start (Seconds (0.0));
-  serverApp.Stop (Seconds (simulationTime + 1));
+  serverApp.Stop (Seconds (simulationTime + 10));
 
-  BurstyHelper client (burstGeneratorType == "tcp" ? "ns3::TcpSocketFactory"
-                                                   : "ns3::UdpSocketFactory",
+  BurstyHelper client ((burstGeneratorType == "tcp" || burstGeneratorType == "tcp_adaptive")
+                           ? "ns3::TcpSocketFactory"
+                           : "ns3::UdpSocketFactory",
                        InetSocketAddress (ApInterface.GetAddress (0), port),
                        burstGeneratorType == "adaptive" ? "ns3::VrAdaptiveBurstyApplication"
                        : burstGeneratorType == "tcp "   ? "ns3::BurstyApplicationTcp"
-                                                        : "ns3::BurstyApplication");
+                       : burstGeneratorType == "tcp_adaptive"
+                           ? "ns3::VrAdaptiveBurstyApplicationTcp"
+                           : "ns3::BurstyApplication");
   client.SetAttribute ("FragmentSize", UintegerValue (fragmentSize));
 
   if (burstGeneratorType == "model" || burstGeneratorType == "adaptive" ||
-      burstGeneratorType == "tcp")
+      burstGeneratorType == "tcp" || burstGeneratorType == "tcp_adaptive")
     {
       NS_LOG_DEBUG ("VR generator with framerate=" << frameRate << ", appRate=" << appRate
                                                    << ", vrAppName=" << vrAppName);
@@ -354,7 +365,7 @@ main (int argc, char *argv[])
       ->TraceConnectWithoutContext ("FragmentRx", MakeBoundCallback (&FragmentRx, fragmentTrace));
 
   // Start simulation
-  Simulator::Stop (Seconds (simulationTime + 1));
+  Simulator::Stop (Seconds (simulationTime + 10));
   Simulator::Run ();
 
   // burst info

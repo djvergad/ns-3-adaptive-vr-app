@@ -145,14 +145,12 @@ BurstSinkTcp::HandleRead (Ptr<Socket> socket)
 
       m_totRxBytes += fragment->GetSize ();
 
-
       if (m_incomplete_packets[socket] && m_incomplete_packets[socket]->GetSize () > 0)
         {
           m_incomplete_packets[socket]->AddAtEnd (fragment);
           fragment = m_incomplete_packets[socket]->Copy ();
           m_incomplete_packets[socket] = nullptr;
         }
-
 
       std::stringstream addressStr;
       if (InetSocketAddress::IsMatchingType (from))
@@ -185,10 +183,10 @@ BurstSinkTcp::HandleRead (Ptr<Socket> socket)
           itBuffer = m_burstHandlerMap.insert (std::make_pair (from, BurstHandler ())).first;
         }
 
-      uint64_t del_size = 0; 
+      uint64_t del_size = 0;
 
       SeqTsSizeFragHeader header;
-      if (header.GetSerializedSize () < fragment->GetSize ())
+      if (header.GetSerializedSize () <= fragment->GetSize ())
         {
           fragment->PeekHeader (header);
           NS_LOG_DEBUG ("HEADER SIZE " << header.GetSize () << " header seriqlized "
@@ -197,70 +195,27 @@ BurstSinkTcp::HandleRead (Ptr<Socket> socket)
                                        << fragment->GetSize () << " fragment serialized "
                                        << fragment->GetSerializedSize ());
           del_size = header.GetFragBytes ();
+
+          if (del_size <= fragment->GetSize ())
+            {
+
+              m_incomplete_packets[socket] =
+                  fragment->Copy ()->CreateFragment (del_size, fragment->GetSize () - del_size);
+              fragment = fragment->Copy ()->CreateFragment (0, del_size);
+
+              FragmentReceived (itBuffer->second, fragment, from, localAddress);
+            }
+          else
+            {
+              m_incomplete_packets[socket] = fragment->Copy ();
+            }
         }
       else
         {
           NS_LOG_DEBUG ("HEADER SIZE TOO SMALL: fragment size " << fragment->GetSize ()
                                                                 << " fragment serialized "
                                                                 << fragment->GetSerializedSize ());
-        }
-
-      if ((fragment->GetSize () < header.GetSerializedSize () ||
-          fragment->GetSize () < del_size))
-        {
           m_incomplete_packets[socket] = fragment->Copy ();
-          break;
-        }
-      // else if (header.GetSize () == 0/* || header.GetFragBytes () == 0*/)
-      //   {
-      //     // NS_FATAL_ERROR("FOUND ZERO HEADER");
-      //     m_incomplete_packets[socket] = nullptr;
-      //     break;
-      //   }
-      else
-        {
-          m_incomplete_packets[socket] = fragment->Copy ()->CreateFragment (
-              del_size, fragment->GetSize () - del_size);
-
-          SeqTsSizeFragHeader header;
-
-          if (header.GetSerializedSize () < m_incomplete_packets[socket]->GetSize ())
-            {
-
-              m_incomplete_packets[socket]->PeekHeader (header);
-
-              NS_LOG_DEBUG ("INCOMPLETE IS " << header.GetSize () << " header seriqlized "
-                                             << header.GetSerializedSize () << " fragment bytes "
-                                             << header.GetFragBytes () << " fragment size "
-                                             << m_incomplete_packets[socket]->GetSize ()
-                                             << " fragment serialized "
-                                             << m_incomplete_packets[socket]->GetSerializedSize ());
-            }
-          else
-            {
-              NS_LOG_DEBUG ("INCOMPLETE TOO SMALL: fragment size "
-                            << m_incomplete_packets[socket]->GetSize () << " fragment serialized "
-                            << m_incomplete_packets[socket]->GetSerializedSize ());
-            }
-          fragment = fragment->Copy ()->CreateFragment (0, del_size);
-
-          if (header.GetSerializedSize () < fragment->GetSize ())
-            {
-
-              fragment->PeekHeader (header);
-              NS_LOG_DEBUG ("DELIVERED IS " << header.GetSize () << " header seriqlized "
-                                            << header.GetSerializedSize () << " fragment bytes "
-                                            << header.GetFragBytes () << " fragment size "
-                                            << fragment->GetSize () << " fragment serialized "
-                                            << fragment->GetSerializedSize ());
-            }
-          else
-            {
-              NS_LOG_DEBUG ("DELIVERED TOO SMALL: fragment size "
-                            << fragment->GetSize () << " fragment serialized "
-                            << fragment->GetSerializedSize ());
-            }
-          FragmentReceived (itBuffer->second, fragment, from, localAddress);
         }
     }
 }

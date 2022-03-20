@@ -320,7 +320,7 @@ BurstSink::FragmentReceived (BurstHandler &burstHandler, const Ptr<Packet> &f, c
                      burstHandler.m_burstBuffer->GetSize () << " == " << header.GetSize ());
 
       NS_LOG_LOGIC ("Burst received: " << header.GetFrags () << " fragments for a total of "
-                                       << header.GetSize () << " B");
+                                       << header.GetSize () << " B " << header.GetSeq());
       m_totRxBursts++;
       m_rxBurstTrace (burstHandler.m_burstBuffer, from, localAddress,
                       header); // TODO header size does not include payload, why?
@@ -345,6 +345,10 @@ BurstSink::HandleAccept (Ptr<Socket> s, const Address &from)
   NS_LOG_FUNCTION (this << s << from);
   s->SetRecvCallback (MakeCallback (&BurstSink::HandleRead, this));
   m_socketList.push_back (s);
+
+  Ptr<Packet> dummy = Create<Packet> (100);
+  s->Send(dummy);
+
 }
 
 } // Namespace ns3

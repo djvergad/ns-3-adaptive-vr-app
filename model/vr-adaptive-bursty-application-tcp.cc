@@ -22,74 +22,80 @@
 #include "ns3/udp-socket-factory.h"
 #include "ns3/pointer.h"
 #include "vr-adaptive-header.h"
-#include "vr-adaptive-bursty-application.h"
+#include "vr-burst-generator.h"
+#include "vr-adaptive-bursty-application-tcp.h"
 
 namespace ns3 {
 
-NS_LOG_COMPONENT_DEFINE ("VrAdaptiveBurstyApplication");
+NS_LOG_COMPONENT_DEFINE ("VrAdaptiveBurstyApplicationTcp");
 
-NS_OBJECT_ENSURE_REGISTERED (VrAdaptiveBurstyApplication);
+NS_OBJECT_ENSURE_REGISTERED (VrAdaptiveBurstyApplicationTcp);
 
 TypeId
-VrAdaptiveBurstyApplication::GetTypeId (void)
+VrAdaptiveBurstyApplicationTcp::GetTypeId (void)
 {
   static TypeId tid =
-      TypeId ("ns3::VrAdaptiveBurstyApplication")
+      TypeId ("ns3::VrAdaptiveBurstyApplicationTcp")
           .SetParent<Application> ()
           .SetGroupName ("Applications")
-          .AddConstructor<VrAdaptiveBurstyApplication> ()
-          .AddAttribute (
-              "FragmentSize", "The size of packets sent in a burst including SeqTsSizeFragHeader",
-              UintegerValue (1200), MakeUintegerAccessor (&VrAdaptiveBurstyApplication::m_fragSize),
-              MakeUintegerChecker<uint32_t> (1))
+          .AddConstructor<VrAdaptiveBurstyApplicationTcp> ()
+          .AddAttribute ("FragmentSize",
+                         "The size of packets sent in a burst including SeqTsSizeFragHeader",
+                         UintegerValue (1200),
+                         MakeUintegerAccessor (&VrAdaptiveBurstyApplicationTcp::m_fragSize),
+                         MakeUintegerChecker<uint32_t> (1))
           .AddAttribute ("Remote", "The address of the destination", AddressValue (),
-                         MakeAddressAccessor (&VrAdaptiveBurstyApplication::m_peer),
+                         MakeAddressAccessor (&VrAdaptiveBurstyApplicationTcp::m_peer),
                          MakeAddressChecker ())
           .AddAttribute (
               "Local",
               "The Address on which to bind the socket. If not set, it is generated automatically.",
-              AddressValue (), MakeAddressAccessor (&VrAdaptiveBurstyApplication::m_local),
+              AddressValue (), MakeAddressAccessor (&VrAdaptiveBurstyApplicationTcp::m_local),
               MakeAddressChecker ())
           .AddAttribute ("BurstGenerator", "The BurstGenerator used by this application",
                          PointerValue (0),
-                         MakePointerAccessor (&VrAdaptiveBurstyApplication::m_burstGenerator),
+                         MakePointerAccessor (&VrAdaptiveBurstyApplicationTcp::m_burstGenerator),
                          MakePointerChecker<BurstGenerator> ())
           .AddAttribute ("Protocol",
                          "The type of protocol to use. This should be "
                          "a subclass of ns3::SocketFactory",
                          TypeIdValue (UdpSocketFactory::GetTypeId ()),
-                         MakeTypeIdAccessor (&VrAdaptiveBurstyApplication::m_socketTid),
+                         MakeTypeIdAccessor (&VrAdaptiveBurstyApplicationTcp::m_socketTid),
                          MakeTypeIdChecker ())
           .AddTraceSource (
               "FragmentTx", "A fragment of the burst is sent",
-              MakeTraceSourceAccessor (&VrAdaptiveBurstyApplication::m_txFragmentTrace),
+              MakeTraceSourceAccessor (&VrAdaptiveBurstyApplicationTcp::m_txFragmentTrace),
               "ns3::BurstSink::SeqTsSizeFragCallback")
-          .AddTraceSource ("BurstTx", "A burst of packet is created and sent",
-                           MakeTraceSourceAccessor (&VrAdaptiveBurstyApplication::m_txBurstTrace),
-                           "ns3::BurstSink::SeqTsSizeFragCallback");
+          .AddTraceSource (
+              "BurstTx", "A burst of packet is created and sent",
+              MakeTraceSourceAccessor (&VrAdaptiveBurstyApplicationTcp::m_txBurstTrace),
+              "ns3::BurstSink::SeqTsSizeFragCallback");
   return tid;
 }
 
-VrAdaptiveBurstyApplication::VrAdaptiveBurstyApplication ()
+VrAdaptiveBurstyApplicationTcp::VrAdaptiveBurstyApplicationTcp ()
 {
   NS_LOG_FUNCTION (this);
 }
 
-VrAdaptiveBurstyApplication::~VrAdaptiveBurstyApplication ()
+VrAdaptiveBurstyApplicationTcp::~VrAdaptiveBurstyApplicationTcp ()
 {
   NS_LOG_FUNCTION (this);
 }
 
 void
-VrAdaptiveBurstyApplication::StartApplication ()
+VrAdaptiveBurstyApplicationTcp::StartApplication ()
 {
   NS_LOG_FUNCTION (this);
   BurstyApplication::StartApplication ();
-  m_socket->SetRecvCallback (MakeCallback (&VrAdaptiveBurstyApplication::HandleRead, this));
+  m_socket->SetRecvCallback (MakeCallback (&VrAdaptiveBurstyApplicationTcp::HandleRead, this));
+  m_socket->SetConnectCallback (
+      MakeCallback (&VrAdaptiveBurstyApplicationTcp::ConnectionSucceeded, this),
+      MakeCallback (&VrAdaptiveBurstyApplicationTcp::ConnectionFailed, this));
 }
 
 void
-VrAdaptiveBurstyApplication::HandleRead (Ptr<Socket> socket)
+VrAdaptiveBurstyApplicationTcp::HandleRead (Ptr<Socket> socket)
 {
   NS_LOG_FUNCTION (this << socket);
   Ptr<Packet> packet;
@@ -119,6 +125,22 @@ VrAdaptiveBurstyApplication::HandleRead (Ptr<Socket> socket)
             }
         }
     }
+}
+
+void
+VrAdaptiveBurstyApplicationTcp::ConnectionSucceeded (Ptr<Socket> socket)
+{
+  NS_LOG_FUNCTION (this << socket);
+  m_connected = true;
+
+  Ptr<VrBurstGenerator> vrBurstGenerator = DynamicCast<VrBurstGenerator> (m_burstGenerator);
+  initRate = vrBurstGenerator->GetTargetDataRate ();
+  vrBurstGenerator->SetTargetDataRate(DataRate(1e6));
+
+
+  // Ensure no pending event
+  CancelEvents ();
+  SendBurst ();
 }
 
 } // Namespace ns3

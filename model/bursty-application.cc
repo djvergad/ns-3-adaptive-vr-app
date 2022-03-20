@@ -162,6 +162,8 @@ BurstyApplication::StartApplication ()
 
       m_socket->SetConnectCallback (MakeCallback (&BurstyApplication::ConnectionSucceeded, this),
                                     MakeCallback (&BurstyApplication::ConnectionFailed, this));
+
+      m_socket->SetSendCallback (MakeCallback (&BurstyApplication::DataSend, this));
     }
 
   // Ensure no pending event
@@ -200,6 +202,8 @@ BurstyApplication::SendBurst ()
   NS_LOG_FUNCTION (this);
   NS_ASSERT (m_nextBurstEvent.IsExpired ());
 
+  DataSend (m_socket, 0);
+
   // get burst info
   uint32_t burstSize = 0;
   Time period;
@@ -219,9 +223,11 @@ BurstyApplication::SendBurst ()
   //
   SeqTsSizeFragHeader hdrTmp;
 
-  if (burstSize <= hdrTmp.GetSerializedSize ())
+  uint32_t min_burst = 100;
+
+  if (burstSize < min_burst)
     {
-      burstSize = hdrTmp.GetSerializedSize () + 1;
+      burstSize = min_burst;
     }
 
   NS_ASSERT_MSG (period.IsPositive (),
@@ -306,30 +312,34 @@ BurstyApplication::SendFragmentedBurst (uint32_t burstSize)
 
   uint64_t fragmentStart = 0;
   uint16_t fragmentSeq = 0;
-  for (uint32_t i = 0; i < numFullFrags; i++)
-    {
-      Ptr<Packet> fragment = burst->CreateFragment (fragmentStart, fullFragmentPayload);
-      fragmentStart += fullFragmentPayload;
-      SendFragment (fragment, burstPayload, totFrags, fragmentSeq++);
-    }
 
-  if (secondToLastFragSize > 0)
+  if ((numFullFrags + (secondToLastFragSize > 0) + (lastFragSize > 0)) + m_queue.size () < 1000)
     {
-      uint64_t secondToLastFragPayload = secondToLastFragSize - hdrTmp.GetSerializedSize ();
-      Ptr<Packet> fragment = burst->CreateFragment (fragmentStart, secondToLastFragPayload);
-      fragmentStart += secondToLastFragPayload;
-      SendFragment (fragment, burstPayload, totFrags, fragmentSeq++);
-    }
 
-  if (lastFragSize > 0)
-    {
-      uint64_t lastFragPayload = lastFragSize - hdrTmp.GetSerializedSize ();
-      Ptr<Packet> fragment = burst->CreateFragment (fragmentStart, lastFragPayload);
-      fragmentStart += lastFragPayload;
-      SendFragment (fragment, burstPayload, totFrags, fragmentSeq++);
-    }
+      for (uint32_t i = 0; i < numFullFrags; i++)
+        {
+          Ptr<Packet> fragment = burst->CreateFragment (fragmentStart, fullFragmentPayload);
+          fragmentStart += fullFragmentPayload;
+          SendFragment (fragment, burstPayload, totFrags, fragmentSeq++);
+        }
 
-  NS_ASSERT (fragmentStart == burst->GetSize ());
+      if (secondToLastFragSize > 0)
+        {
+          uint64_t secondToLastFragPayload = secondToLastFragSize - hdrTmp.GetSerializedSize ();
+          Ptr<Packet> fragment = burst->CreateFragment (fragmentStart, secondToLastFragPayload);
+          fragmentStart += secondToLastFragPayload;
+          SendFragment (fragment, burstPayload, totFrags, fragmentSeq++);
+        }
+
+      if (lastFragSize > 0)
+        {
+          uint64_t lastFragPayload = lastFragSize - hdrTmp.GetSerializedSize ();
+          Ptr<Packet> fragment = burst->CreateFragment (fragmentStart, lastFragPayload);
+          fragmentStart += lastFragPayload;
+          SendFragment (fragment, burstPayload, totFrags, fragmentSeq++);
+        }
+      NS_ASSERT (fragmentStart == burst->GetSize ());
+    }
 
   m_totTxBursts++;
 }
@@ -350,51 +360,100 @@ BurstyApplication::SendFragment (Ptr<Packet> fragment, uint64_t burstSize, uint1
 
   uint32_t fragmentSize = fragment->GetSize ();
 
-  if (m_socket->GetTxAvailable () < fragment->GetSize ())
+  // if (m_socket->GetTxAvailable () < fragment->GetSize ())
+  //   {
+  //     NS_LOG_DEBUG (
+  //         "Unable to send fragment: TxBuffer is full, disgarding. = " << fragment->GetSize ());
+  //     return;
+  //   }
+
+  if (m_queue.size () < 1000)
     {
-      NS_LOG_DEBUG (
-          "Unable to send fragment: TxBuffer is full, disgarding. = " << fragment->GetSize ());
-      return;
+      m_queue.push_back (*fragment);
     }
+  // int actual = m_socket->Send (fragment);
+  // if (uint32_t (actual) == fragmentSize)
+  // {
+  Address from, to;
+  m_socket->GetSockName (from);
+  m_socket->GetPeerName (to);
 
-  int actual = m_socket->Send (fragment);
-  if (uint32_t (actual) == fragmentSize)
+  m_txFragmentTrace (fragment, from, to,
+                     header); // TODO should fragment already include header in trace?
+  m_totTxFragments++;
+  m_totTxBytes += fragmentSize;
+
+  std::stringstream addressStr;
+  if (InetSocketAddress::IsMatchingType (m_peer))
     {
-      Address from, to;
-      m_socket->GetSockName (from);
-      m_socket->GetPeerName (to);
-
-      m_txFragmentTrace (fragment, from, to,
-                         header); // TODO should fragment already include header in trace?
-      m_totTxFragments++;
-      m_totTxBytes += fragmentSize;
-
-      std::stringstream addressStr;
-      if (InetSocketAddress::IsMatchingType (m_peer))
-        {
-          addressStr << InetSocketAddress::ConvertFrom (m_peer).GetIpv4 () << " port "
-                     << InetSocketAddress::ConvertFrom (m_peer).GetPort ();
-        }
-      else if (Inet6SocketAddress::IsMatchingType (m_peer))
-        {
-          addressStr << Inet6SocketAddress::ConvertFrom (m_peer).GetIpv6 () << " port "
-                     << Inet6SocketAddress::ConvertFrom (m_peer).GetPort ();
-        }
-      else
-        {
-          addressStr << "UNKNOWN ADDRESS TYPE";
-        }
-
-      NS_LOG_INFO ("At time " << Simulator::Now ().As (Time::S)
-                              << " bursty application sent fragment of " << fragment->GetSize ()
-                              << " bytes to " << addressStr.str () << " with header=" << header);
+      addressStr << InetSocketAddress::ConvertFrom (m_peer).GetIpv4 () << " port "
+                 << InetSocketAddress::ConvertFrom (m_peer).GetPort ();
+    }
+  else if (Inet6SocketAddress::IsMatchingType (m_peer))
+    {
+      addressStr << Inet6SocketAddress::ConvertFrom (m_peer).GetIpv6 () << " port "
+                 << Inet6SocketAddress::ConvertFrom (m_peer).GetPort ();
     }
   else
     {
+      addressStr << "UNKNOWN ADDRESS TYPE";
+    }
 
-      NS_LOG_DEBUG ("Unable to send fragment: fragment size="
-                    << fragment->GetSize () << ", socket sent=" << actual << " errno "
-                    << m_socket->GetErrno () << "; ignoring unexpected behavior");
+  NS_LOG_INFO ("At time " << Simulator::Now ().As (Time::S)
+                          << " bursty application sent fragment of " << fragment->GetSize ()
+                          << " bytes to " << addressStr.str () << " with header=" << header);
+
+  DataSend (m_socket, 0);
+}
+// else
+//   {
+
+//     NS_LOG_DEBUG ("Unable to send fragment: fragment size="
+//                   << fragment->GetSize () << ", socket sent=" << actual << " errno "
+//                   << m_socket->GetErrno () << "; ignoring unexpected behavior");
+//   }
+//}
+
+void
+BurstyApplication::DataSend (Ptr<Socket> socket, uint32_t)
+{
+  while (!m_queue.empty ())
+    {
+      uint32_t max_tx_size = socket->GetTxAvailable ();
+
+      Ptr<Packet> frame = m_queue.front ().Copy ();
+      uint32_t init_size = frame->GetSize ();
+
+      if (max_tx_size <= init_size)
+        {
+          NS_LOG_INFO ("Socket Send buffer is full");
+          return;
+        }
+
+      m_queue.pop_front ();
+
+      // if (max_tx_size < init_size)
+      //   {
+      //     NS_LOG_INFO ("Insufficient space in send buffer, fragmenting");
+      //     Ptr<Packet> frag0 = frame->CreateFragment (0, max_tx_size);
+      //     Ptr<Packet> frag1 = frame->CreateFragment (max_tx_size, init_size - max_tx_size);
+
+      //     m_queue.push_front (*frag1);
+      //     frame = frag0;
+      //   }
+
+      uint32_t bytes;
+      if ((bytes = socket->Send (frame)) < frame->GetSize ())
+        {
+          NS_FATAL_ERROR ("Couldn't send packet, though space should be available");
+          exit (1);
+        }
+      else
+        {
+
+          NS_LOG_INFO ("Just sent " << frame->GetSerializedSize () << " " << frame->GetSize ());
+          //socket->Send(Create<Packet>(0));
+        }
     }
 }
 

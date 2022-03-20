@@ -86,8 +86,12 @@ main (int argc, char *argv[])
   Time::SetResolution (Time::NS);
   LogComponentEnableAll (LOG_PREFIX_TIME);
   LogComponentEnable ("BurstyApplicationExample", LOG_INFO);
-  LogComponentEnable ("VrAdaptiveBurstyApplication", LOG_INFO);
-  LogComponentEnable ("VrAdaptiveBurstSink", LOG_DEBUG);
+  LogComponentEnable ("VrAdaptiveBurstyApplicationTcp", LOG_ALL);
+  LogComponentEnable ("VrAdaptiveBurstSinkTcp", LOG_ALL);
+  LogComponentEnable ("BurstyApplicationTcp", LOG_ALL);
+  LogComponentEnable ("BurstSinkTcp", LOG_ALL);
+  LogComponentEnable ("BurstyApplication", LOG_ALL);
+  LogComponentEnable ("BurstSink", LOG_ALL);
 
   // Setup two nodes
   NodeContainer nodes;
@@ -113,8 +117,8 @@ main (int argc, char *argv[])
   Ipv4Address sinkAddress = Ipv4Address::GetAny (); // 0.0.0.0
 
   // Create bursty application helper
-  BurstyHelper burstyHelper ("ns3::UdpSocketFactory",
-                                       InetSocketAddress (serverAddress, portNumber), "ns3::VrAdaptiveBurstyApplication");
+  BurstyHelper burstyHelper ("ns3::TcpSocketFactory", InetSocketAddress (serverAddress, portNumber),
+                             "ns3::VrAdaptiveBurstyApplicationTcp");
 
   burstyHelper.SetAttribute ("FragmentSize", UintegerValue (1200));
   burstyHelper.SetBurstGenerator ("ns3::VrBurstGenerator", "FrameRate", DoubleValue (frameRate),
@@ -123,12 +127,12 @@ main (int argc, char *argv[])
 
   // Install bursty application
   ApplicationContainer serverApps = burstyHelper.Install (nodes.Get (1));
-  Ptr<BurstyApplication> burstyApp =
-      serverApps.Get (0)->GetObject<BurstyApplication> ();
+  Ptr<BurstyApplication> burstyApp = serverApps.Get (0)->GetObject<BurstyApplication> ();
 
   // Create burst sink helper
-  BurstSinkHelper burstSinkHelper ("ns3::UdpSocketFactory",
-                                             InetSocketAddress (sinkAddress, portNumber), "ns3::VrAdaptiveBurstSink");
+  BurstSinkHelper burstSinkHelper ("ns3::TcpSocketFactory",
+                                   InetSocketAddress (sinkAddress, portNumber),
+                                   "ns3::VrAdaptiveBurstSinkTcp");
 
   // Install HTTP client
   ApplicationContainer clientApps = burstSinkHelper.Install (nodes.Get (0));
