@@ -21,6 +21,7 @@
 #define VR_ADAPTIVE_BURST_SINK_TCP_H
 
 #include "burst-sink-tcp.h"
+#include "ns3/data-rate.h"
 
 namespace ns3 {
 
@@ -95,6 +96,8 @@ private:
   virtual void HandleRead (Ptr<Socket> socket);
 
   Ptr<Socket> m_tempSocket;
+
+  DataRate fuzzyAlgorithm(Time delay, Time diffDelay, DataRate avgRate);
 };
 
 } // namespace ns3

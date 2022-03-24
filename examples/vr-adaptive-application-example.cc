@@ -86,12 +86,12 @@ main (int argc, char *argv[])
   Time::SetResolution (Time::NS);
   LogComponentEnableAll (LOG_PREFIX_TIME);
   LogComponentEnable ("BurstyApplicationExample", LOG_INFO);
-  LogComponentEnable ("VrAdaptiveBurstyApplicationTcp", LOG_ALL);
-  LogComponentEnable ("VrAdaptiveBurstSinkTcp", LOG_ALL);
-  LogComponentEnable ("BurstyApplicationTcp", LOG_ALL);
-  LogComponentEnable ("BurstSinkTcp", LOG_ALL);
-  LogComponentEnable ("BurstyApplication", LOG_ALL);
-  LogComponentEnable ("BurstSink", LOG_ALL);
+  // LogComponentEnable ("VrAdaptiveBurstyApplicationTcp", LOG_ALL);
+  LogComponentEnable ("VrAdaptiveBurstSinkTcp", LOG_DEBUG);
+  // LogComponentEnable ("BurstyApplicationTcp", LOG_ALL);
+  // LogComponentEnable ("BurstSinkTcp", LOG_ALL);
+  // LogComponentEnable ("BurstyApplication", LOG_ALL);
+  // LogComponentEnable ("BurstSink", LOG_ALL);
 
   // Setup two nodes
   NodeContainer nodes;

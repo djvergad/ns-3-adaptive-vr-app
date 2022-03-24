@@ -151,14 +151,14 @@ main (int argc, char *argv[])
 
   LogComponentEnableAll (LOG_PREFIX_ALL);
   LogComponentEnable ("VrAdaptiveAppNStas", LOG_INFO);
-  LogComponentEnable ("BurstSink", LOG_ALL);
-  LogComponentEnable ("BurstyApplication", LOG_ALL);
-  LogComponentEnable ("VrAdaptiveBurstSink", LOG_ALL);
-  LogComponentEnable ("VrAdaptiveBurstyApplication", LOG_ALL);
-  LogComponentEnable ("BurstSinkTcp", LOG_ALL);
-  LogComponentEnable ("BurstyApplicationTcp", LOG_ALL);
-  LogComponentEnable ("VrAdaptiveBurstSinkTcp", LOG_ALL);
-  LogComponentEnable ("VrAdaptiveBurstyApplicationTcp", LOG_ALL);
+  // LogComponentEnable ("BurstSink", LOG_ALL);
+  // LogComponentEnable ("BurstyApplication", LOG_ALL);
+  // LogComponentEnable ("VrAdaptiveBurstSink", LOG_ALL);
+  // LogComponentEnable ("VrAdaptiveBurstyApplication", LOG_ALL);
+  // LogComponentEnable ("BurstSinkTcp", LOG_ALL);
+  // LogComponentEnable ("BurstyApplicationTcp", LOG_ALL);
+  LogComponentEnable ("VrAdaptiveBurstSinkTcp", LOG_DEBUG);
+  // LogComponentEnable ("VrAdaptiveBurstyApplicationTcp", LOG_ALL);
 
   Config::SetDefault ("ns3::TcpL4Protocol::SocketType",
                       TypeIdValue (TypeId::LookupByName ("ns3::TcpHtcp")));
