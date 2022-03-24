@@ -21,6 +21,7 @@
 #define VR_ADAPTIVE_BURST_SINK_H
 
 #include "burst-sink.h"
+#include "fuzzy-algorithm.h"
 
 namespace ns3 {
 
@@ -88,9 +89,8 @@ private:
   void FragmentReceived (BurstHandler &burstHandler, const Ptr<Packet> &f, const Address &from,
                          const Address &localAddress);
 
-  std::map<Address, Time> m_lastFragmentTimes;
-  std::map<Address, Time> m_started_ats;
-  std::map<Address, std::multimap<Time, std::tuple<uint64_t, Time>>> m_rateBuffers;
+  std::map<Address, FuzzyAlgorithm> m_fuzzyAlgorithms;
+  Ptr<Socket> m_tempSocket;
 };
 
 } // namespace ns3

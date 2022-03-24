@@ -87,12 +87,12 @@ main (int argc, char *argv[])
   LogComponentEnableAll (LOG_PREFIX_TIME);
   LogComponentEnable ("BurstyApplicationExample", LOG_INFO);
   // LogComponentEnable ("VrAdaptiveBurstyApplicationTcp", LOG_ALL);
-  LogComponentEnable ("VrAdaptiveBurstSinkTcp", LOG_DEBUG);
+  // LogComponentEnable ("VrAdaptiveBurstSinkTcp", LOG_DEBUG);
   // LogComponentEnable ("BurstyApplicationTcp", LOG_ALL);
   // LogComponentEnable ("BurstSinkTcp", LOG_ALL);
   // LogComponentEnable ("BurstyApplication", LOG_ALL);
   // LogComponentEnable ("BurstSink", LOG_ALL);
-
+  LogComponentEnable ("FuzzyAlgorithm", LOG_DEBUG);
   // Setup two nodes
   NodeContainer nodes;
   nodes.Create (2);

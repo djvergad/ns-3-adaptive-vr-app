@@ -22,6 +22,7 @@
 
 #include "burst-sink-tcp.h"
 #include "ns3/data-rate.h"
+#include "fuzzy-algorithm.h"
 
 namespace ns3 {
 
@@ -89,15 +90,10 @@ private:
   void FragmentReceived (BurstHandler &burstHandler, const Ptr<Packet> &f, const Address &from,
                          const Address &localAddress);
 
-  std::map<Address, Time> m_lastFragmentTimes;
-  std::map<Address, Time> m_started_ats;
-  std::map<Address, std::multimap<Time, std::tuple<uint64_t, Time>>> m_rateBuffers;
-
   virtual void HandleRead (Ptr<Socket> socket);
 
+  std::map<Address, FuzzyAlgorithm> m_fuzzyAlgorithms;
   Ptr<Socket> m_tempSocket;
-
-  DataRate fuzzyAlgorithm(Time delay, Time diffDelay, DataRate avgRate);
 };
 
 } // namespace ns3

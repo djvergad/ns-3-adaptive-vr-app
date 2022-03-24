@@ -1,4 +1,4 @@
-## -*- Mode: python; py-indent-offset: 4; indent-tabs-mode: nil; coding: utf-8; -*-
+# -*- Mode: python; py-indent-offset: 4; indent-tabs-mode: nil; coding: utf-8; -*-
 
 def build(bld):
     module = bld.create_ns3_module('vr-app', ['core'])
@@ -18,10 +18,11 @@ def build(bld):
         'model/bursty-application-tcp.cc',
         'model/vr-adaptive-burst-sink-tcp.cc',
         'model/vr-adaptive-bursty-application-tcp.cc',
+        'model/fuzzy-algorithm.cc',
         'helper/burst-sink-helper.cc',
         'helper/bursty-helper.cc',
-        ]
-    
+    ]
+
     headers = bld(features='ns3header')
     headers.module = 'vr-app'
     headers.source = [
@@ -40,10 +41,11 @@ def build(bld):
         'model/bursty-application-tcp.h',
         'model/vr-adaptive-burst-sink-tcp.h',
         'model/vr-adaptive-bursty-application-tcp.h',
+        'model/fuzzy-algorithm.h',
         'helper/burst-sink-helper.h',
         'helper/bursty-helper.h',
-        ]
-    
+    ]
+
     if (bld.env['ENABLE_EXAMPLES']):
         bld.recurse('examples')
 
