@@ -110,7 +110,7 @@ FuzzyAlgorithm::fuzzyAlgorithm (Time delay, Time diffDelay, DataRate avgRate)
          r4 = 0, r5 = 0, r6 = 0, r7 = 0, r8 = 0, r9 = 0, p2 = 0, p1 = 0, z = 0, n1 = 0, n2 = 0,
          output = 0;
 
-  Time target_delay = MilliSeconds (15);
+  Time target_delay = MilliSeconds (10);
 
   double t = target_delay.GetSeconds ();
   double t_diff = target_delay.GetSeconds ();

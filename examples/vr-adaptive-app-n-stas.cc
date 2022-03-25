@@ -157,8 +157,9 @@ main (int argc, char *argv[])
   // LogComponentEnable ("VrAdaptiveBurstyApplication", LOG_ALL);
   // LogComponentEnable ("BurstSinkTcp", LOG_ALL);
   // LogComponentEnable ("BurstyApplicationTcp", LOG_ALL);
-  LogComponentEnable ("VrAdaptiveBurstSinkTcp", LOG_DEBUG);
+  // LogComponentEnable ("VrAdaptiveBurstSinkTcp", LOG_DEBUG);
   // LogComponentEnable ("VrAdaptiveBurstyApplicationTcp", LOG_ALL);
+  LogComponentEnable ("FuzzyAlgorithm", LOG_DEBUG);
 
   Config::SetDefault ("ns3::TcpL4Protocol::SocketType",
                       TypeIdValue (TypeId::LookupByName ("ns3::TcpHtcp")));
