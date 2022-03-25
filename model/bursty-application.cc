@@ -313,7 +313,7 @@ BurstyApplication::SendFragmentedBurst (uint32_t burstSize)
   uint64_t fragmentStart = 0;
   uint16_t fragmentSeq = 0;
 
-  if ((numFullFrags + (secondToLastFragSize > 0) + (lastFragSize > 0)) + m_queue.size () < 1000)
+  if ((numFullFrags + (secondToLastFragSize > 0) + (lastFragSize > 0)) + m_queue.size () < m_queueSize)
     {
 
       for (uint32_t i = 0; i < numFullFrags; i++)
@@ -367,7 +367,7 @@ BurstyApplication::SendFragment (Ptr<Packet> fragment, uint64_t burstSize, uint1
   //     return;
   //   }
 
-  if (m_queue.size () < 1000)
+  if (m_queue.size () < m_queueSize)
     {
       m_queue.push_back (*fragment);
     }
