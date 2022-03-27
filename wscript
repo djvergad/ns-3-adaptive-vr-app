@@ -19,8 +19,13 @@ def build(bld):
         'model/vr-adaptive-burst-sink-tcp.cc',
         'model/vr-adaptive-bursty-application-tcp.cc',
         'model/fuzzy-algorithm.cc',
+        'model/bursty-application-client.cc',
+        'model/bursty-application-server.cc',
+        'model/bursty-application-server-instance.cc',
         'helper/burst-sink-helper.cc',
         'helper/bursty-helper.cc',
+        'helper/bursty-application-client-helper.cc',
+        'helper/bursty-application-server-helper.cc',
     ]
 
     headers = bld(features='ns3header')
@@ -42,8 +47,13 @@ def build(bld):
         'model/vr-adaptive-burst-sink-tcp.h',
         'model/vr-adaptive-bursty-application-tcp.h',
         'model/fuzzy-algorithm.h',
+        'model/bursty-application-client.h',
+        'model/bursty-application-server.h',
+        'model/bursty-application-server-instance.h',
         'helper/burst-sink-helper.h',
         'helper/bursty-helper.h',
+        'helper/bursty-application-client-helper.h',
+        'helper/bursty-application-server-helper.h',
     ]
 
     if (bld.env['ENABLE_EXAMPLES']):
