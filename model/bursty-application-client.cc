@@ -258,14 +258,16 @@ BurstyApplicationClient::HandleRead (Ptr<Socket> socket)
               m_incomplete_packets[socket] =
                   fragment->Copy ()->CreateFragment (del_size, fragment->GetSize () - del_size);
               fragment = fragment->Copy ()->CreateFragment (0, del_size);
-              NS_LOG_DEBUG ("Incomplete packet in rxbuffer, received. size: " << m_incomplete_packets[socket]->GetSize() << " hsize " << del_size);
+              NS_LOG_DEBUG ("Incomplete packet in rxbuffer, received. size: "
+                            << m_incomplete_packets[socket]->GetSize () << " hsize " << del_size);
 
               FragmentReceived (itBuffer->second, fragment, from, localAddress);
             }
           else
             {
               m_incomplete_packets[socket] = fragment->Copy ();
-              NS_LOG_DEBUG ("Incomplete packet in rxbuffer, not received. size: " << m_incomplete_packets[socket]->GetSize() << " hsize " << del_size);
+              NS_LOG_DEBUG ("Incomplete packet in rxbuffer, not received. size: "
+                            << m_incomplete_packets[socket]->GetSize () << " hsize " << del_size);
             }
         }
       else
@@ -396,6 +398,21 @@ void
 BurstyApplicationClient::ConnectionSucceeded (Ptr<Socket> socket)
 {
   NS_LOG_FUNCTION (this << socket);
+
+  if (m_socket->GetSocketType () != Socket::NS3_SOCK_STREAM &&
+      m_socket->GetSocketType () != Socket::NS3_SOCK_SEQPACKET)
+    {
+
+      // Ptr<Packet> dummy = Create<Packet> (100);
+      // m_socket->Send (dummy);
+    }
+  else if (m_tid.GetName () == "ns3::QuicSocketFactory")
+    {
+      // SendDummy ();
+
+      Ptr<Packet> dummy = Create<Packet> (100);
+      m_socket->Send (dummy);
+    }
 }
 
 void

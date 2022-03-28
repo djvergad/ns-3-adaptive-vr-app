@@ -152,22 +152,88 @@ BurstyApplicationServerInstance::CancelEvents ()
 }
 
 void
+BurstyApplicationServerInstance::StopBursts (void)
+{
+  NS_LOG_FUNCTION (this);
+  m_isfinishing = true;
+}
+
+void
 BurstyApplicationServerInstance::AdaptRate ()
 {
   NS_LOG_FUNCTION (this);
 
+  UintegerValue buf_size;
+  try
+    {
+      m_socket->GetAttribute ("SndBufSize", buf_size);
+    }
+  catch
+    {
+    }
   // std::cout << "AAAAAAAAAAAAAAAAAAAAAaa" << std::endl;
   Time dt = Simulator::Now () - m_lastBurstAt;
   m_lastBurstAt = Simulator::Now ();
-  uint64_t bytes = std::max(((int128_t) m_socket->GetTxAvailable ()) - (1 << 22), (int128_t)1000);
+  // uint64_t bytes =
+  //     std::max (((int128_t) m_socket->GetTxAvailable ()) - (buf_size.Get () / 2), (int128_t) 1000);
 
-  DataRate socketRate = DataRate (bytes * 8 / dt.GetSeconds () / 10);
+  // DataRate socketRate = DataRate (bytes / 8 / dt.GetSeconds () / 10);
 
-  NS_LOG_DEBUG ("peer " << m_peer << " dt " << dt << " avail " << bytes
-                       << " sockRate " << socketRate);
+  uint64_t buff_occ = buf_size.Get () - m_socket->GetTxAvailable () + m_queue.size () * m_fragSize;
+
+  // uint64_t ideal_buff_occ = 8 * m_initRate.GetBitRate () * dt.GetSeconds ();
+
+  uint64_t ideal_buff_occ = 1000;
+
+  DataRate buffRate;
+
+  if (buff_occ > ideal_buff_occ)
+    {
+      buffRate = DataRate (
+          DynamicCast<VrBurstGenerator> (m_burstGenerator)->GetTargetDataRate ().GetBitRate () / 2);
+      buffRate = std::max (buffRate, DataRate ("100kbps"));
+    }
+  else
+    {
+      buffRate = DataRate (
+          DynamicCast<VrBurstGenerator> (m_burstGenerator)->GetTargetDataRate ().GetBitRate () +
+          100000);
+    }
+
+  // uint64_t t_buff_occ = ideal_buff_occ - buff_occ;
+
+  // DataRate buffRate = DataRate ((t_buff_occ / 8) / dt.GetSeconds ());
+
+  std::cout << "SndBufSize " << buf_size.Get () << " avail " << m_socket->GetTxAvailable ()
+            << " occup " << buff_occ << " ideal_buff_occ "
+            << ideal_buff_occ
+            // << " socketRate " << socketRate.GetBitRate() /1e6
+            << " m_initRate " << m_initRate.GetBitRate () / 1e6 << " buffRate "
+            << buffRate.GetBitRate () / 1e6
+
+            << std::endl;
+
+  std::stringstream addressStr;
+  if (InetSocketAddress::IsMatchingType (m_peer))
+    {
+      addressStr << InetSocketAddress::ConvertFrom (m_peer).GetIpv4 () << " port "
+                 << InetSocketAddress::ConvertFrom (m_peer).GetPort ();
+    }
+  else if (Inet6SocketAddress::IsMatchingType (m_peer))
+    {
+      addressStr << Inet6SocketAddress::ConvertFrom (m_peer).GetIpv6 () << " port "
+                 << Inet6SocketAddress::ConvertFrom (m_peer).GetPort ();
+    }
+  else
+    {
+      addressStr << "UNKNOWN ADDRESS TYPE";
+    }
+
+  // NS_LOG_DEBUG ("peer " << addressStr.str () << " dt " << dt << " avail " << bytes << " sockRate "
+  //                       << socketRate);
 
   DynamicCast<VrBurstGenerator> (m_burstGenerator)
-      ->SetTargetDataRate (std::min (socketRate, m_initRate));
+      ->SetTargetDataRate (std::min (m_initRate, buffRate));
 }
 
 void
@@ -176,56 +242,92 @@ BurstyApplicationServerInstance::SendBurst ()
   NS_LOG_FUNCTION (this);
   NS_ASSERT (m_nextBurstEvent.IsExpired ());
 
-  if (m_isAdaptive == 1)
+  Time period = MilliSeconds (200);
+
+  if (!m_isfinishing)
     {
-      AdaptRate ();
+
+      if (m_isAdaptive == 1)
+        {
+          AdaptRate ();
+        }
+
+      std::stringstream addressStr;
+      if (InetSocketAddress::IsMatchingType (m_peer))
+        {
+          addressStr << InetSocketAddress::ConvertFrom (m_peer).GetIpv4 () << " port "
+                     << InetSocketAddress::ConvertFrom (m_peer).GetPort ();
+        }
+      else if (Inet6SocketAddress::IsMatchingType (m_peer))
+        {
+          addressStr << Inet6SocketAddress::ConvertFrom (m_peer).GetIpv6 () << " port "
+                     << Inet6SocketAddress::ConvertFrom (m_peer).GetPort ();
+        }
+      else
+        {
+          addressStr << "UNKNOWN ADDRESS TYPE";
+        }
+
+      std::cout << Simulator::Now ().GetSeconds () << " Adaptive: " << m_isAdaptive << " peer "
+                << addressStr.str () << " rate "
+                << (DynamicCast<VrBurstGenerator> (GetBurstGenerator ()))
+                           ->GetTargetDataRate ()
+                           .GetBitRate () /
+                       1e6
+                << std::endl;
+
+      DataSend (m_socket, 0);
+
+      // get burst info
+      uint32_t burstSize = 0;
+      // packets must be at least as big as the header
+      //while (burstSize < 24) // TODO: find a way to improve this
+      //{
+      if (!m_burstGenerator->HasNextBurst ())
+        {
+          NS_LOG_LOGIC ("Burst generator has no next burst: stopping application");
+          StopApplication ();
+          return;
+        }
+
+      std::tie (burstSize, period) = m_burstGenerator->GenerateBurst ();
+      NS_LOG_DEBUG ("Generated burstSize=" << burstSize << ", period=" << period.As (Time::MS));
+      //}
+      //
+      SeqTsSizeFragHeader hdrTmp;
+
+      uint32_t min_burst = 100;
+
+      if (burstSize < min_burst)
+        {
+          burstSize = min_burst;
+        }
+
+      NS_ASSERT_MSG (period.IsPositive (),
+                     "Period must be non-negative, instead found period=" << period.As (Time::S));
+
+      // send packets for current burst
+      SendFragmentedBurst (burstSize);
+
+      // schedule next burst
+      NS_LOG_DEBUG ("Next burst scheduled in " << period.As (Time::S));
     }
-
-  std::cout << "Adaptive: " << m_isAdaptive << " peer " << m_peer << " rate "
-            << (DynamicCast<VrBurstGenerator> (GetBurstGenerator ()))
-                       ->GetTargetDataRate ()
-                       .GetBitRate () /
-                   1e6
-            << std::endl;
-
-  DataSend (m_socket, 0);
-
-  // get burst info
-  uint32_t burstSize = 0;
-  Time period;
-  // packets must be at least as big as the header
-  //while (burstSize < 24) // TODO: find a way to improve this
-  //{
-  if (!m_burstGenerator->HasNextBurst ())
-    {
-      NS_LOG_LOGIC ("Burst generator has no next burst: stopping application");
-      StopApplication ();
-      return;
-    }
-
-  std::tie (burstSize, period) = m_burstGenerator->GenerateBurst ();
-  NS_LOG_DEBUG ("Generated burstSize=" << burstSize << ", period=" << period.As (Time::MS));
-  //}
-  //
-  SeqTsSizeFragHeader hdrTmp;
-
-  uint32_t min_burst = 100;
-
-  if (burstSize < min_burst)
-    {
-      burstSize = min_burst;
-    }
-
-  NS_ASSERT_MSG (period.IsPositive (),
-                 "Period must be non-negative, instead found period=" << period.As (Time::S));
-
-  // send packets for current burst
-  SendFragmentedBurst (burstSize);
-
-  // schedule next burst
-  NS_LOG_DEBUG ("Next burst scheduled in " << period.As (Time::S));
+  // else
+  //   {
+  //     Ptr<Packet> dummy = Create<Packet> (100);
+  //     SeqTsSizeFragHeader header;
+  //     header.SetSize(dummy->GetSize() + header.GetSerializedSize());
+  //     dummy->AddHeader(header);
+  //     m_socket->Send (dummy);
+  //   }
   m_nextBurstEvent =
       Simulator::Schedule (period, &BurstyApplicationServerInstance::SendBurst, this);
+  DataSend (m_socket, 0);
+  // UintegerValue buf_size;
+  // m_socket->GetAttribute ("SndBufSize", buf_size);
+  // uint64_t buff_occ = buf_size.Get () - m_socket->GetTxAvailable ();
+  // std::cout << Simulator::Now ().GetSeconds () << " SndBufSize " << buf_size.Get () << " avail "
+  //           << m_socket->GetTxAvailable () << " occup " << buff_occ << std::endl;
 }
 
 void
@@ -299,6 +401,14 @@ BurstyApplicationServerInstance::SendFragmentedBurst (uint32_t burstSize)
                                        << m_fragSize << "B, + " << secondToLastFragSize << " B + "
                                        << lastFragSize << " B");
 
+  // uint8_t buffer[50000];
+
+  // for (size_t i = 0; i < burstPayload && i < sizeof (buffer); i++)
+  //   {
+  //     buffer[i] = 0;
+  //   }
+
+  // Ptr<Packet> burst = Create<Packet> (buffer, burstPayload);
   Ptr<Packet> burst = Create<Packet> (burstPayload);
   // Trace before adding header, for consistency with BurstSink
   Address from, to;
@@ -425,6 +535,11 @@ BurstyApplicationServerInstance::SendFragment (Ptr<Packet> fragment, uint64_t bu
 void
 BurstyApplicationServerInstance::DataSend (Ptr<Socket> socket, uint32_t)
 {
+  NS_LOG_FUNCTION (this << socket);
+
+  // Ptr<Packet> dummy = Create<Packet> (0);
+  // socket->Send (dummy);
+
   while (!m_queue.empty ())
     {
       uint32_t max_tx_size = socket->GetTxAvailable ();
@@ -432,9 +547,9 @@ BurstyApplicationServerInstance::DataSend (Ptr<Socket> socket, uint32_t)
       Ptr<Packet> frame = m_queue.front ().Copy ();
       uint32_t init_size = frame->GetSize ();
 
-      if (max_tx_size <= init_size + 500)
+      if (max_tx_size < init_size)
         {
-          NS_ABORT_MSG ("Socket Send buffer is full");
+          // NS_ABORT_MSG ("Socket Send buffer is full");
           return;
         }
 
@@ -453,8 +568,45 @@ BurstyApplicationServerInstance::DataSend (Ptr<Socket> socket, uint32_t)
       uint32_t bytes;
       if ((bytes = socket->SendTo (frame, 0, m_peer)) < frame->GetSize ())
         {
-          NS_FATAL_ERROR ("Couldn't send packet, though space should be available");
-          exit (1);
+
+          NS_ASSERT (bytes > 0);
+
+          // {
+          //   std::cout << "After sendTo" << std::endl;
+          //   uint8_t *buffer = new uint8_t[frame->GetSize ()];
+          //   /*uint64_t size = */ frame->CopyData (buffer, frame->GetSize ());
+
+          //   for (size_t i = 0; i < frame->GetSize (); i++)
+          //     {
+          //       int e = buffer[i];
+          //       printf ("The ASCII value of the letter %zu is : %d \n", i, e);
+          //     }
+          // }
+          NS_LOG_INFO ("Insufficient space in send buffer, fragmenting");
+          // Ptr<Packet> frag0 = frame->CreateFragment (0, max_tx_size);
+          Ptr<Packet> frag1 = frame->CreateFragment (bytes, init_size - bytes);
+          // {
+          //   std::cout << "Ramaining fragment after " << bytes << std::endl;
+          //   uint8_t *buffer = new uint8_t[frag1->GetSize ()];
+          //   /*uint64_t size = */ frag1->CopyData (buffer, frag1->GetSize ());
+
+          //   for (size_t i = 0; i < frag1->GetSize (); i++)
+          //     {
+          //       int e = buffer[i];
+          //       printf ("The ASCII value of the letter %zu is : %d \n", i, e);
+          //     }
+          // }
+
+          // m_queue.push_front (*frag1);
+
+          // m_queue.push_front (*frag1);
+
+          // frame = frag0;
+
+          // NS_FATAL_ERROR ("Couldn't send packet, though space should be available: "
+          //                 << bytes << " errono " << socket->GetErrno () << " framesize "
+          //                 << frame->GetSize () << " max_tx_size " << max_tx_size);
+          // exit (1);
         }
       else
         {

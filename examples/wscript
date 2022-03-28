@@ -40,3 +40,7 @@ def build(bld):
     obj = bld.create_ns3_program('vr-adaptive-app-n-stas-rev',
                                  ['vr-app', 'core', 'applications', 'wifi'])
     obj.source = 'vr-adaptive-app-n-stas-rev.cc'
+
+    obj = bld.create_ns3_program('vr-nr-example',
+                                 ['vr-app', 'core', 'applications', 'wifi', 'nr', 'flow-monitor', 'quic'])
+    obj.source = 'vr-nr-example.cc'

@@ -63,11 +63,14 @@ BurstyApplicationServer::GetTypeId (void)
           .AddAttribute (
               "isAdaptive", "If the server will adapt the sending rate.", BooleanValue (false),
               MakeBooleanAccessor (&BurstyApplicationServer::m_isAdaptive), MakeBooleanChecker ())
-          .AddAttribute ("FragmentSize",
-                         "The size of packets sent in a burst including SeqTsSizeFragHeader",
-                         UintegerValue (1200),
-                         MakeUintegerAccessor (&BurstyApplicationServer::m_fragSize),
-                         MakeUintegerChecker<uint32_t> (1))
+          .AddAttribute (
+              "FragmentSize", "The size of packets sent in a burst including SeqTsSizeFragHeader",
+              UintegerValue (1200), MakeUintegerAccessor (&BurstyApplicationServer::m_fragSize),
+              MakeUintegerChecker<uint32_t> (1))
+          .AddAttribute ("appDuration", "The amount of time each instance will generate packets",
+                         TimeValue (Seconds (1)),
+                         MakeTimeAccessor (&BurstyApplicationServer::m_appDuration),
+                         MakeTimeChecker ())
 
           .AddTraceSource ("FragmentRx", "A fragment has been received",
                            MakeTraceSourceAccessor (&BurstyApplicationServer::m_txFragmentTrace),
@@ -208,8 +211,11 @@ BurstyApplicationServer::HandleRead (Ptr<Socket> socket)
 {
   NS_LOG_FUNCTION (this << socket);
 
-  if (m_socket->GetSocketType () != Socket::NS3_SOCK_STREAM &&
-      m_socket->GetSocketType () != Socket::NS3_SOCK_SEQPACKET)
+  std::cout << m_tid << std::endl;
+
+  if ((m_socket->GetSocketType () != Socket::NS3_SOCK_STREAM &&
+       m_socket->GetSocketType () != Socket::NS3_SOCK_SEQPACKET) ||
+      m_tid.GetName () =="ns3::QuicSocketFactory")
     {
       Address peer;
       ;
@@ -236,7 +242,11 @@ BurstyApplicationServer::HandlePeerError (Ptr<Socket> socket)
 {
   NS_LOG_FUNCTION (this << socket);
 
-  NS_ABORT_MSG ("Socket closed with error");
+  Address peer;
+  socket->GetPeerName (peer);
+  m_server_instances[peer].CancelEvents ();
+
+  // NS_ABORT_MSG ("Socket closed with error");
 }
 
 void
@@ -269,6 +279,7 @@ BurstyApplicationServer::HandleAccept (Ptr<Socket> s, const Address &from)
   s->GetPeerName (peer);
 
   s->SetSendCallback (MakeCallback (&BurstyApplicationServer::DataSend, this));
+  s->SetDataSentCallback (MakeCallback (&BurstyApplicationServer::DataSend, this));
   s->SetCloseCallbacks (MakeCallback (&BurstyApplicationServer::HandlePeerClose, this),
                         MakeCallback (&BurstyApplicationServer::HandlePeerError, this));
 
@@ -295,6 +306,9 @@ BurstyApplicationServer::CreateInstance (Ptr<Socket> socket, Address peer)
       DynamicCast<VrBurstGenerator> (m_server_instances[peer].GetBurstGenerator ());
 
   m_server_instances[peer].m_initRate = vrBurstGenerator->GetTargetDataRate ();
+
+  Simulator::Schedule (m_appDuration, &BurstyApplicationServerInstance::StopBursts,
+                       &m_server_instances[peer]);
 
   // vrBurstGenerator->SetFrameRate(60);
   // vrBurstGenerator->SetTargetDataRate(DataRate ("100Mbps"));

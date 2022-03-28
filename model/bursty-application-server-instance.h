@@ -91,6 +91,8 @@ public:
 
   friend class BurstyApplicationServer;
 
+  void StopBursts(void);
+
 protected:
   virtual void DoDispose (void);
 
@@ -148,14 +150,17 @@ protected:
   void DataSend (Ptr<Socket>, uint32_t); // Called when a new segment is transmitted
   // A structure that contains the generated MPEG frames, for each client.
   std::deque<Packet> m_queue;
-  uint32_t m_queueSize = 1000;
+  uint32_t m_queueSize = 100000;
 
   DataRate m_initRate = 0;
   Time m_lastBurstAt = Seconds (0);
+  uint64_t m_totTxBytesLast; //!< Total bytes sent
 
   void AdaptRate();
 
   bool m_isAdaptive = false;
+  bool m_isfinishing = false;
+    
 };
 
 } // namespace ns3

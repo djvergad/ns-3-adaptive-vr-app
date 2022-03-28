@@ -175,6 +175,9 @@ protected:
 
   bool m_isAdaptive = false;
   uint32_t m_fragSize = 1200; //!< Size of fragments including SeqTsSizeFragHeader
+
+  Time m_appDuration = Seconds(1);
+
 };
 
 } // namespace ns3
