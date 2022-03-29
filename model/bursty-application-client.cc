@@ -255,13 +255,23 @@ BurstyApplicationClient::HandleRead (Ptr<Socket> socket)
           if (del_size <= fragment->GetSize ())
             {
 
-              m_incomplete_packets[socket] =
-                  fragment->Copy ()->CreateFragment (del_size, fragment->GetSize () - del_size);
-              fragment = fragment->Copy ()->CreateFragment (0, del_size);
-              NS_LOG_DEBUG ("Incomplete packet in rxbuffer, received. size: "
-                            << m_incomplete_packets[socket]->GetSize () << " hsize " << del_size);
+              if (header.GetSize () == 0)
+                {
+                  NS_LOG_DEBUG ("Received zero header, disgarding incomplete packet of size ");
+                  m_incomplete_packets[socket] = nullptr;
+                }
+              else
+                {
 
-              FragmentReceived (itBuffer->second, fragment, from, localAddress);
+                  m_incomplete_packets[socket] =
+                      fragment->Copy ()->CreateFragment (del_size, fragment->GetSize () - del_size);
+                  fragment = fragment->Copy ()->CreateFragment (0, del_size);
+                  NS_LOG_DEBUG ("Incomplete packet in rxbuffer, received. size: "
+                                << m_incomplete_packets[socket]->GetSize () << " hsize "
+                                << del_size);
+
+                  FragmentReceived (itBuffer->second, fragment, from, localAddress);
+                }
             }
           else
             {

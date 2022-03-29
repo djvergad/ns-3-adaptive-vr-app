@@ -38,6 +38,8 @@
 #include "ns3/burst-generator.h"
 #include "bursty-application-server-instance.h"
 
+#include "ns3/quic-socket-base.h"
+
 namespace ns3 {
 
 NS_LOG_COMPONENT_DEFINE ("BurstyApplicationServerInstance");
@@ -163,28 +165,26 @@ BurstyApplicationServerInstance::AdaptRate ()
 {
   NS_LOG_FUNCTION (this);
 
+  Time dt = Simulator::Now () - m_lastBurstAt;
+  m_lastBurstAt = Simulator::Now ();
+
+  DataRate buffRate;
+
   UintegerValue buf_size;
 
   if (m_socket->GetInstanceTypeId ().GetName () == "ns3::TcpSocketBase")
     {
+
       m_socket->GetAttribute ("SndBufSize", buf_size);
     }
-
-  // std::cout << "AAAAAAAAAAAAAAAAAAAAAaa" << std::endl;
-  Time dt = Simulator::Now () - m_lastBurstAt;
-  m_lastBurstAt = Simulator::Now ();
-  // uint64_t bytes =
-  //     std::max (((int128_t) m_socket->GetTxAvailable ()) - (buf_size.Get () / 2), (int128_t) 1000);
-
-  // DataRate socketRate = DataRate (bytes / 8 / dt.GetSeconds () / 10);
+  else if (m_socket->GetInstanceTypeId ().GetName () == "ns3::QuicSocketBase")
+    {
+      Ptr<QuicSocketBase> quic_socket = DynamicCast<QuicSocketBase> (m_socket);
+      buf_size = quic_socket->GetSocketSndBufSize();
+    }
 
   uint64_t buff_occ = buf_size.Get () - m_socket->GetTxAvailable () + m_queue.size () * m_fragSize;
-
-  // uint64_t ideal_buff_occ = 8 * m_initRate.GetBitRate () * dt.GetSeconds ();
-
   uint64_t ideal_buff_occ = 2000;
-
-  DataRate buffRate;
 
   if (buff_occ > ideal_buff_occ)
     {
@@ -198,17 +198,16 @@ BurstyApplicationServerInstance::AdaptRate ()
           DynamicCast<VrBurstGenerator> (m_burstGenerator)->GetTargetDataRate ().GetBitRate () +
           100000);
     }
-
-  // uint64_t t_buff_occ = ideal_buff_occ - buff_occ;
-
-  // DataRate buffRate = DataRate ((t_buff_occ / 8) / dt.GetSeconds ());
-
-  NS_LOG_INFO ("SndBufSize " << buf_size.Get () << " avail " << m_socket->GetTxAvailable ()
+  std::cout  << "SndBufSize " << buf_size.Get () << " avail " << m_socket->GetTxAvailable ()
                              << " occup " << buff_occ << " ideal_buff_occ "
                              << ideal_buff_occ
                              // << " socketRate " << socketRate.GetBitRate() /1e6
                              << " m_initRate " << m_initRate.GetBitRate () / 1e6 << " buffRate "
-                             << buffRate.GetBitRate () / 1e6);
+                             << buffRate.GetBitRate () / 1e6 << std::endl;
+
+  // uint64_t t_buff_occ = ideal_buff_occ - buff_occ;
+
+  // DataRate buffRate = DataRate ((t_buff_occ / 8) / dt.GetSeconds ());
 
   std::stringstream addressStr;
   if (InetSocketAddress::IsMatchingType (m_peer))

@@ -64,7 +64,7 @@ $ ./waf --run "cttc-nr-demo --Help"
 #include "ns3/bursty-application-client-helper.h"
 #include "ns3/bursty-application-server-instance.h"
 
-// #include "ns3/quic-module.h"
+#include "ns3/quic-module.h"
 /*
  * Use, always, the namespace ns3. All the NR classes are inside such namespace.
  */
@@ -222,7 +222,7 @@ main (int argc, char *argv[])
    * Default values for the simulation. We are progressively removing all
    * the instances of SetDefault, but we need it for legacy code (LTE)
    */
-  // Config::SetDefault ("ns3::LteRlcUm::MaxTxBufferSize", UintegerValue (999999999));
+  Config::SetDefault ("ns3::LteRlcUm::MaxTxBufferSize", UintegerValue (999999999));
 
   /*
    * Create the scenario. In our examples, we heavily use helpers that setup
@@ -405,13 +405,12 @@ main (int argc, char *argv[])
     }
 
   // gNb routing between Bearer and bandwidh part
-  nrHelper->SetGnbBwpManagerAlgorithmAttribute ("NGBR_VIDEO_TCP_DEFAULT",
+  nrHelper->SetGnbBwpManagerAlgorithmAttribute ("NGBR_LOW_LAT_EMBB",
                                                 UintegerValue (bwpIdForLowLat));
   nrHelper->SetGnbBwpManagerAlgorithmAttribute ("GBR_CONV_VOICE", UintegerValue (bwpIdForVoice));
 
   // Ue routing between Bearer and bandwidth part
-  nrHelper->SetUeBwpManagerAlgorithmAttribute ("NGBR_VIDEO_TCP_DEFAULT",
-                                               UintegerValue (bwpIdForLowLat));
+  nrHelper->SetUeBwpManagerAlgorithmAttribute ("NGBR_LOW_LAT_EMBB", UintegerValue (bwpIdForLowLat));
   nrHelper->SetUeBwpManagerAlgorithmAttribute ("GBR_CONV_VOICE", UintegerValue (bwpIdForVoice));
 
   /*
@@ -487,12 +486,11 @@ main (int argc, char *argv[])
   NodeContainer remoteHostContainer;
   remoteHostContainer.Create (1);
   Ptr<Node> remoteHost = remoteHostContainer.Get (0);
+  QuicHelper internet;
+  internet.InstallQuic (remoteHostContainer);
 
-  InternetStackHelper internet;
-
-  // QuicHelper internet;
-  // internet.InstallQuic (remoteHostContainer);
-  internet.Install (remoteHostContainer);
+  // InternetStackHelper internet;
+  // internet.Install (remoteHostContainer);
 
   // connect a remoteHost to pgw. Setup routing too
   PointToPointHelper p2ph;
@@ -507,8 +505,8 @@ main (int argc, char *argv[])
   Ptr<Ipv4StaticRouting> remoteHostStaticRouting =
       ipv4RoutingHelper.GetStaticRouting (remoteHost->GetObject<Ipv4> ());
   remoteHostStaticRouting->AddNetworkRouteTo (Ipv4Address ("7.0.0.0"), Ipv4Mask ("255.0.0.0"), 1);
-  //  internet.InstallQuic (gridScenario.GetUserTerminals ());
-  internet.Install (gridScenario.GetUserTerminals ());
+  internet.InstallQuic (gridScenario.GetUserTerminals ());
+  // internet.Install (gridScenario.GetUserTerminals ());
 
   Ipv4InterfaceContainer ueLowLatIpIface =
       epcHelper->AssignUeIpv4Address (NetDeviceContainer (ueLowLatNetDev));
@@ -538,7 +536,7 @@ main (int argc, char *argv[])
   LogComponentEnable ("BurstyApplicationClient", LOG_ALL);
   LogComponentEnable ("BurstyApplicationServer", LOG_ALL);
   LogComponentEnable ("BurstyApplicationServerInstance", LOG_ALL);
-  // LogComponentEnable ("QuicL5Protocol", LOG_ALL);
+  LogComponentEnable ("QuicL5Protocol", LOG_ALL);
 
   uint32_t fragmentSize = 500; //bytes
 
@@ -553,15 +551,15 @@ main (int argc, char *argv[])
   Config::SetDefault ("ns3::VrBurstGenerator::VrAppName", StringValue (vrAppName));
   Config::SetDefault ("ns3::BurstyApplicationServer::FragmentSize", UintegerValue (fragmentSize));
 
-  // Config::SetDefault ("ns3::QuicSocketBase::SocketSndBufSize", UintegerValue (40000000));
-  // Config::SetDefault ("ns3::QuicSocketBase::SocketRcvBufSize", UintegerValue (40000000));
-  // Config::SetDefault ("ns3::QuicStreamBase::StreamSndBufSize", UintegerValue (40000000));
-  // Config::SetDefault ("ns3::QuicStreamBase::StreamRcvBufSize", UintegerValue (40000000));
-  // Config::SetDefault ("ns3::QuicSocketBase::SchedulingPolicy",
-  //                     TypeIdValue (QuicSocketTxEdfScheduler::GetTypeId ()));
+  Config::SetDefault ("ns3::QuicSocketBase::SocketSndBufSize", UintegerValue (40000000));
+  Config::SetDefault ("ns3::QuicSocketBase::SocketRcvBufSize", UintegerValue (40000000));
+  Config::SetDefault ("ns3::QuicStreamBase::StreamSndBufSize", UintegerValue (40000000));
+  Config::SetDefault ("ns3::QuicStreamBase::StreamRcvBufSize", UintegerValue (40000000));
+  Config::SetDefault ("ns3::QuicSocketBase::SchedulingPolicy",
+                      TypeIdValue (QuicSocketTxEdfScheduler::GetTypeId ()));
 
-  // Config::SetDefault ("ns3::QuicL4Protocol::SocketType",
-  //                     TypeIdValue (TypeId::LookupByName ("ns3::TcpYeah")));
+  Config::SetDefault ("ns3::QuicL4Protocol::SocketType",
+                      TypeIdValue (TypeId::LookupByName ("ns3::TcpYeah")));
 
   uint16_t port = 50000;
 
@@ -571,22 +569,28 @@ main (int argc, char *argv[])
       protocol = "ns3::UdpSocketFactory";
       Config::SetDefault ("ns3::BurstyApplicationServer::isAdaptive", BooleanValue (false));
     }
+  else if (burstGeneratorType == "tcp")
+    {
+      protocol = "ns3::TcpSocketFactory";
+      Config::SetDefault ("ns3::BurstyApplicationServer::isAdaptive", BooleanValue (false));
+    }
   else if (burstGeneratorType == "adaptive")
     {
       protocol = "ns3::TcpSocketFactory";
       Config::SetDefault ("ns3::BurstyApplicationServer::isAdaptive", BooleanValue (true));
     }
 
-  // else if (burstGeneratorType == "quic-adaptive")
-  //   {
-  //     protocol = "ns3::QuicSocketFactory";
-  //     Config::SetDefault ("ns3::BurstyApplicationServer::isAdaptive", BooleanValue (true));
-  //   }
-  // else if (burstGeneratorType == "quic")
-  //   {
-  //     protocol = "ns3::QuicSocketFactory";
-  //     Config::SetDefault ("ns3::BurstyApplicationServer::isAdaptive", BooleanValue (false));
-  //   }
+  else if (burstGeneratorType == "quic-adaptive")
+    {
+      protocol = "ns3::QuicSocketFactory";
+      Config::SetDefault ("ns3::BurstyApplicationServer::isAdaptive", BooleanValue (true));
+    }
+  else if (burstGeneratorType == "quic")
+    {
+      protocol = "ns3::QuicSocketFactory";
+      Config::SetDefault ("ns3::BurstyApplicationServer::isAdaptive", BooleanValue (false));
+    }
+
   else
     {
       NS_ABORT_MSG ("Wrong burstGeneratorType type");
@@ -620,7 +624,7 @@ main (int argc, char *argv[])
   // dlClientLowLat.SetAttribute ("Interval", TimeValue (Seconds (1.0 / lambdaULL)));
 
   // The bearer that will carry low latency traffic
-  EpsBearer lowLatBearer (EpsBearer::NGBR_VIDEO_TCP_DEFAULT);
+  EpsBearer lowLatBearer (EpsBearer::NGBR_LOW_LAT_EMBB);
 
   // The filter for the low-latency traffic
   Ptr<EpcTft> lowLatTft = Create<EpcTft> ();
@@ -703,8 +707,8 @@ main (int argc, char *argv[])
   // start UDP server and client apps
   serverApps.Start (udpAppStartTime);
   clientApps.Start (udpAppStartTime);
-  serverApps.Stop (simTime + Seconds (10));
-  clientApps.Stop (simTime + Seconds (10));
+  serverApps.Stop (simTime + Seconds (1));
+  clientApps.Stop (simTime + Seconds (1));
 
   // enable the traces provided by the nr module
   //nrHelper->EnableTraces();
@@ -719,7 +723,7 @@ main (int argc, char *argv[])
   monitor->SetAttribute ("JitterBinWidth", DoubleValue (0.001));
   monitor->SetAttribute ("PacketSizeBinWidth", DoubleValue (20));
 
-  Simulator::Stop (simTime + Seconds (15));
+  Simulator::Stop (simTime + Seconds (1.5));
   Simulator::Run ();
 
   // burst info

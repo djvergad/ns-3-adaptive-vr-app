@@ -1,7 +1,7 @@
 # -*- Mode: python; py-indent-offset: 4; indent-tabs-mode: nil; coding: utf-8; -*-
 
 def build(bld):
-    module = bld.create_ns3_module('vr-app', ['core'])
+    module = bld.create_ns3_module('vr-app', ['core', 'quic'])
     module.source = [
         'model/burst-generator.cc',
         'model/burst-sink.cc',
