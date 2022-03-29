@@ -164,13 +164,12 @@ BurstyApplicationServerInstance::AdaptRate ()
   NS_LOG_FUNCTION (this);
 
   UintegerValue buf_size;
-  try
+
+  if (m_socket->GetInstanceTypeId ().GetName () == "ns3::TcpSocketBase")
     {
       m_socket->GetAttribute ("SndBufSize", buf_size);
     }
-  catch
-    {
-    }
+
   // std::cout << "AAAAAAAAAAAAAAAAAAAAAaa" << std::endl;
   Time dt = Simulator::Now () - m_lastBurstAt;
   m_lastBurstAt = Simulator::Now ();
@@ -183,7 +182,7 @@ BurstyApplicationServerInstance::AdaptRate ()
 
   // uint64_t ideal_buff_occ = 8 * m_initRate.GetBitRate () * dt.GetSeconds ();
 
-  uint64_t ideal_buff_occ = 1000;
+  uint64_t ideal_buff_occ = 2000;
 
   DataRate buffRate;
 
@@ -204,14 +203,12 @@ BurstyApplicationServerInstance::AdaptRate ()
 
   // DataRate buffRate = DataRate ((t_buff_occ / 8) / dt.GetSeconds ());
 
-  std::cout << "SndBufSize " << buf_size.Get () << " avail " << m_socket->GetTxAvailable ()
-            << " occup " << buff_occ << " ideal_buff_occ "
-            << ideal_buff_occ
-            // << " socketRate " << socketRate.GetBitRate() /1e6
-            << " m_initRate " << m_initRate.GetBitRate () / 1e6 << " buffRate "
-            << buffRate.GetBitRate () / 1e6
-
-            << std::endl;
+  NS_LOG_INFO ("SndBufSize " << buf_size.Get () << " avail " << m_socket->GetTxAvailable ()
+                             << " occup " << buff_occ << " ideal_buff_occ "
+                             << ideal_buff_occ
+                             // << " socketRate " << socketRate.GetBitRate() /1e6
+                             << " m_initRate " << m_initRate.GetBitRate () / 1e6 << " buffRate "
+                             << buffRate.GetBitRate () / 1e6);
 
   std::stringstream addressStr;
   if (InetSocketAddress::IsMatchingType (m_peer))
@@ -268,13 +265,12 @@ BurstyApplicationServerInstance::SendBurst ()
           addressStr << "UNKNOWN ADDRESS TYPE";
         }
 
-      std::cout << Simulator::Now ().GetSeconds () << " Adaptive: " << m_isAdaptive << " peer "
-                << addressStr.str () << " rate "
-                << (DynamicCast<VrBurstGenerator> (GetBurstGenerator ()))
-                           ->GetTargetDataRate ()
-                           .GetBitRate () /
-                       1e6
-                << std::endl;
+      NS_LOG_INFO (Simulator::Now ().GetSeconds ()
+                   << " Adaptive: " << m_isAdaptive << " peer " << addressStr.str () << " rate "
+                   << (DynamicCast<VrBurstGenerator> (GetBurstGenerator ()))
+                              ->GetTargetDataRate ()
+                              .GetBitRate () /
+                          1e6);
 
       DataSend (m_socket, 0);
 

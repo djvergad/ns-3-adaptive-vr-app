@@ -169,6 +169,10 @@ main (int argc, char *argv[])
   Config::SetDefault ("ns3::TcpL4Protocol::SocketType",
                       TypeIdValue (TypeId::LookupByName ("ns3::TcpYeah")));
 
+  Config::SetDefault ("ns3::BurstyApplicationServer::appDuration",
+                      TimeValue (Seconds(simulationTime)));
+
+
   // Disable RTS/CTS
   // Config::SetDefault ("ns3::WifiRemoteStationManager::RtsCtsThreshold", StringValue ("999999"));
 
@@ -268,7 +272,7 @@ main (int argc, char *argv[])
 
   ApplicationContainer serverApp = server.Install (wifiApNode);
   serverApp.Start (Seconds (0.0));
-  serverApp.Stop (Seconds (simulationTime));
+  serverApp.Stop (Seconds (simulationTime + 5));
 
   // BurstyHelper client ((burstGeneratorType == "tcp" || burstGeneratorType == "tcp_adaptive")
   //                          ? "ns3::TcpSocketFactory"

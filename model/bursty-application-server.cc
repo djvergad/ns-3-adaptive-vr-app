@@ -211,7 +211,7 @@ BurstyApplicationServer::HandleRead (Ptr<Socket> socket)
 {
   NS_LOG_FUNCTION (this << socket);
 
-  std::cout << m_tid << std::endl;
+  // std::cout << m_tid << std::endl;
 
   if ((m_socket->GetSocketType () != Socket::NS3_SOCK_STREAM &&
        m_socket->GetSocketType () != Socket::NS3_SOCK_SEQPACKET) ||
