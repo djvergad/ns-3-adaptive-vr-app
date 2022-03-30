@@ -28,6 +28,7 @@
 #include "ns3/traced-callback.h"
 #include "ns3/seq-ts-size-frag-header.h"
 #include "vr-burst-generator.h"
+#include "fuzzy-algorithm-server.h"
 
 #include <queue>
 
@@ -88,10 +89,9 @@ public:
   void SetIsAdaptive (bool value);
   bool GetIsAdaptive (void) const;
 
-
   friend class BurstyApplicationServer;
 
-  void StopBursts(void);
+  void StopBursts (void);
 
 protected:
   virtual void DoDispose (void);
@@ -156,11 +156,15 @@ protected:
   Time m_lastBurstAt = Seconds (0);
   uint64_t m_totTxBytesLast; //!< Total bytes sent
 
-  void AdaptRate();
+  void AdaptRate ();
 
   bool m_isAdaptive = false;
+  bool m_isFuzzy = false;
   bool m_isfinishing = false;
-    
+
+  FuzzyAlgorithmServer fuzzyAlgorithmServer;
+
+  uint64_t m_bytesAddedToSocket = 0;
 };
 
 } // namespace ns3

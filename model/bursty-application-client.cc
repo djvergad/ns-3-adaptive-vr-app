@@ -291,7 +291,7 @@ BurstyApplicationClient::FragmentReceived (BurstHandler &burstHandler, const Ptr
   NS_ABORT_IF (header.GetSize () == 0);
 
   m_totRxFragments++;
-  m_rxFragmentTrace (f, localAddress, from,
+  m_rxFragmentTrace (f, m_peer, localAddress,
                      header); // TODO should fragment still include header in trace?
 
   NS_LOG_DEBUG ("Get BurstHandler for from="
@@ -377,7 +377,7 @@ BurstyApplicationClient::FragmentReceived (BurstHandler &burstHandler, const Ptr
       NS_LOG_LOGIC ("Burst received: " << header.GetFrags () << " fragments for a total of "
                                        << header.GetSize () << " B " << header.GetSeq ());
       m_totRxBursts++;
-      m_rxBurstTrace (burstHandler.m_burstBuffer, localAddress, from,
+      m_rxBurstTrace (burstHandler.m_burstBuffer, m_peer, localAddress,
                       header); // TODO header size does not include payload, why?
     }
 }

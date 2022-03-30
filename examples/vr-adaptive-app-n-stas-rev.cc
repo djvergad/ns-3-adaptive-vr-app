@@ -107,7 +107,7 @@ void
 BurstRx (Ptr<OutputStreamWrapper> traceFile, Ptr<const Packet> burst, const Address &from,
          const Address &to, const SeqTsSizeFragHeader &header)
 {
-  *traceFile->GetStream () << AddressToString (from) << "," << header.GetTs ().GetNanoSeconds ()
+  *traceFile->GetStream () << AddressToString (to) << "," << header.GetTs ().GetNanoSeconds ()
                            << "," << Simulator::Now ().GetNanoSeconds () << "," << header.GetSeq ()
                            << "," << header.GetSize () << "\n";
 }
@@ -116,7 +116,7 @@ void
 FragmentRx (Ptr<OutputStreamWrapper> traceFile, Ptr<const Packet> fragment, const Address &from,
             const Address &to, const SeqTsSizeFragHeader &header)
 {
-  *traceFile->GetStream () << AddressToString (from) << "," << header.GetTs ().GetNanoSeconds ()
+  *traceFile->GetStream () << AddressToString (to) << "," << header.GetTs ().GetNanoSeconds ()
                            << "," << Simulator::Now ().GetNanoSeconds () << "," << header.GetSeq ()
                            << "," << header.GetFragSeq () << "," << header.GetFrags () << ","
                            << fragment->GetSize () << "\n";
@@ -170,8 +170,7 @@ main (int argc, char *argv[])
                       TypeIdValue (TypeId::LookupByName ("ns3::TcpYeah")));
 
   Config::SetDefault ("ns3::BurstyApplicationServer::appDuration",
-                      TimeValue (Seconds(simulationTime)));
-
+                      TimeValue (Seconds (simulationTime)));
 
   // Disable RTS/CTS
   // Config::SetDefault ("ns3::WifiRemoteStationManager::RtsCtsThreshold", StringValue ("999999"));
@@ -247,42 +246,38 @@ main (int argc, char *argv[])
 
   // Setting applications
   uint16_t port = 50000;
-  // BurstSinkHelper server ((burstGeneratorType == "tcp" || burstGeneratorType == "tcp_adaptive")
-  //                             ? "ns3::TcpSocketFactory"
-  //                             : "ns3::UdpSocketFactory",
-  //                         InetSocketAddress (Ipv4Address::GetAny (), port),
-  //                         burstGeneratorType == "adaptive"       ? "ns3::VrAdaptiveBurstSink"
-  //                         : burstGeneratorType == "tcp"          ? "ns3::BurstSinkTcp"
-  //                         : burstGeneratorType == "tcp_adaptive" ? "ns3::VrAdaptiveBurstSinkTcp"
-  //                                                                : "ns3::BurstSink");
+  std::string protocol;
+  if (burstGeneratorType == "model")
+    {
+      protocol = "ns3::UdpSocketFactory";
+      Config::SetDefault ("ns3::BurstyApplicationServer::isAdaptive", BooleanValue (false));
+    }
+  else if (burstGeneratorType == "adaptive")
+    {
+      protocol = "ns3::TcpSocketFactory";
+      Config::SetDefault ("ns3::BurstyApplicationServer::isAdaptive", BooleanValue (true));
+    }
+  else if (burstGeneratorType == "fuzzy")
+    {
+      protocol = "ns3::TcpSocketFactory";
+      Config::SetDefault ("ns3::BurstyApplicationServer::isAdaptive", BooleanValue (true));
+      Config::SetDefault ("ns3::BurstyApplicationServer::isFuzzy", BooleanValue (true));
+    }
+  else
+    {
+      NS_ABORT_MSG ("Wrong burstGeneratorType type");
+    }
 
-  std::string protocol =
-      burstGeneratorType == "model" ? "ns3::UdpSocketFactory" : "ns3::TcpSocketFactory";
   Config::SetDefault ("ns3::VrBurstGenerator::FrameRate", DoubleValue (frameRate));
   Config::SetDefault ("ns3::VrBurstGenerator::TargetDataRate", DataRateValue (DataRate (appRate)));
   Config::SetDefault ("ns3::VrBurstGenerator::VrAppName", StringValue (vrAppName));
-  Config::SetDefault ("ns3::BurstyApplicationServer::FragmentSize",
-                      UintegerValue (fragmentSize));
-  // Config::SetDefault ("ns3::BurstyApplicationServer::isAdaptive",
-  //                     BooleanValue (false));
-  Config::SetDefault ("ns3::BurstyApplicationServer::isAdaptive",
-                      BooleanValue (burstGeneratorType == "adaptive"));
+  Config::SetDefault ("ns3::BurstyApplicationServer::FragmentSize", UintegerValue (fragmentSize));
 
   BurstyApplicationServerHelper server (protocol, InetSocketAddress (Ipv4Address::GetAny (), port));
 
   ApplicationContainer serverApp = server.Install (wifiApNode);
   serverApp.Start (Seconds (0.0));
   serverApp.Stop (Seconds (simulationTime + 5));
-
-  // BurstyHelper client ((burstGeneratorType == "tcp" || burstGeneratorType == "tcp_adaptive")
-  //                          ? "ns3::TcpSocketFactory"
-  //                          : "ns3::UdpSocketFactory",
-  //                      InetSocketAddress (ApInterface.GetAddress (0), port),
-  //                      burstGeneratorType == "adaptive" ? "ns3::VrAdaptiveBurstyApplication"
-  //                      : burstGeneratorType == "tcp "   ? "ns3::BurstyApplicationTcp"
-  //                      : burstGeneratorType == "tcp_adaptive"
-  //                          ? "ns3::VrAdaptiveBurstyApplicationTcp"
-  //                          : "ns3::BurstyApplication");
 
   BurstyApplicationClientHelper client (protocol,
                                         InetSocketAddress (ApInterface.GetAddress (0), port));
@@ -305,10 +300,13 @@ main (int argc, char *argv[])
 
   for (uint32_t i = 0; i < nStas; i++)
     {
-      Time startTime = Seconds (1 + i * 0.2);
+      Time startTime = Seconds (x->GetValue ());
       NS_LOG_UNCOND ("STA" << i << " will start at " << startTime.As (Time::S));
       Ptr<BurstyApplicationClient> app = DynamicCast<BurstyApplicationClient> (clientApps.Get (i));
       app->SetStartTime (startTime);
+      app->SetAttribute ("Local",
+                         AddressValue (InetSocketAddress (StaInterface.GetAddress (i), 0)));
+
       app->TraceConnectWithoutContext ("BurstRx", MakeBoundCallback (&BurstRx, burstTrace));
       app->TraceConnectWithoutContext ("FragmentRx",
                                        MakeBoundCallback (&FragmentRx, fragmentTrace));

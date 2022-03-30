@@ -163,52 +163,71 @@ BurstyApplicationServerInstance::AdaptRate ()
 {
   NS_LOG_FUNCTION (this);
 
-  UintegerValue buf_size;
+  DataRate nextDataRate;
 
-  if (m_socket->GetInstanceTypeId ().GetName () == "ns3::TcpSocketBase")
+  if (!m_isFuzzy)
     {
-      m_socket->GetAttribute ("SndBufSize", buf_size);
-    }
 
-  // std::cout << "AAAAAAAAAAAAAAAAAAAAAaa" << std::endl;
-  Time dt = Simulator::Now () - m_lastBurstAt;
-  m_lastBurstAt = Simulator::Now ();
-  // uint64_t bytes =
-  //     std::max (((int128_t) m_socket->GetTxAvailable ()) - (buf_size.Get () / 2), (int128_t) 1000);
+      UintegerValue buf_size;
 
-  // DataRate socketRate = DataRate (bytes / 8 / dt.GetSeconds () / 10);
+      if (m_socket->GetInstanceTypeId ().GetName () == "ns3::TcpSocketBase")
+        {
+          m_socket->GetAttribute ("SndBufSize", buf_size);
+        }
 
-  uint64_t buff_occ = buf_size.Get () - m_socket->GetTxAvailable () + m_queue.size () * m_fragSize;
+      // std::cout << "AAAAAAAAAAAAAAAAAAAAAaa" << std::endl;
+      Time dt = Simulator::Now () - m_lastBurstAt;
+      m_lastBurstAt = Simulator::Now ();
+      // uint64_t bytes =
+      //     std::max (((int128_t) m_socket->GetTxAvailable ()) - (buf_size.Get () / 2), (int128_t) 1000);
 
-  // uint64_t ideal_buff_occ = 8 * m_initRate.GetBitRate () * dt.GetSeconds ();
+      // DataRate socketRate = DataRate (bytes / 8 / dt.GetSeconds () / 10);
 
-  uint64_t ideal_buff_occ = 2000;
+      uint64_t buff_occ =
+          buf_size.Get () - m_socket->GetTxAvailable () + m_queue.size () * m_fragSize;
 
-  DataRate buffRate;
+      // uint64_t ideal_buff_occ = 8 * m_initRate.GetBitRate () * dt.GetSeconds ();
 
-  if (buff_occ > ideal_buff_occ)
-    {
-      buffRate = DataRate (
-          DynamicCast<VrBurstGenerator> (m_burstGenerator)->GetTargetDataRate ().GetBitRate () / 2);
-      buffRate = std::max (buffRate, DataRate ("100kbps"));
+      uint64_t ideal_buff_occ = 2000;
+
+      if (buff_occ > ideal_buff_occ)
+        {
+          nextDataRate = DataRate (
+              DynamicCast<VrBurstGenerator> (m_burstGenerator)->GetTargetDataRate ().GetBitRate () /
+              2);
+          nextDataRate = std::max (nextDataRate, DataRate ("100kbps"));
+        }
+      else
+        {
+          nextDataRate = DataRate (
+              DynamicCast<VrBurstGenerator> (m_burstGenerator)->GetTargetDataRate ().GetBitRate () +
+              100000);
+        }
+
+      // uint64_t t_buff_occ = ideal_buff_occ - buff_occ;
+
+      // DataRate buffRate = DataRate ((t_buff_occ / 8) / dt.GetSeconds ());
+
+      // std::cout << Simulator::Now ().GetSeconds () << " SndBufSize " << buf_size.Get () << " avail "
+      //           << m_socket->GetTxAvailable () << " occup " << buff_occ << " ideal_buff_occ "
+      //           << ideal_buff_occ
+      //           // << " socketRate " << socketRate.GetBitRate() /1e6
+      //           << " m_initRate " << m_initRate.GetBitRate () / 1e6 << " buffRate "
+      //           << buffRate.GetBitRate () / 1e6 << std::endl;
+
+      // NS_LOG_DEBUG ("peer " << addressStr.str () << " dt " << dt << " avail " << bytes
+      // << " sockRate " << socketRate);
     }
   else
     {
-      buffRate = DataRate (
-          DynamicCast<VrBurstGenerator> (m_burstGenerator)->GetTargetDataRate ().GetBitRate () +
-          100000);
+      nextDataRate =
+          std::max (fuzzyAlgorithmServer.nextBurstRate (
+                        DynamicCast<TcpSocketBase> (m_socket), m_bytesAddedToSocket),
+                    DataRate ("100kbps"));
     }
 
-  // uint64_t t_buff_occ = ideal_buff_occ - buff_occ;
-
-  // DataRate buffRate = DataRate ((t_buff_occ / 8) / dt.GetSeconds ());
-
-  NS_LOG_INFO ("SndBufSize " << buf_size.Get () << " avail " << m_socket->GetTxAvailable ()
-                             << " occup " << buff_occ << " ideal_buff_occ "
-                             << ideal_buff_occ
-                             // << " socketRate " << socketRate.GetBitRate() /1e6
-                             << " m_initRate " << m_initRate.GetBitRate () / 1e6 << " buffRate "
-                             << buffRate.GetBitRate () / 1e6);
+  DynamicCast<VrBurstGenerator> (m_burstGenerator)
+      ->SetTargetDataRate (std::min (nextDataRate, m_initRate));
 
   std::stringstream addressStr;
   if (InetSocketAddress::IsMatchingType (m_peer))
@@ -226,11 +245,13 @@ BurstyApplicationServerInstance::AdaptRate ()
       addressStr << "UNKNOWN ADDRESS TYPE";
     }
 
-  // NS_LOG_DEBUG ("peer " << addressStr.str () << " dt " << dt << " avail " << bytes << " sockRate "
-  //                       << socketRate);
-
-  DynamicCast<VrBurstGenerator> (m_burstGenerator)
-      ->SetTargetDataRate (std::min (m_initRate, buffRate));
+  NS_LOG_INFO (
+      Simulator::Now ().GetSeconds ()
+      << " peer " << addressStr.str () << " nextNoLimit " << nextDataRate.GetBitRate () / 1.e6
+      << " nextdatarate "
+      << DynamicCast<VrBurstGenerator> (m_burstGenerator)->GetTargetDataRate ().GetBitRate () /
+             1e6);
+  m_bytesAddedToSocket = 0;
 }
 
 void
@@ -606,7 +627,7 @@ BurstyApplicationServerInstance::DataSend (Ptr<Socket> socket, uint32_t)
         }
       else
         {
-
+          m_bytesAddedToSocket += frame->GetSize ();
           NS_LOG_INFO ("Just sent " << frame->GetSerializedSize () << " " << frame->GetSize ());
           //socket->Send(Create<Packet>(0));
         }

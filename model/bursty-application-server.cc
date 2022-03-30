@@ -64,6 +64,9 @@ BurstyApplicationServer::GetTypeId (void)
               "isAdaptive", "If the server will adapt the sending rate.", BooleanValue (false),
               MakeBooleanAccessor (&BurstyApplicationServer::m_isAdaptive), MakeBooleanChecker ())
           .AddAttribute (
+              "isFuzzy", "If the server will use Fuzzy algorithm.", BooleanValue (false),
+              MakeBooleanAccessor (&BurstyApplicationServer::m_isFuzzy), MakeBooleanChecker ())
+          .AddAttribute (
               "FragmentSize", "The size of packets sent in a burst including SeqTsSizeFragHeader",
               UintegerValue (1200), MakeUintegerAccessor (&BurstyApplicationServer::m_fragSize),
               MakeUintegerChecker<uint32_t> (1))
@@ -300,6 +303,7 @@ BurstyApplicationServer::CreateInstance (Ptr<Socket> socket, Address peer)
   m_server_instances[peer].m_txBurstTrace = m_txBurstTrace;
   m_server_instances[peer].m_txFragmentTrace = m_txFragmentTrace;
   m_server_instances[peer].m_isAdaptive = m_isAdaptive;
+  m_server_instances[peer].m_isFuzzy = m_isFuzzy;
   m_server_instances[peer].m_fragSize = m_fragSize;
 
   Ptr<VrBurstGenerator> vrBurstGenerator =

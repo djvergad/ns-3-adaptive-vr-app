@@ -223,6 +223,7 @@ main (int argc, char *argv[])
    * the instances of SetDefault, but we need it for legacy code (LTE)
    */
   // Config::SetDefault ("ns3::LteRlcUm::MaxTxBufferSize", UintegerValue (999999999));
+  Config::SetDefault ("ns3::LteRlcUm::MaxTxBufferSize", UintegerValue (50 * 1024));
 
   /*
    * Create the scenario. In our examples, we heavily use helpers that setup
@@ -410,8 +411,7 @@ main (int argc, char *argv[])
   nrHelper->SetGnbBwpManagerAlgorithmAttribute ("GBR_CONV_VOICE", UintegerValue (bwpIdForVoice));
 
   // Ue routing between Bearer and bandwidth part
-  nrHelper->SetUeBwpManagerAlgorithmAttribute ("NGBR_VIDEO_TCP_DEFAULT",
-                                               UintegerValue (bwpIdForLowLat));
+  nrHelper->SetUeBwpManagerAlgorithmAttribute ("NGBR_VIDEO_TCP_DEFAULT", UintegerValue (bwpIdForLowLat));
   nrHelper->SetUeBwpManagerAlgorithmAttribute ("GBR_CONV_VOICE", UintegerValue (bwpIdForVoice));
 
   /*
@@ -542,12 +542,12 @@ main (int argc, char *argv[])
 
   uint32_t fragmentSize = 500; //bytes
 
-  // Config::SetDefault ("ns3::TcpL4Protocol::SocketType",
-  //                     TypeIdValue (TypeId::LookupByName ("ns3::TcpYeah")));
+  Config::SetDefault ("ns3::TcpL4Protocol::SocketType",
+                      TypeIdValue (TypeId::LookupByName ("ns3::TcpYeah")));
   // Config::SetDefault ("ns3::TcpSocket::PersistTimeout", TimeValue (MilliSeconds (20)));
 
-  // Config::SetDefault ("ns3::TcpSocket::SndBufSize", UintegerValue (1 << 23));
-  // Config::SetDefault ("ns3::TcpSocket::RcvBufSize", UintegerValue (1 << 23));
+  Config::SetDefault ("ns3::TcpSocket::SndBufSize", UintegerValue (1 << 23));
+  Config::SetDefault ("ns3::TcpSocket::RcvBufSize", UintegerValue (1 << 23));
   Config::SetDefault ("ns3::VrBurstGenerator::FrameRate", DoubleValue (frameRate));
   Config::SetDefault ("ns3::VrBurstGenerator::TargetDataRate", DataRateValue (DataRate (appRate)));
   Config::SetDefault ("ns3::VrBurstGenerator::VrAppName", StringValue (vrAppName));
@@ -698,11 +698,12 @@ main (int argc, char *argv[])
       app->TraceConnectWithoutContext ("BurstRx", MakeBoundCallback (&BurstRx, burstTrace));
       app->TraceConnectWithoutContext ("FragmentRx",
                                        MakeBoundCallback (&FragmentRx, fragmentTrace));
+      app->SetStartTime (udpAppStartTime + Seconds (i * 0.2));
     }
 
   // start UDP server and client apps
   serverApps.Start (udpAppStartTime);
-  clientApps.Start (udpAppStartTime);
+  // clientApps.Start (udpAppStartTime);
   serverApps.Stop (simTime + Seconds (10));
   clientApps.Stop (simTime + Seconds (10));
 
