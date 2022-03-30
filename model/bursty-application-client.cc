@@ -261,7 +261,13 @@ BurstyApplicationClient::HandleRead (Ptr<Socket> socket)
               NS_LOG_DEBUG ("Incomplete packet in rxbuffer, received. size: "
                             << m_incomplete_packets[socket]->GetSize () << " hsize " << del_size);
 
-              FragmentReceived (itBuffer->second, fragment, from, localAddress);
+              if (header.GetSeq () != UINT32_MAX)
+                {
+                  FragmentReceived (itBuffer->second, fragment, from, localAddress);
+                }
+                else {
+                  socket->Close();
+                }
             }
           else
             {

@@ -220,10 +220,9 @@ BurstyApplicationServerInstance::AdaptRate ()
     }
   else
     {
-      nextDataRate =
-          std::max (fuzzyAlgorithmServer.nextBurstRate (
-                        DynamicCast<TcpSocketBase> (m_socket), m_bytesAddedToSocket),
-                    DataRate ("100kbps"));
+      nextDataRate = std::max (fuzzyAlgorithmServer.nextBurstRate (
+                                   DynamicCast<TcpSocketBase> (m_socket), m_bytesAddedToSocket),
+                               DataRate ("100kbps"));
     }
 
   DynamicCast<VrBurstGenerator> (m_burstGenerator)
@@ -245,12 +244,12 @@ BurstyApplicationServerInstance::AdaptRate ()
       addressStr << "UNKNOWN ADDRESS TYPE";
     }
 
-  NS_LOG_INFO (
+  std::cout <<
       Simulator::Now ().GetSeconds ()
       << " peer " << addressStr.str () << " nextNoLimit " << nextDataRate.GetBitRate () / 1.e6
       << " nextdatarate "
       << DynamicCast<VrBurstGenerator> (m_burstGenerator)->GetTargetDataRate ().GetBitRate () /
-             1e6);
+             1e6 << std::endl;
   m_bytesAddedToSocket = 0;
 }
 
@@ -260,7 +259,7 @@ BurstyApplicationServerInstance::SendBurst ()
   NS_LOG_FUNCTION (this);
   NS_ASSERT (m_nextBurstEvent.IsExpired ());
 
-  Time period = MilliSeconds (200);
+  Time period = MilliSeconds (16);
 
   if (!m_isfinishing)
     {
@@ -329,22 +328,26 @@ BurstyApplicationServerInstance::SendBurst ()
       // schedule next burst
       NS_LOG_DEBUG ("Next burst scheduled in " << period.As (Time::S));
     }
-  // else
-  //   {
-  //     Ptr<Packet> dummy = Create<Packet> (100);
-  //     SeqTsSizeFragHeader header;
-  //     header.SetSize(dummy->GetSize() + header.GetSerializedSize());
-  //     dummy->AddHeader(header);
-  //     m_socket->Send (dummy);
-  //   }
+  else
+    {
+      for (int i = 0; i < 100; i++)
+        {
+          Ptr<Packet> dummy = Create<Packet> (10000);
+          SeqTsSizeFragHeader header;
+          header.SetSize (dummy->GetSize ());
+          header.SetSeq (UINT32_MAX);
+          dummy->AddHeader (header);
+          m_socket->Send (dummy);
+        }
+    }
   m_nextBurstEvent =
       Simulator::Schedule (period, &BurstyApplicationServerInstance::SendBurst, this);
   DataSend (m_socket, 0);
-  // UintegerValue buf_size;
-  // m_socket->GetAttribute ("SndBufSize", buf_size);
-  // uint64_t buff_occ = buf_size.Get () - m_socket->GetTxAvailable ();
-  // std::cout << Simulator::Now ().GetSeconds () << " SndBufSize " << buf_size.Get () << " avail "
-  //           << m_socket->GetTxAvailable () << " occup " << buff_occ << std::endl;
+  UintegerValue buf_size;
+  m_socket->GetAttribute ("SndBufSize", buf_size);
+  uint64_t buff_occ = buf_size.Get () - m_socket->GetTxAvailable ();
+  std::cout << Simulator::Now ().GetSeconds () << " SndBufSize " << buf_size.Get () << " avail "
+            << m_socket->GetTxAvailable () << " occup " << buff_occ << std::endl;
 }
 
 void

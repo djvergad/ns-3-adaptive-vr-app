@@ -705,7 +705,7 @@ main (int argc, char *argv[])
   serverApps.Start (udpAppStartTime);
   // clientApps.Start (udpAppStartTime);
   serverApps.Stop (simTime + Seconds (10));
-  clientApps.Stop (simTime + Seconds (10));
+  clientApps.Stop (simTime + Seconds (15));
 
   // enable the traces provided by the nr module
   //nrHelper->EnableTraces();
@@ -720,7 +720,7 @@ main (int argc, char *argv[])
   monitor->SetAttribute ("JitterBinWidth", DoubleValue (0.001));
   monitor->SetAttribute ("PacketSizeBinWidth", DoubleValue (20));
 
-  Simulator::Stop (simTime + Seconds (15));
+  Simulator::Stop (simTime + Seconds (20));
   Simulator::Run ();
 
   // burst info
