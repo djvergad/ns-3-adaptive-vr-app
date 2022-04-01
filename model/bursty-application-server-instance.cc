@@ -244,12 +244,11 @@ BurstyApplicationServerInstance::AdaptRate ()
       addressStr << "UNKNOWN ADDRESS TYPE";
     }
 
-  std::cout <<
-      Simulator::Now ().GetSeconds ()
-      << " peer " << addressStr.str () << " nextNoLimit " << nextDataRate.GetBitRate () / 1.e6
-      << " nextdatarate "
-      << DynamicCast<VrBurstGenerator> (m_burstGenerator)->GetTargetDataRate ().GetBitRate () /
-             1e6 << std::endl;
+  std::cout
+      << Simulator::Now ().GetSeconds () << " peer " << addressStr.str () << " nextNoLimit "
+      << nextDataRate.GetBitRate () / 1.e6 << " nextdatarate "
+      << DynamicCast<VrBurstGenerator> (m_burstGenerator)->GetTargetDataRate ().GetBitRate () / 1e6
+      << std::endl;
   m_bytesAddedToSocket = 0;
 }
 
@@ -330,15 +329,15 @@ BurstyApplicationServerInstance::SendBurst ()
     }
   else
     {
-      for (int i = 0; i < 100; i++)
-        {
-          Ptr<Packet> dummy = Create<Packet> (10000);
-          SeqTsSizeFragHeader header;
-          header.SetSize (dummy->GetSize ());
-          header.SetSeq (UINT32_MAX);
-          dummy->AddHeader (header);
-          m_socket->Send (dummy);
-        }
+      // for (int i = 0; i < 100; i++)
+      //   {
+      //     Ptr<Packet> dummy = Create<Packet> (500);
+      //     SeqTsSizeFragHeader header;
+      //     header.SetFragBytes (dummy->GetSize () + header.GetSerializedSize());
+      //     header.SetSeq (UINT32_MAX);
+      //     dummy->AddHeader (header);
+      //     m_socket->Send (dummy);
+      //   }
     }
   m_nextBurstEvent =
       Simulator::Schedule (period, &BurstyApplicationServerInstance::SendBurst, this);
@@ -489,8 +488,16 @@ BurstyApplicationServerInstance::SendFragment (Ptr<Packet> fragment, uint64_t bu
   header.SetSize (burstSize);
   header.SetFrags (totFrags);
   header.SetFragSeq (fragmentSeq);
+  // std::cout << "before " << fragment->GetSize () << " headersize " << header.GetSerializedSize ()
+  //           << std::endl;
   header.SetFragBytes (fragment->GetSize () + header.GetSerializedSize ());
+  // std::cout << "frag bytes " << header.GetFragBytes () << " headersize "
+  //           << header.GetSerializedSize () << std::endl;
+
   fragment->AddHeader (header);
+
+  std::cout << "frag size " << fragment->GetSize () << " serialized "
+            << fragment->GetSerializedSize () << std::endl;
 
   uint32_t fragmentSize = fragment->GetSize ();
 

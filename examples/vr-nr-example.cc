@@ -553,6 +553,10 @@ main (int argc, char *argv[])
   Config::SetDefault ("ns3::VrBurstGenerator::VrAppName", StringValue (vrAppName));
   Config::SetDefault ("ns3::BurstyApplicationServer::FragmentSize", UintegerValue (fragmentSize));
 
+Config::SetDefault ("ns3::BurstyApplicationServer::appDuration",
+                      TimeValue (simTime));
+
+
   // Config::SetDefault ("ns3::QuicSocketBase::SocketSndBufSize", UintegerValue (40000000));
   // Config::SetDefault ("ns3::QuicSocketBase::SocketRcvBufSize", UintegerValue (40000000));
   // Config::SetDefault ("ns3::QuicStreamBase::StreamSndBufSize", UintegerValue (40000000));
@@ -566,7 +570,7 @@ main (int argc, char *argv[])
   uint16_t port = 50000;
 
   std::string protocol;
-  if (burstGeneratorType == "model")
+   if (burstGeneratorType == "model")
     {
       protocol = "ns3::UdpSocketFactory";
       Config::SetDefault ("ns3::BurstyApplicationServer::isAdaptive", BooleanValue (false));
@@ -576,17 +580,12 @@ main (int argc, char *argv[])
       protocol = "ns3::TcpSocketFactory";
       Config::SetDefault ("ns3::BurstyApplicationServer::isAdaptive", BooleanValue (true));
     }
-
-  // else if (burstGeneratorType == "quic-adaptive")
-  //   {
-  //     protocol = "ns3::QuicSocketFactory";
-  //     Config::SetDefault ("ns3::BurstyApplicationServer::isAdaptive", BooleanValue (true));
-  //   }
-  // else if (burstGeneratorType == "quic")
-  //   {
-  //     protocol = "ns3::QuicSocketFactory";
-  //     Config::SetDefault ("ns3::BurstyApplicationServer::isAdaptive", BooleanValue (false));
-  //   }
+  else if (burstGeneratorType == "fuzzy")
+    {
+      protocol = "ns3::TcpSocketFactory";
+      Config::SetDefault ("ns3::BurstyApplicationServer::isAdaptive", BooleanValue (true));
+      Config::SetDefault ("ns3::BurstyApplicationServer::isFuzzy", BooleanValue (true));
+    }
   else
     {
       NS_ABORT_MSG ("Wrong burstGeneratorType type");
