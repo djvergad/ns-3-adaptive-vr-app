@@ -75,10 +75,6 @@ BurstyApplicationServerInstance::GetTypeId (void)
                          TypeIdValue (UdpSocketFactory::GetTypeId ()),
                          MakeTypeIdAccessor (&BurstyApplicationServerInstance::m_socketTid),
                          MakeTypeIdChecker ())
-          .AddAttribute ("isAdaptive", "If the server will adapt the sending rate.",
-                         BooleanValue (false),
-                         MakeBooleanAccessor (&BurstyApplicationServerInstance::m_isAdaptive),
-                         MakeBooleanChecker ())
       // .AddTraceSource ("FragmentTx", "A fragment of the burst is sent",
       //                  MakeTraceSourceAccessor (&BurstyApplicationServerInstance::m_txFragmentTrace),
       //                  "ns3::BurstSink::SeqTsSizeFragCallback")
@@ -163,66 +159,27 @@ BurstyApplicationServerInstance::AdaptRate ()
 {
   NS_LOG_FUNCTION (this);
 
-  DataRate nextDataRate;
-
-  if (!m_isFuzzy)
+  if (m_txStarted != Seconds (0))
     {
+      m_txTime += Simulator::Now () - m_txStarted;
+    }
 
-      UintegerValue buf_size;
+  DataRate nextDataRate =
+      std::max (m_adaptationAlgorithmServer->nextBurstRate (DynamicCast<TcpSocketBase> (m_socket),
+                                                            m_bytesAddedToSocket, m_txTime),
+                DataRate ("100kbps"));
 
-      if (m_socket->GetInstanceTypeId ().GetName () == "ns3::TcpSocketBase")
-        {
-          m_socket->GetAttribute ("SndBufSize", buf_size);
-        }
+  m_txTime = Seconds (0);
+  UintegerValue buf_size;
+  DynamicCast<TcpSocketBase> (m_socket)->GetAttribute ("SndBufSize", buf_size);
 
-      // std::cout << "AAAAAAAAAAAAAAAAAAAAAaa" << std::endl;
-      Time dt = Simulator::Now () - m_lastBurstAt;
-      m_lastBurstAt = Simulator::Now ();
-      // uint64_t bytes =
-      //     std::max (((int128_t) m_socket->GetTxAvailable ()) - (buf_size.Get () / 2), (int128_t) 1000);
-
-      // DataRate socketRate = DataRate (bytes / 8 / dt.GetSeconds () / 10);
-
-      uint64_t buff_occ =
-          buf_size.Get () - m_socket->GetTxAvailable () + m_queue.size () * m_fragSize;
-
-      // uint64_t ideal_buff_occ = 8 * m_initRate.GetBitRate () * dt.GetSeconds ();
-
-      uint64_t ideal_buff_occ = 2000;
-
-      if (buff_occ > ideal_buff_occ)
-        {
-          nextDataRate = DataRate (
-              DynamicCast<VrBurstGenerator> (m_burstGenerator)->GetTargetDataRate ().GetBitRate () /
-              2);
-          nextDataRate = std::max (nextDataRate, DataRate ("100kbps"));
-        }
-      else
-        {
-          nextDataRate = DataRate (
-              DynamicCast<VrBurstGenerator> (m_burstGenerator)->GetTargetDataRate ().GetBitRate () +
-              100000);
-        }
-
-      // uint64_t t_buff_occ = ideal_buff_occ - buff_occ;
-
-      // DataRate buffRate = DataRate ((t_buff_occ / 8) / dt.GetSeconds ());
-
-      // std::cout << Simulator::Now ().GetSeconds () << " SndBufSize " << buf_size.Get () << " avail "
-      //           << m_socket->GetTxAvailable () << " occup " << buff_occ << " ideal_buff_occ "
-      //           << ideal_buff_occ
-      //           // << " socketRate " << socketRate.GetBitRate() /1e6
-      //           << " m_initRate " << m_initRate.GetBitRate () / 1e6 << " buffRate "
-      //           << buffRate.GetBitRate () / 1e6 << std::endl;
-
-      // NS_LOG_DEBUG ("peer " << addressStr.str () << " dt " << dt << " avail " << bytes
-      // << " sockRate " << socketRate);
+  if (m_queue.size () == 0 && buf_size.Get () == m_socket->GetTxAvailable ())
+    {
+      m_txStarted = Seconds (0);
     }
   else
     {
-      nextDataRate = std::max (fuzzyAlgorithmServer.nextBurstRate (
-                                   DynamicCast<TcpSocketBase> (m_socket), m_bytesAddedToSocket),
-                               DataRate ("100kbps"));
+      m_txStarted = Simulator::Now ();
     }
 
   DynamicCast<VrBurstGenerator> (m_burstGenerator)
@@ -263,7 +220,7 @@ BurstyApplicationServerInstance::SendBurst ()
   if (!m_isfinishing)
     {
 
-      if (m_isAdaptive == 1)
+      if (m_adaptationAlgorithmServer)
         {
           AdaptRate ();
         }
@@ -285,7 +242,7 @@ BurstyApplicationServerInstance::SendBurst ()
         }
 
       NS_LOG_INFO (Simulator::Now ().GetSeconds ()
-                   << " Adaptive: " << m_isAdaptive << " peer " << addressStr.str () << " rate "
+                   << " peer " << addressStr.str () << " rate "
                    << (DynamicCast<VrBurstGenerator> (GetBurstGenerator ()))
                               ->GetTargetDataRate ()
                               .GetBitRate () /
@@ -342,11 +299,11 @@ BurstyApplicationServerInstance::SendBurst ()
   m_nextBurstEvent =
       Simulator::Schedule (period, &BurstyApplicationServerInstance::SendBurst, this);
   DataSend (m_socket, 0);
-  UintegerValue buf_size;
-  m_socket->GetAttribute ("SndBufSize", buf_size);
-  uint64_t buff_occ = buf_size.Get () - m_socket->GetTxAvailable ();
-  std::cout << Simulator::Now ().GetSeconds () << " SndBufSize " << buf_size.Get () << " avail "
-            << m_socket->GetTxAvailable () << " occup " << buff_occ << std::endl;
+  // UintegerValue buf_size;
+  // m_socket->GetAttribute ("SndBufSize", buf_size);
+  // uint64_t buff_occ = buf_size.Get () - m_socket->GetTxAvailable ();
+  // std::cout << Simulator::Now ().GetSeconds () << " SndBufSize " << buf_size.Get () << " avail "
+  //           << m_socket->GetTxAvailable () << " occup " << buff_occ << std::endl;
 }
 
 void
@@ -496,8 +453,8 @@ BurstyApplicationServerInstance::SendFragment (Ptr<Packet> fragment, uint64_t bu
 
   fragment->AddHeader (header);
 
-  std::cout << "frag size " << fragment->GetSize () << " serialized "
-            << fragment->GetSerializedSize () << std::endl;
+  // std::cout << "frag size " << fragment->GetSize () << " serialized "
+  //           << fragment->GetSerializedSize () << std::endl;
 
   uint32_t fragmentSize = fragment->GetSize ();
 
@@ -569,6 +526,11 @@ BurstyApplicationServerInstance::DataSend (Ptr<Socket> socket, uint32_t)
 
   while (!m_queue.empty ())
     {
+      if (m_adaptationAlgorithmServer && m_txStarted == Seconds (0))
+        {
+          m_txStarted = Simulator::Now ();
+        }
+
       uint32_t max_tx_size = socket->GetTxAvailable ();
 
       Ptr<Packet> frame = m_queue.front ().Copy ();
@@ -642,6 +604,19 @@ BurstyApplicationServerInstance::DataSend (Ptr<Socket> socket, uint32_t)
           //socket->Send(Create<Packet>(0));
         }
     }
+
+  if (m_adaptationAlgorithmServer)
+    {
+      Ptr<TcpSocketBase> tcp = DynamicCast<TcpSocketBase> (socket);
+      UintegerValue buf_size;
+      socket->GetAttribute ("SndBufSize", buf_size);
+
+      if (buf_size.Get () == m_socket->GetTxAvailable () && m_txStarted != Seconds (0))
+        {
+          m_txTime += (Simulator::Now () - m_txStarted);
+          m_txStarted = Seconds (0);
+        }
+    }
 }
 
 uint64_t
@@ -660,17 +635,6 @@ uint64_t
 BurstyApplicationServerInstance::GetTotalTxBytes (void) const
 {
   return m_totTxBytes;
-}
-
-void
-BurstyApplicationServerInstance::SetIsAdaptive (bool value)
-{
-  m_isAdaptive = value;
-}
-bool
-BurstyApplicationServerInstance::GetIsAdaptive (void) const
-{
-  return m_isAdaptive;
 }
 
 } // Namespace ns3

@@ -28,7 +28,8 @@
 #include "ns3/traced-callback.h"
 #include "ns3/seq-ts-size-frag-header.h"
 #include "vr-burst-generator.h"
-#include "fuzzy-algorithm-server.h"
+#include "ns3/fuzzy-algorithm-server.h"
+#include "ns3/adaptation-algorithm-server.h"
 
 #include <queue>
 
@@ -158,13 +159,14 @@ protected:
 
   void AdaptRate ();
 
-  bool m_isAdaptive = false;
-  bool m_isFuzzy = false;
   bool m_isfinishing = false;
 
-  FuzzyAlgorithmServer fuzzyAlgorithmServer;
+  Ptr<AdaptationAlgorithmServer> m_adaptationAlgorithmServer;
 
   uint64_t m_bytesAddedToSocket = 0;
+
+  Time m_txTime = Seconds(0);
+  Time m_txStarted = Seconds(0);
 };
 
 } // namespace ns3

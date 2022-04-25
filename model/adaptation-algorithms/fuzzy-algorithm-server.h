@@ -4,22 +4,20 @@
 #include "ns3/data-rate.h"
 #include "ns3/tcp-socket-base.h"
 #include "ns3/packet.h"
+#include "adaptation-algorithm-server.h"
 
 namespace ns3 {
 
-class FuzzyAlgorithmServer
+class FuzzyAlgorithmServer : public AdaptationAlgorithmServer
 {
 public:
+  static TypeId GetTypeId (void);
+
   FuzzyAlgorithmServer ();
   virtual ~FuzzyAlgorithmServer ();
 
-  DataRate nextBurstRate (Ptr<TcpSocketBase> socket, uint64_t bytesAddedToSocket);
-
 private:
-  DataRate fuzzyAlgorithm (double buff_occ, double diff_buff_occ, DataRate lastRate);
-
-  Time m_lastBurstTime = Seconds (0);
-  uint64_t m_lastBufferOcc = 0;
+  DataRate adaptation_algorithm (double buff_occ, double diff_buff_occ, DataRate lastRate);
 };
 
 } // namespace ns3

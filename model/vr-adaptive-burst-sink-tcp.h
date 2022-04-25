@@ -22,7 +22,7 @@
 
 #include "burst-sink-tcp.h"
 #include "ns3/data-rate.h"
-#include "fuzzy-algorithm.h"
+#include "ns3/fuzzy-algorithm.h"
 
 namespace ns3 {
 

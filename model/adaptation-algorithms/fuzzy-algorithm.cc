@@ -1,6 +1,6 @@
 #include "fuzzy-algorithm.h"
 #include "ns3/log.h"
-#include "seq-ts-size-frag-header.h"
+#include "../seq-ts-size-frag-header.h"
 #include "ns3/simulator.h"
 
 namespace ns3 {

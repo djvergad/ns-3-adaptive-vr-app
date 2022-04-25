@@ -35,6 +35,8 @@
 #include "ns3/boolean.h"
 #include "ns3/string.h"
 #include "ns3/uinteger.h"
+#include "ns3/fuzzy-algorithm-server.h"
+#include "ns3/google-algorithm-server.h"
 
 namespace ns3 {
 
@@ -60,12 +62,11 @@ BurstyApplicationServer::GetTypeId (void)
                          DataRateValue (false),
                          MakeDataRateAccessor (&BurstyApplicationServer::m_maxTargetDataRate),
                          MakeTypeIdChecker ())
-          .AddAttribute (
-              "isAdaptive", "If the server will adapt the sending rate.", BooleanValue (false),
-              MakeBooleanAccessor (&BurstyApplicationServer::m_isAdaptive), MakeBooleanChecker ())
-          .AddAttribute (
-              "isFuzzy", "If the server will use Fuzzy algorithm.", BooleanValue (false),
-              MakeBooleanAccessor (&BurstyApplicationServer::m_isFuzzy), MakeBooleanChecker ())
+          .AddAttribute ("adaptationAlgorithm",
+                         "The adaptation algorithm used, empty string for no adaptation. Other allowed values are FuzzyAlgorithmServer and GoogleAlgorithmServer",
+                         StringValue (""),
+                         MakeStringAccessor (&BurstyApplicationServer::m_adaptationAlgorithm),
+                         MakeStringChecker ())
           .AddAttribute (
               "FragmentSize", "The size of packets sent in a burst including SeqTsSizeFragHeader",
               UintegerValue (1200), MakeUintegerAccessor (&BurstyApplicationServer::m_fragSize),
@@ -218,7 +219,7 @@ BurstyApplicationServer::HandleRead (Ptr<Socket> socket)
 
   if ((m_socket->GetSocketType () != Socket::NS3_SOCK_STREAM &&
        m_socket->GetSocketType () != Socket::NS3_SOCK_SEQPACKET) ||
-      m_tid.GetName () =="ns3::QuicSocketFactory")
+      m_tid.GetName () == "ns3::QuicSocketFactory")
     {
       Address peer;
       ;
@@ -302,9 +303,20 @@ BurstyApplicationServer::CreateInstance (Ptr<Socket> socket, Address peer)
   m_server_instances[peer].m_peer = peer;
   m_server_instances[peer].m_txBurstTrace = m_txBurstTrace;
   m_server_instances[peer].m_txFragmentTrace = m_txFragmentTrace;
-  m_server_instances[peer].m_isAdaptive = m_isAdaptive;
-  m_server_instances[peer].m_isFuzzy = m_isFuzzy;
   m_server_instances[peer].m_fragSize = m_fragSize;
+
+  if (m_adaptationAlgorithm == "FuzzyAlgorithmServer")
+    {
+      m_server_instances[peer].m_adaptationAlgorithmServer = CreateObject<FuzzyAlgorithmServer> ();
+    }
+  else if (m_adaptationAlgorithm == "GoogleAlgorithmServer")
+    {
+      m_server_instances[peer].m_adaptationAlgorithmServer = CreateObject<GoogleAlgorithmServer> ();
+    }
+  else if (m_adaptationAlgorithm != "")
+    {
+      NS_ABORT_MSG ("Wrong Adaptation Algorithm type");
+    }
 
   Ptr<VrBurstGenerator> vrBurstGenerator =
       DynamicCast<VrBurstGenerator> (m_server_instances[peer].GetBurstGenerator ());

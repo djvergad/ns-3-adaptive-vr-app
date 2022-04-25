@@ -21,7 +21,7 @@
 #define VR_ADAPTIVE_BURST_SINK_H
 
 #include "burst-sink.h"
-#include "fuzzy-algorithm.h"
+#include "ns3/fuzzy-algorithm.h"
 
 namespace ns3 {
 

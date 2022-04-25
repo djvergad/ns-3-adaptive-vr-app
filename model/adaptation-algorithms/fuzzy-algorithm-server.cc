@@ -6,6 +6,18 @@ namespace ns3 {
 
 NS_LOG_COMPONENT_DEFINE ("FuzzyAlgorithmServer");
 
+NS_OBJECT_ENSURE_REGISTERED (FuzzyAlgorithmServer);
+
+TypeId
+FuzzyAlgorithmServer::GetTypeId (void)
+{
+  static TypeId tid = TypeId ("ns3::FuzzyAlgorithmServer")
+                          .SetParent<AdaptationAlgorithmServer> ()
+                          .SetGroupName ("Applications")
+                          .AddConstructor<FuzzyAlgorithmServer> ();
+  return tid;
+}
+
 FuzzyAlgorithmServer::FuzzyAlgorithmServer ()
 {
   NS_LOG_FUNCTION (this);
@@ -17,31 +29,8 @@ FuzzyAlgorithmServer::~FuzzyAlgorithmServer ()
 }
 
 DataRate
-FuzzyAlgorithmServer::nextBurstRate (Ptr<TcpSocketBase> socket, uint64_t bytesAddedToSocket)
-{
-  NS_LOG_FUNCTION (this << socket << bytesAddedToSocket);
-
-  UintegerValue buf_size;
-  socket->GetAttribute ("SndBufSize", buf_size);
-
-  Time dt = Simulator::Now () - m_lastBurstTime;
-  m_lastBurstTime = Simulator::Now ();
-
-  uint64_t buff_occ = buf_size.Get () - socket->GetTxAvailable ();
-  int128_t diff_buff_occ = buff_occ - m_lastBufferOcc;
-  m_lastBufferOcc = buff_occ;
-
-  uint64_t bytes_sent = bytesAddedToSocket - diff_buff_occ;
-  DataRate lastRate = DataRate (bytes_sent * 8 / dt.GetSeconds ());
-
-  NS_LOG_DEBUG ("buff_occ " << buff_occ << " diff_buff_occ " << (int) diff_buff_occ << " lastRate "
-                             << lastRate.GetBitRate () / 1e6);
-
-  return fuzzyAlgorithm (buff_occ, diff_buff_occ, lastRate);
-}
-
-DataRate
-FuzzyAlgorithmServer::fuzzyAlgorithm (double buff_occ, double diff_buff_occ, DataRate lastRate)
+FuzzyAlgorithmServer::adaptation_algorithm (double buff_occ, double diff_buff_occ,
+                                            DataRate lastRate)
 {
   NS_LOG_FUNCTION (this);
 

@@ -141,7 +141,7 @@ main (int argc, char *argv[])
   cmd.AddValue ("frameRate", "the app frame rate [FPS]", frameRate);
   cmd.AddValue ("vrAppName", "the app name", vrAppName);
   cmd.AddValue ("burstGeneratorType",
-                "type of burst generator {\"model\", \"trace\", \"deterministic\"}",
+                "type of burst generator {\"model\", \"google\", \"fuzzy\"}",
                 burstGeneratorType);
   cmd.AddValue ("simulationTime", "Simulation time in seconds", simulationTime);
   cmd.Parse (argc, argv);
@@ -250,18 +250,17 @@ main (int argc, char *argv[])
   if (burstGeneratorType == "model")
     {
       protocol = "ns3::UdpSocketFactory";
-      Config::SetDefault ("ns3::BurstyApplicationServer::isAdaptive", BooleanValue (false));
+      Config::SetDefault ("ns3::BurstyApplicationServer::adaptationAlgorithm", StringValue (""));
     }
-  else if (burstGeneratorType == "adaptive")
+  else if (burstGeneratorType == "google")
     {
       protocol = "ns3::TcpSocketFactory";
-      Config::SetDefault ("ns3::BurstyApplicationServer::isAdaptive", BooleanValue (true));
+      Config::SetDefault ("ns3::BurstyApplicationServer::adaptationAlgorithm", StringValue ("GoogleAlgorithmServer"));
     }
   else if (burstGeneratorType == "fuzzy")
     {
       protocol = "ns3::TcpSocketFactory";
-      Config::SetDefault ("ns3::BurstyApplicationServer::isAdaptive", BooleanValue (true));
-      Config::SetDefault ("ns3::BurstyApplicationServer::isFuzzy", BooleanValue (true));
+      Config::SetDefault ("ns3::BurstyApplicationServer::adaptationAlgorithm", StringValue ("FuzzyAlgorithmServer"));
     }
   else
     {
