@@ -13,7 +13,7 @@ import sys
 import argparse
 from collections import OrderedDict
 import numpy as np
-from matplotlib import pyplot as plt
+from matplotlib import pyplot as plt, markers as markers
 import copy
 import tikzplotlib
 
@@ -297,11 +297,18 @@ def plot_line_metric(campaign, parameter_space, result_parsing_function, runs, x
     metric_ci95 = metric.reduce(
         np.std, 'runs').squeeze() * 1.96 / np.sqrt(runs)
 
+    symbols = iter([markers.CARETDOWN, markers.CARETUP, 's'])
+    linestyles = iter(['-', '--', '-.'])
+
     fig = plt.figure()
     for val in metric_mean.coords[hue_var].values:
         plt.errorbar(xx, metric_mean.sel({hue_var: val}),
                      yerr=metric_ci95.sel({hue_var: val}),
-                     label=f"{hue_var}={val}")
+                     label=f"{hue_var}={val}",
+                     marker=next(symbols),
+                     fillstyle='none',
+                     markersize=10,
+                     linestyle=next(linestyles))
     plt.xscale(xscale)
     plt.yscale(yscale)
     plt.xlabel(xlabel)
@@ -329,7 +336,7 @@ if __name__ == '__main__':
     parser.add_argument("--numRuns",
                         help="The number of runs per simulation. Default: 50",
                         type=int,
-                        default=3)
+                        default=50)
     parser.add_argument("--campaignName",
                         help="MANDATORY parameter for the campaign name. Suggested: commit hash",
                         default=None)
@@ -374,7 +381,7 @@ if __name__ == '__main__':
             "appRate": "100Mbps",
             "frameRate": args.frameRate,
             "burstGeneratorType": ["model", "google", "fuzzy"],
-            "nStas": list(range(1, 9, 4)),
+            "nStas": list(range(1, 16+1, 1)),
             "simulationTime": 10,
             "RngRun": list(range(args.numRuns))
         })
