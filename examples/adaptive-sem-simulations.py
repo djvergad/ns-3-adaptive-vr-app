@@ -1,10 +1,10 @@
 # AUTHOR(S):
 # Mattia Lecci <mattia.lecci@dei.unipd.it>
-# 
+#
 # University of Padova (UNIPD), Italy
-# Information Engineering Department (DEI) 
+# Information Engineering Department (DEI)
 # SIGNET Research Group @ http://signet.dei.unipd.it/
-# 
+#
 # Date: December 2020
 
 import sem
@@ -21,6 +21,7 @@ sys.stdout.flush()
 
 # SEM script that generates the plots of the reference paper.
 # For further information please check the reference paper (see README.md).
+
 
 def remove_simulations(broken_results):
     print("Removing broken simulations")
@@ -46,9 +47,9 @@ def compute_avg_burst_thr_mbps(results):
     trace = results['output']['burstTrace.csv']
 
     # SrcAddress,TxTime_ns,RxTime_ns,BurstSeq,BurstSize
-    delays = np.array([float(row.split(',')[4]) * 8 / 1e6 # Mb
+    delays = np.array([float(row.split(',')[4]) * 8 / 1e6  # Mb
                       for i, row in enumerate(trace.split('\n')[:-1]) if (i > 0)])
-    
+
     if len(delays) > 0:
         delay = np.sum(delays) / results['params']['simulationTime']
     else:
@@ -59,14 +60,38 @@ def compute_avg_burst_thr_mbps(results):
     return delay
 
 
+def compute_fairness_burst_thr_mbps(results):
+    # print("id:", results['meta']['id'])
+    trace = results['output']['burstTrace.csv']
+
+    mbits = {}
+    for i, row in enumerate(trace.split('\n')[:-1]):
+        if (i > 0):
+            if row.split(',')[0] not in mbits:
+                mbits[row.split(',')[0]] = 0
+            mbits[row.split(',')[0]] += float(row.split(',')[4]) * 8 / 1e6
+
+    throughputs = {}
+    for host, mb in mbits.items():
+        throughputs[host] = mb / results['params']['simulationTime']
+
+    s = 0
+    s2 = 0
+    for host, thr in throughputs.items():
+        s += thr
+        s2 += thr**2
+
+    return s**2/(len(throughputs) * s2)
+
+
 def compute_avg_burst_delay_ms(results):
     # print("id:", results['meta']['id'])
     trace = results['output']['burstTrace.csv']
 
     # SrcAddress,TxTime_ns,RxTime_ns,BurstSeq,BurstSize
-    delays = np.array([(float(row.split(',')[2]) - float(row.split(',')[1])) / 1e6 # ms
+    delays = np.array([(float(row.split(',')[2]) - float(row.split(',')[1])) / 1e6  # ms
                       for i, row in enumerate(trace.split('\n')[:-1]) if (i > 0)])
-    
+
     if len(delays) > 0:
         delay = np.mean(delays)
     else:
@@ -77,14 +102,42 @@ def compute_avg_burst_delay_ms(results):
     return delay
 
 
+def compute_fairness_burst_delay_ms(results):
+    # print("id:", results['meta']['id'])
+    trace = results['output']['burstTrace.csv']
+
+    sumDelays = {}
+    countDelays = {}
+    for i, row in enumerate(trace.split('\n')[:-1]):
+        if (i > 0):
+            if row.split(',')[0] not in sumDelays:
+                sumDelays[row.split(',')[0]] = 0
+                countDelays[row.split(',')[0]] = 0
+            sumDelays[row.split(',')[0]] += (float(row.split(',')
+                                                   [2]) - float(row.split(',')[1])) / 1e6
+            countDelays[row.split(',')[0]] += 1
+
+    avgDelays = {}
+    for host, sd in sumDelays.items():
+        avgDelays[host] = sd / countDelays[host]
+
+    s = 0
+    s2 = 0
+    for host, adel in avgDelays.items():
+        s += adel
+        s2 += adel**2
+
+    return s**2/(len(avgDelays) * s2)
+
+
 def compute_95perc_burst_delay_ms(results):
     # print("id:", results['meta']['id'])
     trace = results['output']['burstTrace.csv']
 
     # SrcAddress,TxTime_ns,RxTime_ns,BurstSeq,BurstSize
-    delays = np.array([(float(row.split(',')[2]) - float(row.split(',')[1])) / 1e6 # ms
+    delays = np.array([(float(row.split(',')[2]) - float(row.split(',')[1])) / 1e6  # ms
                       for i, row in enumerate(trace.split('\n')[:-1]) if (i > 0)])
-    
+
     if len(delays) > 0:
         delay = np.percentile(delays, 95)
     else:
@@ -99,11 +152,10 @@ def compute_burst_succ_rate(results):
     # print("id:", results['meta']['id'])
     trace = results['output']['txBurstsBySta.csv']
     tot_tx = np.sum([float(n) for n in trace.split('\n')[:-1]])
-    
+
     trace = results['output']['rxBursts.csv']
     tot_rx = float(trace.rstrip('\n'))
 
-    
     if tot_rx > 0:
         succ = tot_rx / tot_tx
     else:
@@ -117,9 +169,9 @@ def compute_avg_fragment_thr_mbps(results):
     trace = results['output']['fragmentTrace.csv']
 
     # SrcAddress,TxTime_ns,RxTime_ns,BurstSeq,FragSeq,TotFrags,FragSize
-    delays = np.array([float(row.split(',')[-1]) * 8 / 1e6 # Mb
+    delays = np.array([float(row.split(',')[-1]) * 8 / 1e6  # Mb
                       for i, row in enumerate(trace.split('\n')[:-1]) if (i > 0)])
-    
+
     if len(delays) > 0:
         delay = np.sum(delays) / results['params']['simulationTime']
     else:
@@ -130,14 +182,38 @@ def compute_avg_fragment_thr_mbps(results):
     return delay
 
 
+def compute_fairness_fragment_thr_mbps(results):
+    # print("id:", results['meta']['id'])
+    trace = results['output']['fragmentTrace.csv']
+
+    mbits = {}
+    for i, row in enumerate(trace.split('\n')[:-1]):
+        if (i > 0):
+            if row.split(',')[0] not in mbits:
+                mbits[row.split(',')[0]] = 0
+            mbits[row.split(',')[0]] += float(row.split(',')[-1]) * 8 / 1e6
+
+    throughputs = {}
+    for host, mb in mbits.items():
+        throughputs[host] = mb / results['params']['simulationTime']
+
+    s = 0
+    s2 = 0
+    for host, thr in throughputs.items():
+        s += thr
+        s2 += thr**2
+
+    return s**2/(len(throughputs) * s2)
+
+
 def compute_avg_fragment_delay_ms(results):
     # print("id:", results['meta']['id'])
     trace = results['output']['fragmentTrace.csv']
 
     # SrcAddress,TxTime_ns,RxTime_ns,BurstSeq,BurstSize
-    delays = np.array([(float(row.split(',')[2]) - float(row.split(',')[1])) / 1e6 # ms
+    delays = np.array([(float(row.split(',')[2]) - float(row.split(',')[1])) / 1e6  # ms
                       for i, row in enumerate(trace.split('\n')[:-1]) if (i > 0)])
-    
+
     if len(delays) > 0:
         delay = np.mean(delays)
     else:
@@ -148,14 +224,42 @@ def compute_avg_fragment_delay_ms(results):
     return delay
 
 
+def compute_fairness_fragment_delay_ms(results):
+    # print("id:", results['meta']['id'])
+    trace = results['output']['fragmentTrace.csv']
+
+    sumDelays = {}
+    countDelays = {}
+    for i, row in enumerate(trace.split('\n')[:-1]):
+        if (i > 0):
+            if row.split(',')[0] not in sumDelays:
+                sumDelays[row.split(',')[0]] = 0
+                countDelays[row.split(',')[0]] = 0
+            sumDelays[row.split(',')[0]] += (float(row.split(',')
+                                                   [2]) - float(row.split(',')[1])) / 1e6
+            countDelays[row.split(',')[0]] += 1
+
+    avgDelays = {}
+    for host, sd in sumDelays.items():
+        avgDelays[host] = sd / countDelays[host]
+
+    s = 0
+    s2 = 0
+    for host, adel in avgDelays.items():
+        s += adel
+        s2 += adel**2
+
+    return s**2/(len(avgDelays) * s2)
+
+
 def compute_95perc_fragment_delay_ms(results):
     # print("id:", results['meta']['id'])
     trace = results['output']['fragmentTrace.csv']
 
     # SrcAddress,TxTime_ns,RxTime_ns,BurstSeq,BurstSize
-    delays = np.array([(float(row.split(',')[2]) - float(row.split(',')[1])) / 1e6 # ms
+    delays = np.array([(float(row.split(',')[2]) - float(row.split(',')[1])) / 1e6  # ms
                       for i, row in enumerate(trace.split('\n')[:-1]) if (i > 0)])
-    
+
     if len(delays) > 0:
         delay = np.percentile(delays, 95)
     else:
@@ -170,10 +274,10 @@ def compute_fragment_succ_rate(results):
     # print("id:", results['meta']['id'])
     trace = results['output']['txFragmentsBySta.csv']
     tot_tx = np.sum([float(n) for n in trace.split('\n')[:-1]])
-    
+
     trace = results['output']['rxFragments.csv']
     tot_rx = float(trace.rstrip('\n'))
-    
+
     if tot_rx > 0:
         succ = tot_rx / tot_tx
     else:
@@ -190,7 +294,8 @@ def plot_line_metric(campaign, parameter_space, result_parsing_function, runs, x
                                             runs)
     # average over numRuns and squeeze
     metric_mean = metric.reduce(np.mean, 'runs').squeeze()
-    metric_ci95 = metric.reduce(np.std, 'runs').squeeze() * 1.96 / np.sqrt(runs)
+    metric_ci95 = metric.reduce(
+        np.std, 'runs').squeeze() * 1.96 / np.sqrt(runs)
 
     fig = plt.figure()
     for val in metric_mean.coords[hue_var].values:
@@ -224,7 +329,7 @@ if __name__ == '__main__':
     parser.add_argument("--numRuns",
                         help="The number of runs per simulation. Default: 50",
                         type=int,
-                        default=50)
+                        default=3)
     parser.add_argument("--campaignName",
                         help="MANDATORY parameter for the campaign name. Suggested: commit hash",
                         default=None)
@@ -244,8 +349,10 @@ if __name__ == '__main__':
     ns_path = os.path.dirname(os.path.realpath(__file__))
     campaign_name = args.campaignName
     script = "vr-adaptive-app-n-stas-rev"
-    campaign_dir = os.path.join(ns_path, "campaigns", f"{campaign_name}-{args.paramSet}")
-    img_dir = os.path.join(ns_path, 'campaigns-img', f"{campaign_name}-{args.paramSet}")
+    campaign_dir = os.path.join(
+        ns_path, "campaigns", f"{campaign_name}-{args.paramSet}")
+    img_dir = os.path.join(ns_path, 'campaigns-img',
+                           f"{campaign_name}-{args.paramSet}")
 
     # Set up campaign
     campaign = sem.CampaignManager.new(
@@ -267,7 +374,7 @@ if __name__ == '__main__':
             "appRate": "100Mbps",
             "frameRate": args.frameRate,
             "burstGeneratorType": ["model", "google", "fuzzy"],
-            "nStas": list(range(1, 16+1, 1)),
+            "nStas": list(range(1, 9, 4)),
             "simulationTime": 10,
             "RngRun": list(range(args.numRuns))
         })
@@ -309,6 +416,16 @@ if __name__ == '__main__':
 
     plot_line_metric(campaign=campaign,
                      parameter_space=param_combination,
+                     result_parsing_function=compute_fairness_burst_thr_mbps,
+                     runs=args.numRuns,
+                     xx=param_combination[args.paramSet],
+                     hue_var="burstGeneratorType",
+                     xlabel=args.paramSet,
+                     ylabel='Fairness Burst Throughput',
+                     filename='fairness_burst_thr_mbps')
+
+    plot_line_metric(campaign=campaign,
+                     parameter_space=param_combination,
                      result_parsing_function=compute_avg_burst_delay_ms,
                      runs=args.numRuns,
                      xx=param_combination[args.paramSet],
@@ -316,6 +433,16 @@ if __name__ == '__main__':
                      xlabel=args.paramSet,
                      ylabel='Avg. Burst Delay [ms]',
                      filename='avg_burst_delay_ms')
+
+    plot_line_metric(campaign=campaign,
+                     parameter_space=param_combination,
+                     result_parsing_function=compute_fairness_burst_delay_ms,
+                     runs=args.numRuns,
+                     xx=param_combination[args.paramSet],
+                     hue_var="burstGeneratorType",
+                     xlabel=args.paramSet,
+                     ylabel='Fairness Burst Delay [ms]',
+                     filename='fairness_burst_delay_ms')
 
     plot_line_metric(campaign=campaign,
                      parameter_space=param_combination,
@@ -349,6 +476,16 @@ if __name__ == '__main__':
 
     plot_line_metric(campaign=campaign,
                      parameter_space=param_combination,
+                     result_parsing_function=compute_fairness_fragment_thr_mbps,
+                     runs=args.numRuns,
+                     xx=param_combination[args.paramSet],
+                     hue_var="burstGeneratorType",
+                     xlabel=args.paramSet,
+                     ylabel='Fairness in Fragment Throughput',
+                     filename='fairness_fragment_thr_mbps')
+
+    plot_line_metric(campaign=campaign,
+                     parameter_space=param_combination,
                      result_parsing_function=compute_avg_fragment_delay_ms,
                      runs=args.numRuns,
                      xx=param_combination[args.paramSet],
@@ -356,6 +493,16 @@ if __name__ == '__main__':
                      xlabel=args.paramSet,
                      ylabel='Avg. Fragment Delay [ms]',
                      filename='avg_fragment_delay_ms')
+
+    plot_line_metric(campaign=campaign,
+                     parameter_space=param_combination,
+                     result_parsing_function=compute_fairness_fragment_delay_ms,
+                     runs=args.numRuns,
+                     xx=param_combination[args.paramSet],
+                     hue_var="burstGeneratorType",
+                     xlabel=args.paramSet,
+                     ylabel='Fairness Fragment Delay [ms]',
+                     filename='fairness_fragment_delay_ms')
 
     plot_line_metric(campaign=campaign,
                      parameter_space=param_combination,
@@ -376,4 +523,3 @@ if __name__ == '__main__':
                      xlabel=args.paramSet,
                      ylabel='Fragment Succ. Rate',
                      filename='fragment_succ_rate')
-
