@@ -243,7 +243,7 @@ if __name__ == '__main__':
     sem.parallelrunner.MAX_PARALLEL_PROCESSES = args.cores
     ns_path = os.path.dirname(os.path.realpath(__file__))
     campaign_name = args.campaignName
-    script = "vr-adaptive-app-n-stas"
+    script = "vr-adaptive-app-n-stas-rev"
     campaign_dir = os.path.join(ns_path, "campaigns", f"{campaign_name}-{args.paramSet}")
     img_dir = os.path.join(ns_path, 'campaigns-img', f"{campaign_name}-{args.paramSet}")
 
@@ -264,10 +264,10 @@ if __name__ == '__main__':
     # Set up baseline parameters
     if args.paramSet == "nStas":
         param_combination = OrderedDict({
-            "appRate": "50Mbps",
+            "appRate": "100Mbps",
             "frameRate": args.frameRate,
-            "burstGeneratorType": ["model", "adaptive"],
-            "nStas": list(range(1, 8+1)),
+            "burstGeneratorType": ["model", "google", "fuzzy"],
+            "nStas": list(range(1, 16+1, 1)),
             "simulationTime": 10,
             "RngRun": list(range(args.numRuns))
         })
