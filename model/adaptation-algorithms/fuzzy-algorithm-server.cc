@@ -35,40 +35,40 @@ FuzzyAlgorithmServer::adaptation_algorithm (double buffOcc, double diffBuffOcc, 
 
   double empty = 0, ok = 0, full = 0, falling = 0, steady = 0, rising = 0;
 
-  double target_buff_occ = 2000; //bytes
+  double targetBuffOcc = 2000; //bytes
 
   if (buffOcc == 0)
     {
       empty = 1.0;
     }
-  else if (buffOcc < target_buff_occ)
+  else if (buffOcc < targetBuffOcc)
     {
-      empty = 1.0 - ((double) buffOcc) / target_buff_occ;
-      ok = ((double) buffOcc) / target_buff_occ;
+      empty = 1.0 - ((double) buffOcc) / targetBuffOcc;
+      ok = ((double) buffOcc) / targetBuffOcc;
     }
-  else if (buffOcc < 2 * target_buff_occ)
+  else if (buffOcc < 2 * targetBuffOcc)
     {
-      ok = 1 - ((double) buffOcc - target_buff_occ) / target_buff_occ;
-      full = ((double) buffOcc - target_buff_occ) / target_buff_occ;
+      ok = 1 - ((double) buffOcc - targetBuffOcc) / targetBuffOcc;
+      full = ((double) buffOcc - targetBuffOcc) / targetBuffOcc;
     }
   else
     {
       full = 1;
     }
 
-  if (diffBuffOcc < -target_buff_occ)
+  if (diffBuffOcc < -targetBuffOcc)
     {
       falling = 1;
     }
   else if (diffBuffOcc < 0)
     {
-      falling = -((double) diffBuffOcc) / target_buff_occ;
-      steady = 1 + ((double) diffBuffOcc) / target_buff_occ;
+      falling = -((double) diffBuffOcc) / targetBuffOcc;
+      steady = 1 + ((double) diffBuffOcc) / targetBuffOcc;
     }
-  else if (diffBuffOcc < target_buff_occ)
+  else if (diffBuffOcc < targetBuffOcc)
     {
-      steady = 1 - ((double) diffBuffOcc) / target_buff_occ;
-      rising = ((double) diffBuffOcc) / target_buff_occ;
+      steady = 1 - ((double) diffBuffOcc) / targetBuffOcc;
+      rising = ((double) diffBuffOcc) / targetBuffOcc;
     }
   else
     {
