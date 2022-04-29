@@ -17,7 +17,7 @@ public:
   virtual ~FuzzyAlgorithmServer ();
 
 private:
-  DataRate adaptation_algorithm (double buff_occ, double diff_buff_occ, DataRate lastRate);
+  DataRate adaptation_algorithm (double buffOcc, double diffBuffOcc, DataRate lastRate);
 };
 
 } // namespace ns3
