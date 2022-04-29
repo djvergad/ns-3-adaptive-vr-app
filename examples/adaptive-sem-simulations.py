@@ -317,6 +317,7 @@ def plot_line_metric(campaign, parameter_space, result_parsing_function, runs, x
     plt.legend()
     plt.grid()
     fig.savefig(os.path.join(img_dir, filename + ".png"))
+    fig.savefig(os.path.join(img_dir, filename + ".eps"), format='eps')
     try:
         tikzplotlib.save(os.path.join(img_dir, filename + ".tex"))
     except Exception as e:
