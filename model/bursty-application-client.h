@@ -2,7 +2,7 @@
 /*
  * Copyright (c) 2021 SIGNET Lab, Department of Information Engineering,
  * University of Padova
- * 
+ *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 as
  * published by the Free Software Foundation;
@@ -20,24 +20,26 @@
 #ifndef BURSTY_APPLICATION_CLIENT_H
 #define BURSTY_APPLICATION_CLIENT_H
 
+#include "ns3/address.h"
 #include "ns3/application.h"
 #include "ns3/event-id.h"
-#include "ns3/ptr.h"
-#include "ns3/traced-callback.h"
-#include "ns3/address.h"
 #include "ns3/inet-socket-address.h"
-#include "ns3/socket.h"
+#include "ns3/ptr.h"
 #include "ns3/seq-ts-size-frag-header.h"
+#include "ns3/socket.h"
+#include "ns3/traced-callback.h"
+
 #include <unordered_map>
 
-namespace ns3 {
+namespace ns3
+{
 
 class Address;
 class Socket;
 class Packet;
 
 /**
- * \ingroup applications 
+ * \ingroup applications
  * \defgroup burstsink BurstSink
  *
  * This application was written to complement BurstyApplication.
@@ -45,7 +47,7 @@ class Packet;
 
 /**
  * \ingroup burstsink
- * 
+ *
  * \brief Receives and consume traffic generated from a BurstyApplication
  * to an IP address and port
  *
@@ -66,154 +68,171 @@ class Packet;
  * burst n is discarded and burst k will start being buffered.
  * - If all fragments from a burst are received, the burst is successfully
  * received.
- * 
+ *
  * Traces are sent when a fragment is received and when a whole burst is
  * successfully received.
- * 
+ *
  */
 class BurstyApplicationClient : public Application
 {
-public:
-  /**
-   * \brief Get the type ID.
-   * \return the object TypeId
-   */
-  static TypeId GetTypeId (void);
-
-  BurstyApplicationClient ();
-  virtual ~BurstyApplicationClient ();
-
-  /**
-   * \return the total bytes received in this sink app
-   */
-  uint64_t GetTotalRxBytes () const;
-
-  /**
-   * \return the total fragments received in this sink app
-   */
-  uint64_t GetTotalRxFragments () const;
-
-  /**
-   * \return the total bursts received in this sink app
-   */
-  uint64_t GetTotalRxBursts () const;
-
-  /**
-   * TracedCallback signature for a reception with addresses and SeqTsSizeFragHeader
-   *
-   * \param f The fragment received (without the SeqTsSize header)
-   * \param from From address
-   * \param to Local address
-   * \param header The SeqTsSize header
-   */
-  typedef void (*SeqTsSizeFragCallback) (Ptr<const Packet> f, const Address &from,
-                                         const Address &to, const SeqTsSizeFragHeader &header);
-
-protected:
-  virtual void DoDispose (void);
-
-// private:
-  // inherited from Application base class.
-  virtual void StartApplication (void); // Called at time specified by Start
-  virtual void StopApplication (void); // Called at time specified by Stop
-
-  /**
-   * \brief Handle a fragment received by the application
-   * \param socket the receiving socket
-   */
-  virtual void HandleRead (Ptr<Socket> socket);
-  /**
-   * \brief Handle a connection close
-   * \param socket the connected socket
-   */
-  virtual void HandlePeerClose (Ptr<Socket> socket);
-  /**
-   * \brief Handle a connection error
-   * \param socket the connected socket
-   */
-  virtual void HandlePeerError (Ptr<Socket> socket);
-  /**
-   * \brief Handle a connection error
-   * \param socket the connected socket
-   */
-  virtual void ConnectionSucceeded (Ptr<Socket> socket);
-  /**
-   * \brief Handle a connection error
-   * \param socket the connected socket
-   */
-  virtual void ConnectionFailed (Ptr<Socket> socket);
-
-  /**
-   * \brief Simple burst handler
-   * Contains information regarding the current burst sequence number
-   */
-  struct BurstHandler
-  {
-    uint64_t m_currentBurstSeq{0}; //!< Current burst sequence number
-    uint16_t m_fragmentsMerged{0}; //!< Number of ordered fragments received and merged for the current burst
-    std::map<uint16_t, const Ptr<Packet>> m_unorderedFragments; //!< The fragments received out-of-order, still to be merged
-    Ptr<Packet> m_burstBuffer{Create<Packet> (0)}; //!< The buffer containing the ordered received fragments
-  };
-
-  /**
-   * \brief Fragment received: assemble byte stream to extract SeqTsSizeFragHeader
-   * \param f received fragment
-   * \param from from address
-   * \param localAddress local address
-   *
-   * The method assembles a received byte stream and extracts SeqTsSizeFragHeader
-   * instances from the stream to export in a trace source.
-   */
-  virtual void FragmentReceived (BurstHandler &burstHandler, const Ptr<Packet> &f, const Address &from,
-                         const Address &localAddress);
-
-  /**
-   * \brief Hashing for the Address class
-   * Needed to make Address the key of a map.
-   */
-  struct AddressHash
-  {
+  public:
     /**
-     * \brief operator ()
-     * \param x the address of which calculate the hash
-     * \return the hash of x
-     *
-     * Should this method go in address.h?
-     *
-     * It calculates the hash taking the uint32_t hash value of the ipv4 address.
-     * It works only for InetSocketAddresses (Ipv4 version)
+     * \brief Get the type ID.
+     * \return the object TypeId
      */
-    size_t
-    operator() (const Address &x) const
+    static TypeId GetTypeId(void);
+
+    BurstyApplicationClient();
+    virtual ~BurstyApplicationClient();
+
+    /**
+     * \return the total bytes received in this sink app
+     */
+    uint64_t GetTotalRxBytes() const;
+
+    /**
+     * \return the total fragments received in this sink app
+     */
+    uint64_t GetTotalRxFragments() const;
+
+    /**
+     * \return the total bursts received in this sink app
+     */
+    uint64_t GetTotalRxBursts() const;
+
+    /**
+     * TracedCallback signature for a reception with addresses and SeqTsSizeFragHeader
+     *
+     * \param f The fragment received (without the SeqTsSize header)
+     * \param from From address
+     * \param to Local address
+     * \param header The SeqTsSize header
+     */
+    typedef void (*SeqTsSizeFragCallback)(Ptr<const Packet> f,
+                                          const Address& from,
+                                          const Address& to,
+                                          const SeqTsSizeFragHeader& header);
+
+  protected:
+    virtual void DoDispose(void);
+
+    // private:
+    // inherited from Application base class.
+    virtual void StartApplication(void); // Called at time specified by Start
+    virtual void StopApplication(void);  // Called at time specified by Stop
+
+    /**
+     * \brief Handle a fragment received by the application
+     * \param socket the receiving socket
+     */
+    virtual void HandleRead(Ptr<Socket> socket);
+    /**
+     * \brief Handle a connection close
+     * \param socket the connected socket
+     */
+    virtual void HandlePeerClose(Ptr<Socket> socket);
+    /**
+     * \brief Handle a connection error
+     * \param socket the connected socket
+     */
+    virtual void HandlePeerError(Ptr<Socket> socket);
+    /**
+     * \brief Handle a connection error
+     * \param socket the connected socket
+     */
+    virtual void ConnectionSucceeded(Ptr<Socket> socket);
+    /**
+     * \brief Handle a connection error
+     * \param socket the connected socket
+     */
+    virtual void ConnectionFailed(Ptr<Socket> socket);
+
+    /**
+     * \brief Simple burst handler
+     * Contains information regarding the current burst sequence number
+     */
+    struct BurstHandler
     {
-      NS_ABORT_IF (!InetSocketAddress::IsMatchingType (x));
-      InetSocketAddress a = InetSocketAddress::ConvertFrom (x);
-      return std::hash<uint32_t> () (a.GetIpv4 ().Get ());
-    }
-  };
+        uint64_t m_currentBurstSeq{0}; //!< Current burst sequence number
+        uint16_t m_fragmentsMerged{
+            0}; //!< Number of ordered fragments received and merged for the current burst
+        std::map<uint16_t, const Ptr<Packet>>
+            m_unorderedFragments; //!< The fragments received out-of-order, still to be merged
+        Ptr<Packet> m_burstBuffer{
+            Create<Packet>(0)}; //!< The buffer containing the ordered received fragments
+    };
 
-  std::unordered_map<Address, BurstHandler, AddressHash> m_burstHandlerMap; //!< Map of BurstHandlers, assuming a user only has one data stream
+    /**
+     * \brief Fragment received: assemble byte stream to extract SeqTsSizeFragHeader
+     * \param f received fragment
+     * \param from from address
+     * \param localAddress local address
+     *
+     * The method assembles a received byte stream and extracts SeqTsSizeFragHeader
+     * instances from the stream to export in a trace source.
+     */
+    virtual void FragmentReceived(BurstHandler& burstHandler,
+                                  const Ptr<Packet>& f,
+                                  const Address& from,
+                                  const Address& localAddress);
 
-  // In the case of TCP, each socket accept returns a new socket, so the
-  // listening socket is stored separately from the accepted sockets
-  Ptr<Socket> m_socket{0}; //!< Listening socket
-  Address m_local; //!< Local address to bind to
-  Address m_peer; //!< Peer address
-  TypeId m_tid; //!< Protocol TypeId
-  uint64_t m_totRxBursts{0}; //!< Total bursts received
-  uint64_t m_totRxFragments{0}; //!< Total fragments received
-  uint64_t m_totRxBytes{0}; //!< Total bytes received
+    /**
+     * \brief Hashing for the Address class
+     * Needed to make Address the key of a map.
+     */
+    struct AddressHash
+    {
+        /**
+         * \brief operator ()
+         * \param x the address of which calculate the hash
+         * \return the hash of x
+         *
+         * Should this method go in address.h?
+         *
+         * It calculates the hash taking the uint32_t hash value of the ipv4 address.
+         * It works only for InetSocketAddresses (Ipv4 version)
+         */
+        size_t operator()(const Address& x) const
+        {
+            if (Inet6SocketAddress::IsMatchingType(x))
+            {
+                Inet6SocketAddress a = Inet6SocketAddress::ConvertFrom(x);
+                uint8_t buf[16];
+                a.GetIpv6().Serialize(buf);
+                return std::hash<uint128_t>()(*((uint128_t*)buf));
+            }
+            else if (InetSocketAddress::IsMatchingType(x))
+            {
+                InetSocketAddress a = InetSocketAddress::ConvertFrom(x);
+                return std::hash<uint32_t>()(a.GetIpv4().Get());
+            }
+        }
+    };
 
-  // Traced Callback
-  /// Callback for tracing the fragment Rx events, includes source, destination addresses, and headers
-  TracedCallback<Ptr<const Packet>, const Address &, const Address &, const SeqTsSizeFragHeader &>
-      m_rxFragmentTrace;
-  /// Callbacks for tracing the burst Rx events, includes source, destination addresses, and headers
-  TracedCallback<Ptr<const Packet>, const Address &, const Address &, const SeqTsSizeFragHeader &>
-      m_rxBurstTrace;
+    std::unordered_map<Address, BurstHandler, AddressHash>
+        m_burstHandlerMap; //!< Map of BurstHandlers, assuming a user only has one data stream
 
-  std::map<Ptr<Socket>, Ptr<Packet>> m_incomplete_packets;
+    // In the case of TCP, each socket accept returns a new socket, so the
+    // listening socket is stored separately from the accepted sockets
+    Ptr<Socket> m_socket{0};      //!< Listening socket
+    Address m_local;              //!< Local address to bind to
+    Address m_peer;               //!< Peer address
+    TypeId m_tid;                 //!< Protocol TypeId
+    uint64_t m_totRxBursts{0};    //!< Total bursts received
+    uint64_t m_totRxFragments{0}; //!< Total fragments received
+    uint64_t m_totRxBytes{0};     //!< Total bytes received
 
+    // Traced Callback
+    /// Callback for tracing the fragment Rx events, includes source, destination addresses, and
+    /// headers
+    TracedCallback<Ptr<const Packet>, const Address&, const Address&, const SeqTsSizeFragHeader&>
+        m_rxFragmentTrace;
+    /// Callbacks for tracing the burst Rx events, includes source, destination addresses, and
+    /// headers
+    TracedCallback<Ptr<const Packet>, const Address&, const Address&, const SeqTsSizeFragHeader&>
+        m_rxBurstTrace;
+
+    std::map<Ptr<Socket>, Ptr<Packet>> m_incomplete_packets;
 };
 
 } // namespace ns3

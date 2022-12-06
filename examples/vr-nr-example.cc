@@ -36,7 +36,7 @@
  * as well as writing them on a file.
  *
  * \code{.unparsed}
-$ ./waf --run "cttc-nr-demo --Help"
+$ ./ns3 run "cttc-nr-demo --PrintHelp"
     \endcode
  *
  */
@@ -80,7 +80,7 @@ std::string
 AddressToString (const Address &addr)
 {
   std::stringstream addressStr;
-  addressStr << InetSocketAddress::ConvertFrom (addr).GetIpv4 ();
+  addressStr << Inet6SocketAddress::ConvertFrom (addr).GetIpv6 ();
   return addressStr.str ();
 }
 
@@ -88,7 +88,7 @@ void
 BurstRx (Ptr<OutputStreamWrapper> traceFile, Ptr<const Packet> burst, const Address &from,
          const Address &to, const SeqTsSizeFragHeader &header)
 {
-  *traceFile->GetStream () << AddressToString (from) << "," << header.GetTs ().GetNanoSeconds ()
+  *traceFile->GetStream () << AddressToString (to) << "," << header.GetTs ().GetNanoSeconds ()
                            << "," << Simulator::Now ().GetNanoSeconds () << "," << header.GetSeq ()
                            << "," << header.GetSize () << "\n";
 }
@@ -97,7 +97,7 @@ void
 FragmentRx (Ptr<OutputStreamWrapper> traceFile, Ptr<const Packet> fragment, const Address &from,
             const Address &to, const SeqTsSizeFragHeader &header)
 {
-  *traceFile->GetStream () << AddressToString (from) << "," << header.GetTs ().GetNanoSeconds ()
+  *traceFile->GetStream () << AddressToString (to) << "," << header.GetTs ().GetNanoSeconds ()
                            << "," << Simulator::Now ().GetNanoSeconds () << "," << header.GetSeq ()
                            << "," << header.GetFragSeq () << "," << header.GetFrags () << ","
                            << fragment->GetSize () << "\n";
@@ -154,29 +154,52 @@ main (int argc, char *argv[])
    */
   CommandLine cmd;
 
-  cmd.AddValue ("gNbNum", "The number of gNbs in multiple-ue topology", gNbNum);
-  cmd.AddValue ("ueNumPergNb", "The number of UE per gNb in multiple-ue topology", ueNumPergNb);
-  cmd.AddValue ("logging", "Enable logging", logging);
+  cmd.AddValue ("gNbNum",
+                "The number of gNbs in multiple-ue topology",
+                gNbNum);
+  cmd.AddValue ("ueNumPergNb",
+                "The number of UE per gNb in multiple-ue topology",
+                ueNumPergNb);
+  cmd.AddValue ("logging",
+                "Enable logging",
+                logging);
   cmd.AddValue ("doubleOperationalBand",
                 "If true, simulate two operational bands with one CC for each band,"
                 "and each CC will have 1 BWP that spans the entire CC.",
                 doubleOperationalBand);
-  cmd.AddValue ("packetSizeUll", "packet size in bytes to be used by ultra low latency traffic",
+  cmd.AddValue ("packetSizeUll",
+                "packet size in bytes to be used by ultra low latency traffic",
                 udpPacketSizeULL);
-  cmd.AddValue ("packetSizeBe", "packet size in bytes to be used by best effort traffic",
+  cmd.AddValue ("packetSizeBe",
+                "packet size in bytes to be used by best effort traffic",
                 udpPacketSizeBe);
-  cmd.AddValue ("lambdaUll", "Number of UDP packets in one second for ultra low latency traffic",
+  cmd.AddValue ("lambdaUll",
+                "Number of UDP packets in one second for ultra low latency traffic",
                 lambdaULL);
-  cmd.AddValue ("lambdaBe", "Number of UDP packets in one second for best effor traffic", lambdaBe);
-  cmd.AddValue ("simTime", "Simulation time", simTime);
-  cmd.AddValue ("numerologyBwp1", "The numerology to be used in bandwidth part 1", numerologyBwp1);
-  cmd.AddValue ("centralFrequencyBand1", "The system frequency to be used in band 1",
+  cmd.AddValue ("lambdaBe",
+                "Number of UDP packets in one second for best effor traffic",
+                lambdaBe);
+  cmd.AddValue ("simTime",
+                "Simulation time",
+                simTime);
+  cmd.AddValue ("numerologyBwp1",
+                "The numerology to be used in bandwidth part 1",
+                numerologyBwp1);
+  cmd.AddValue ("centralFrequencyBand1",
+                "The system frequency to be used in band 1",
                 centralFrequencyBand1);
-  cmd.AddValue ("bandwidthBand1", "The system bandwidth to be used in band 1", bandwidthBand1);
-  cmd.AddValue ("numerologyBwp2", "The numerology to be used in bandwidth part 2", numerologyBwp2);
-  cmd.AddValue ("centralFrequencyBand2", "The system frequency to be used in band 2",
+  cmd.AddValue ("bandwidthBand1",
+                "The system bandwidth to be used in band 1",
+                bandwidthBand1);
+  cmd.AddValue ("numerologyBwp2",
+                "The numerology to be used in bandwidth part 2",
+                numerologyBwp2);
+  cmd.AddValue ("centralFrequencyBand2",
+                "The system frequency to be used in band 2",
                 centralFrequencyBand2);
-  cmd.AddValue ("bandwidthBand2", "The system bandwidth to be used in band 2", bandwidthBand2);
+  cmd.AddValue ("bandwidthBand2",
+                "The system bandwidth to be used in band 2",
+                bandwidthBand2);
   cmd.AddValue ("totalTxPower",
                 "total tx power that will be proportionally assigned to"
                 " bands, CCs and bandwidth parts depending on each BWP bandwidth ",
@@ -184,7 +207,9 @@ main (int argc, char *argv[])
   cmd.AddValue ("simTag",
                 "tag to be appended to output filenames to distinguish simulation campaigns",
                 simTag);
-  cmd.AddValue ("outputDir", "directory where to store simulation results", outputDir);
+  cmd.AddValue ("outputDir",
+                "directory where to store simulation results",
+                outputDir);
 
   cmd.AddValue ("appRate", "the app target data rate", appRate);
   cmd.AddValue ("frameRate", "the app frame rate [FPS]", frameRate);
@@ -216,14 +241,15 @@ main (int argc, char *argv[])
       LogComponentEnable ("UdpClient", LOG_LEVEL_INFO);
       LogComponentEnable ("UdpServer", LOG_LEVEL_INFO);
       LogComponentEnable ("LtePdcp", LOG_LEVEL_INFO);
+      
     }
 
   /*
    * Default values for the simulation. We are progressively removing all
    * the instances of SetDefault, but we need it for legacy code (LTE)
    */
-  // Config::SetDefault ("ns3::LteRlcUm::MaxTxBufferSize", UintegerValue (999999999));
-  Config::SetDefault ("ns3::LteRlcUm::MaxTxBufferSize", UintegerValue (50 * 1024));
+  Config::SetDefault ("ns3::LteRlcUm::MaxTxBufferSize", UintegerValue (999999999));
+  // Config::SetDefault ("ns3::LteRlcUm::MaxTxBufferSize", UintegerValue (50 * 1024));
 
   /*
    * Create the scenario. In our examples, we heavily use helpers that setup
@@ -280,7 +306,7 @@ main (int argc, char *argv[])
    * part of the NR stack
    */
   Ptr<NrPointToPointEpcHelper> epcHelper = CreateObject<NrPointToPointEpcHelper> ();
-  Ptr<IdealBeamformingHelper> idealBeamformingHelper = CreateObject<IdealBeamformingHelper> ();
+  Ptr<IdealBeamformingHelper> idealBeamformingHelper = CreateObject<IdealBeamformingHelper>();
   Ptr<NrHelper> nrHelper = CreateObject<NrHelper> ();
 
   // Put the pointers inside nrHelper
@@ -296,14 +322,12 @@ main (int argc, char *argv[])
    */
   BandwidthPartInfoPtrVector allBwps;
   CcBwpCreator ccBwpCreator;
-  const uint8_t numCcPerBand = 1; // in this example, both bands have a single CC
+  const uint8_t numCcPerBand = 1;  // in this example, both bands have a single CC
 
   // Create the configuration for the CcBwpHelper. SimpleOperationBandConf creates
   // a single BWP per CC
-  CcBwpCreator::SimpleOperationBandConf bandConf1 (
-      centralFrequencyBand1, bandwidthBand1, numCcPerBand, BandwidthPartInfo::UMi_StreetCanyon);
-  CcBwpCreator::SimpleOperationBandConf bandConf2 (
-      centralFrequencyBand2, bandwidthBand2, numCcPerBand, BandwidthPartInfo::UMi_StreetCanyon);
+  CcBwpCreator::SimpleOperationBandConf bandConf1 (centralFrequencyBand1, bandwidthBand1, numCcPerBand, BandwidthPartInfo::UMi_StreetCanyon);
+  CcBwpCreator::SimpleOperationBandConf bandConf2 (centralFrequencyBand2, bandwidthBand2, numCcPerBand, BandwidthPartInfo::UMi_StreetCanyon);
 
   // By using the configuration created, it is time to make the operation bands
   OperationBandInfo band1 = ccBwpCreator.CreateOperationBandContiguousCc (bandConf1);
@@ -320,9 +344,15 @@ main (int argc, char *argv[])
    * Attributes of ThreeGppChannelModel still cannot be set in our way.
    * TODO: Coordinate with Tommaso
    */
-  Config::SetDefault ("ns3::ThreeGppChannelModel::UpdatePeriod", TimeValue (MilliSeconds (0)));
+  Config::SetDefault ("ns3::ThreeGppChannelModel::UpdatePeriod",TimeValue (MilliSeconds (0)));
   nrHelper->SetChannelConditionModelAttribute ("UpdatePeriod", TimeValue (MilliSeconds (0)));
   nrHelper->SetPathlossAttribute ("ShadowingEnabled", BooleanValue (false));
+
+
+
+ Config::SetDefault ("ns3::TcpSocket::SegmentSize",
+                      UintegerValue (500));
+
 
   /*
    * Initialize channel and pathloss, plus other things inside band1. If needed,
@@ -379,8 +409,7 @@ main (int argc, char *argv[])
    *  Case (i): Attributes valid for all the nodes
    */
   // Beamforming method
-  idealBeamformingHelper->SetAttribute ("BeamformingMethod",
-                                        TypeIdValue (DirectPathBeamforming::GetTypeId ()));
+  idealBeamformingHelper->SetAttribute ("BeamformingMethod", TypeIdValue (DirectPathBeamforming::GetTypeId ()));
 
   // Core latency
   epcHelper->SetAttribute ("S1uLinkDelay", TimeValue (MilliSeconds (0)));
@@ -388,14 +417,12 @@ main (int argc, char *argv[])
   // Antennas for all the UEs
   nrHelper->SetUeAntennaAttribute ("NumRows", UintegerValue (2));
   nrHelper->SetUeAntennaAttribute ("NumColumns", UintegerValue (4));
-  nrHelper->SetUeAntennaAttribute ("AntennaElement",
-                                   PointerValue (CreateObject<IsotropicAntennaModel> ()));
+  nrHelper->SetUeAntennaAttribute ("AntennaElement", PointerValue (CreateObject<IsotropicAntennaModel> ()));
 
   // Antennas for all the gNbs
   nrHelper->SetGnbAntennaAttribute ("NumRows", UintegerValue (4));
   nrHelper->SetGnbAntennaAttribute ("NumColumns", UintegerValue (8));
-  nrHelper->SetGnbAntennaAttribute ("AntennaElement",
-                                    PointerValue (CreateObject<IsotropicAntennaModel> ()));
+  nrHelper->SetGnbAntennaAttribute ("AntennaElement", PointerValue (CreateObject<IsotropicAntennaModel> ()));
 
   uint32_t bwpIdForLowLat = 0;
   uint32_t bwpIdForVoice = 0;
@@ -431,8 +458,7 @@ main (int argc, char *argv[])
    * to the NetDevices, which contains all the NR stack:
    */
 
-  NetDeviceContainer enbNetDev =
-      nrHelper->InstallGnbDevice (gridScenario.GetBaseStations (), allBwps);
+  NetDeviceContainer enbNetDev = nrHelper->InstallGnbDevice (gridScenario.GetBaseStations (), allBwps);
   NetDeviceContainer ueLowLatNetDev = nrHelper->InstallUeDevice (ueLowLatContainer, allBwps);
   NetDeviceContainer ueVoiceNetDev = nrHelper->InstallUeDevice (ueVoiceContainer, allBwps);
 
@@ -446,19 +472,15 @@ main (int argc, char *argv[])
 
   // Get the first netdevice (enbNetDev.Get (0)) and the first bandwidth part (0)
   // and set the attribute.
-  nrHelper->GetGnbPhy (enbNetDev.Get (0), 0)
-      ->SetAttribute ("Numerology", UintegerValue (numerologyBwp1));
-  nrHelper->GetGnbPhy (enbNetDev.Get (0), 0)
-      ->SetAttribute ("TxPower", DoubleValue (10 * log10 ((bandwidthBand1 / totalBandwidth) * x)));
+  nrHelper->GetGnbPhy (enbNetDev.Get (0), 0)->SetAttribute ("Numerology", UintegerValue (numerologyBwp1));
+  nrHelper->GetGnbPhy (enbNetDev.Get (0), 0)->SetAttribute ("TxPower", DoubleValue (10 * log10 ((bandwidthBand1 / totalBandwidth) * x)));
 
   if (doubleOperationalBand)
     {
       // Get the first netdevice (enbNetDev.Get (0)) and the second bandwidth part (1)
       // and set the attribute.
-      nrHelper->GetGnbPhy (enbNetDev.Get (0), 1)
-          ->SetAttribute ("Numerology", UintegerValue (numerologyBwp2));
-      nrHelper->GetGnbPhy (enbNetDev.Get (0), 1)
-          ->SetTxPower (10 * log10 ((bandwidthBand2 / totalBandwidth) * x));
+      nrHelper->GetGnbPhy (enbNetDev.Get (0), 1)->SetAttribute ("Numerology", UintegerValue (numerologyBwp2));
+      nrHelper->GetGnbPhy (enbNetDev.Get (0), 1)->SetTxPower (10 * log10 ((bandwidthBand2 / totalBandwidth) * x));
     }
 
   // When all the configuration is done, explicitly call UpdateConfig ()
@@ -500,27 +522,45 @@ main (int argc, char *argv[])
   p2ph.SetDeviceAttribute ("Mtu", UintegerValue (2500));
   p2ph.SetChannelAttribute ("Delay", TimeValue (Seconds (0.000)));
   NetDeviceContainer internetDevices = p2ph.Install (pgw, remoteHost);
-  Ipv4AddressHelper ipv4h;
-  Ipv4StaticRoutingHelper ipv4RoutingHelper;
-  ipv4h.SetBase ("1.0.0.0", "255.0.0.0");
-  Ipv4InterfaceContainer internetIpIfaces = ipv4h.Assign (internetDevices);
-  Ptr<Ipv4StaticRouting> remoteHostStaticRouting =
-      ipv4RoutingHelper.GetStaticRouting (remoteHost->GetObject<Ipv4> ());
-  remoteHostStaticRouting->AddNetworkRouteTo (Ipv4Address ("7.0.0.0"), Ipv4Mask ("255.0.0.0"), 1);
+  Ipv6AddressHelper ipv6h;
+  // Ipv4StaticRoutingHelper ipv4RoutingHelper;
+  // ipv4h.SetBase ("1.0.0.0", "255.0.0.0");
+  ipv6h.SetBase (Ipv6Address ("6001:db80::"), Ipv6Prefix (64));
+  
+  // Ipv4InterfaceContainer internetIpIfaces = ipv4h.Assign (internetDevices);
+  Ipv6InterfaceContainer internetIpIfaces = ipv6h.Assign (internetDevices);
+
+  internetIpIfaces.SetForwarding (0, true);
+  internetIpIfaces.SetDefaultRouteInAllNodes (0);
+
+
+  // Ptr<Ipv4StaticRouting> remoteHostStaticRouting = ipv4RoutingHelper.GetStaticRouting (remoteHost->GetObject<Ipv4> ());
+  // remoteHostStaticRouting->AddNetworkRouteTo (Ipv4Address ("7.0.0.0"), Ipv4Mask ("255.0.0.0"), 1);
   //  internet.InstallQuic (gridScenario.GetUserTerminals ());
+  
+  Ipv6StaticRoutingHelper ipv6RoutingHelper;
+  Ptr<Ipv6StaticRouting> remoteHostStaticRouting = ipv6RoutingHelper.GetStaticRouting (remoteHost->GetObject<Ipv6> ());
+  remoteHostStaticRouting->AddNetworkRouteTo ("7777:f00d::", Ipv6Prefix (64), internetIpIfaces.GetAddress (0, 1), 1, 0);
+
+  
+  
   internet.Install (gridScenario.GetUserTerminals ());
 
-  Ipv4InterfaceContainer ueLowLatIpIface =
-      epcHelper->AssignUeIpv4Address (NetDeviceContainer (ueLowLatNetDev));
-  Ipv4InterfaceContainer ueVoiceIpIface =
-      epcHelper->AssignUeIpv4Address (NetDeviceContainer (ueVoiceNetDev));
+
+  Ipv6InterfaceContainer ueLowLatIpIface = epcHelper->AssignUeIpv6Address (NetDeviceContainer (ueLowLatNetDev));
+  Ipv6InterfaceContainer ueVoiceIpIface = epcHelper->AssignUeIpv6Address (NetDeviceContainer (ueVoiceNetDev));
 
   // Set the default gateway for the UEs
   for (uint32_t j = 0; j < gridScenario.GetUserTerminals ().GetN (); ++j)
     {
-      Ptr<Ipv4StaticRouting> ueStaticRouting = ipv4RoutingHelper.GetStaticRouting (
-          gridScenario.GetUserTerminals ().Get (j)->GetObject<Ipv4> ());
-      ueStaticRouting->SetDefaultRoute (epcHelper->GetUeDefaultGatewayAddress (), 1);
+      // Ptr<Ipv4StaticRouting> ueStaticRouting = ipv4RoutingHelper.GetStaticRouting (gridScenario.GetUserTerminals ().Get (j)->GetObject<Ipv4> ());
+      // ueStaticRouting->SetDefaultRoute (epcHelper->GetUeDefaultGatewayAddress (), 1);
+
+      Ptr<Node> ueNode = gridScenario.GetUserTerminals ().Get (j);
+      // Set the default gateway for the UEs
+      Ptr<Ipv6StaticRouting> ueStaticRouting = ipv6RoutingHelper.GetStaticRouting (ueNode->GetObject<Ipv6> ());
+      ueStaticRouting->SetDefaultRoute (epcHelper->GetUeDefaultGatewayAddress6 (), 1);
+
     }
 
   // attach UEs to the closest eNB
@@ -538,6 +578,8 @@ main (int argc, char *argv[])
   LogComponentEnable ("BurstyApplicationClient", LOG_ALL);
   LogComponentEnable ("BurstyApplicationServer", LOG_ALL);
   LogComponentEnable ("BurstyApplicationServerInstance", LOG_ALL);
+  // LogComponentEnable ("LteRlcUm", LOG_LEVEL_ALL);
+
   // LogComponentEnable ("QuicL5Protocol", LOG_ALL);
 
   uint32_t fragmentSize = 500; //bytes
@@ -570,33 +612,37 @@ Config::SetDefault ("ns3::BurstyApplicationServer::appDuration",
   uint16_t port = 50000;
 
   std::string protocol;
-   if (burstGeneratorType == "model")
+  if (burstGeneratorType == "model")
     {
       protocol = "ns3::UdpSocketFactory";
-      Config::SetDefault ("ns3::BurstyApplicationServer::isAdaptive", BooleanValue (false));
+      Config::SetDefault ("ns3::BurstyApplicationServer::adaptationAlgorithm", StringValue (""));
     }
-  else if (burstGeneratorType == "adaptive")
+  else if (burstGeneratorType == "google")
     {
       protocol = "ns3::TcpSocketFactory";
-      Config::SetDefault ("ns3::BurstyApplicationServer::isAdaptive", BooleanValue (true));
+      Config::SetDefault ("ns3::BurstyApplicationServer::adaptationAlgorithm", StringValue ("GoogleAlgorithmServer"));
     }
   else if (burstGeneratorType == "fuzzy")
     {
       protocol = "ns3::TcpSocketFactory";
-      Config::SetDefault ("ns3::BurstyApplicationServer::isAdaptive", BooleanValue (true));
-      Config::SetDefault ("ns3::BurstyApplicationServer::isFuzzy", BooleanValue (true));
+      Config::SetDefault ("ns3::BurstyApplicationServer::adaptationAlgorithm", StringValue ("FuzzyAlgorithmServer"));
     }
   else
     {
       NS_ABORT_MSG ("Wrong burstGeneratorType type");
     }
 
+  Config::SetDefault ("ns3::VrBurstGenerator::FrameRate", DoubleValue (frameRate));
+  Config::SetDefault ("ns3::VrBurstGenerator::TargetDataRate", DataRateValue (DataRate (appRate)));
+  Config::SetDefault ("ns3::VrBurstGenerator::VrAppName", StringValue (vrAppName));
+  Config::SetDefault ("ns3::BurstyApplicationServer::FragmentSize", UintegerValue (fragmentSize));
+
   ApplicationContainer serverApps;
 
   // The sink will always listen to the specified ports
   // UdpServerHelper dlPacketSinkLowLat (dlPortLowLat);
 
-  BurstyApplicationServerHelper server (protocol, InetSocketAddress (Ipv4Address::GetAny (), port));
+  BurstyApplicationServerHelper server (protocol, Inet6SocketAddress (Ipv6Address::GetAny (), port));
 
   UdpServerHelper dlPacketSinkVoice (dlPortVoice);
 
@@ -611,7 +657,7 @@ Config::SetDefault ("ns3::BurstyApplicationServer::appDuration",
    * Low-Latency configuration and object creation:
    */
   BurstyApplicationClientHelper client (protocol,
-                                        InetSocketAddress (internetIpIfaces.GetAddress (1), port));
+                                        Inet6SocketAddress (internetIpIfaces.GetAddress (1,1), port));
 
   // dlClientLowLat.SetAttribute ("RemotePort", UintegerValue (dlPortLowLat));
   // dlClientLowLat.SetAttribute ("MaxPackets", UintegerValue (0xFFFFFFFF));
@@ -669,7 +715,7 @@ Config::SetDefault ("ns3::BurstyApplicationServer::appDuration",
     {
       Ptr<Node> ue = ueVoiceContainer.Get (i);
       Ptr<NetDevice> ueDevice = ueVoiceNetDev.Get (i);
-      Address ueAddress = ueVoiceIpIface.GetAddress (i);
+      Address ueAddress = ueVoiceIpIface.GetAddress (1,i);
 
       // The client, who is transmitting, is installed in the remote host,
       // with destination address set to the address of the UE
@@ -779,83 +825,76 @@ Config::SetDefault ("ns3::BurstyApplicationServer::appDuration",
   config.ConfigureAttributes ();
   */
 
-  // Print per-flow statistics
-  monitor->CheckForLostPackets ();
-  Ptr<Ipv4FlowClassifier> classifier =
-      DynamicCast<Ipv4FlowClassifier> (flowmonHelper.GetClassifier ());
-  FlowMonitor::FlowStatsContainer stats = monitor->GetFlowStats ();
+  // // Print per-flow statistics
+  // monitor->CheckForLostPackets ();
+  // Ptr<Ipv6FlowClassifier> classifier =
+  //     DynamicCast<Ipv6FlowClassifier> (flowmonHelper.GetClassifier ());
+  // FlowMonitor::FlowStatsContainer stats = monitor->GetFlowStats ();
 
-  double averageFlowThroughput = 0.0;
-  double averageFlowDelay = 0.0;
+  // double averageFlowThroughput = 0.0;
+  // double averageFlowDelay = 0.0;
 
-  std::ofstream outFile;
-  std::string filename = outputDir + "/" + simTag;
-  outFile.open (filename.c_str (), std::ofstream::out | std::ofstream::trunc);
-  if (!outFile.is_open ())
-    {
-      std::cerr << "Can't open file " << filename << std::endl;
-      return 1;
-    }
+  // std::ofstream outFile;
+  // std::string filename = outputDir + "/" + simTag;
+  // outFile.open (filename.c_str (), std::ofstream::out | std::ofstream::trunc);
+  // if (!outFile.is_open ())
+  //   {
+  //     std::cerr << "Can't open file " << filename << std::endl;
+  //     return 1;
+  //   }
 
-  outFile.setf (std::ios_base::fixed);
+  // outFile.setf (std::ios_base::fixed);
 
-  double flowDuration = (simTime - udpAppStartTime).GetSeconds ();
-  for (std::map<FlowId, FlowMonitor::FlowStats>::const_iterator i = stats.begin ();
-       i != stats.end (); ++i)
-    {
-      Ipv4FlowClassifier::FiveTuple t = classifier->FindFlow (i->first);
-      std::stringstream protoStream;
-      protoStream << (uint16_t) t.protocol;
-      if (t.protocol == 6)
-        {
-          protoStream.str ("TCP");
-        }
-      if (t.protocol == 17)
-        {
-          protoStream.str ("UDP");
-        }
-      outFile << "Flow " << i->first << " (" << t.sourceAddress << ":" << t.sourcePort << " -> "
-              << t.destinationAddress << ":" << t.destinationPort << ") proto "
-              << protoStream.str () << "\n";
-      outFile << "  Tx Packets: " << i->second.txPackets << "\n";
-      outFile << "  Tx Bytes:   " << i->second.txBytes << "\n";
-      outFile << "  TxOffered:  " << i->second.txBytes * 8.0 / flowDuration / 1000.0 / 1000.0
-              << " Mbps\n";
-      outFile << "  Rx Bytes:   " << i->second.rxBytes << "\n";
-      if (i->second.rxPackets > 0)
-        {
-          // Measure the duration of the flow from receiver's perspective
-          averageFlowThroughput += i->second.rxBytes * 8.0 / flowDuration / 1000 / 1000;
-          averageFlowDelay += 1000 * i->second.delaySum.GetSeconds () / i->second.rxPackets;
+  // double flowDuration = (simTime - udpAppStartTime).GetSeconds ();
+  // for (std::map<FlowId, FlowMonitor::FlowStats>::const_iterator i = stats.begin (); i != stats.end (); ++i)
+  //   {
+  //     Ipv6FlowClassifier::FiveTuple t = classifier->FindFlow (i->first);
+  //     std::stringstream protoStream;
+  //     protoStream << (uint16_t) t.protocol;
+  //     if (t.protocol == 6)
+  //       {
+  //         protoStream.str ("TCP");
+  //       }
+  //     if (t.protocol == 17)
+  //       {
+  //         protoStream.str ("UDP");
+  //       }
+  //     outFile << "Flow " << i->first << " (" << t.sourceAddress << ":" << t.sourcePort << " -> " << t.destinationAddress << ":" << t.destinationPort << ") proto " << protoStream.str () << "\n";
+  //     outFile << "  Tx Packets: " << i->second.txPackets << "\n";
+  //     outFile << "  Tx Bytes:   " << i->second.txBytes << "\n";
+  //     outFile << "  TxOffered:  " << i->second.txBytes * 8.0 / flowDuration / 1000.0 / 1000.0  << " Mbps\n";
+  //     outFile << "  Rx Bytes:   " << i->second.rxBytes << "\n";
+  //     if (i->second.rxPackets > 0)
+  //       {
+  //         // Measure the duration of the flow from receiver's perspective
+  //         averageFlowThroughput += i->second.rxBytes * 8.0 / flowDuration / 1000 / 1000;
+  //         averageFlowDelay += 1000 * i->second.delaySum.GetSeconds () / i->second.rxPackets;
 
-          outFile << "  Throughput: " << i->second.rxBytes * 8.0 / flowDuration / 1000 / 1000
-                  << " Mbps\n";
-          outFile << "  Mean delay:  "
-                  << 1000 * i->second.delaySum.GetSeconds () / i->second.rxPackets << " ms\n";
-          //outFile << "  Mean upt:  " << i->second.uptSum / i->second.rxPackets / 1000/1000 << " Mbps \n";
-          outFile << "  Mean jitter:  "
-                  << 1000 * i->second.jitterSum.GetSeconds () / i->second.rxPackets << " ms\n";
-        }
-      else
-        {
-          outFile << "  Throughput:  0 Mbps\n";
-          outFile << "  Mean delay:  0 ms\n";
-          outFile << "  Mean jitter: 0 ms\n";
-        }
-      outFile << "  Rx Packets: " << i->second.rxPackets << "\n";
-    }
+  //         outFile << "  Throughput: " << i->second.rxBytes * 8.0 / flowDuration / 1000 / 1000  << " Mbps\n";
+  //         outFile << "  Mean delay:  " << 1000 * i->second.delaySum.GetSeconds () / i->second.rxPackets << " ms\n";
+  //         //outFile << "  Mean upt:  " << i->second.uptSum / i->second.rxPackets / 1000/1000 << " Mbps \n";
+  //         outFile << "  Mean jitter:  " << 1000 * i->second.jitterSum.GetSeconds () / i->second.rxPackets  << " ms\n";
+  //       }
+  //     else
+  //       {
+  //         outFile << "  Throughput:  0 Mbps\n";
+  //         outFile << "  Mean delay:  0 ms\n";
+  //         outFile << "  Mean jitter: 0 ms\n";
+  //       }
+  //     outFile << "  Rx Packets: " << i->second.rxPackets << "\n";
+  //   }
 
-  outFile << "\n\n  Mean flow throughput: " << averageFlowThroughput / stats.size () << "\n";
-  outFile << "  Mean flow delay: " << averageFlowDelay / stats.size () << "\n";
+  // outFile << "\n\n  Mean flow throughput: " << averageFlowThroughput / stats.size () << "\n";
+  // outFile << "  Mean flow delay: " << averageFlowDelay / stats.size () << "\n";
 
-  outFile.close ();
+  // outFile.close ();
 
-  std::ifstream f (filename.c_str ());
+  // std::ifstream f (filename.c_str ());
 
-  if (f.is_open ())
-    {
-      std::cout << f.rdbuf ();
-    }
+  // if (f.is_open ())
+  //   {
+  //     std::cout << f.rdbuf ();
+  //   }
 
   Simulator::Destroy ();
   return 0;
