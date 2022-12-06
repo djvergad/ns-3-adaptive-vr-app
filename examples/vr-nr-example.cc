@@ -113,7 +113,7 @@ main (int argc, char *argv[])
    */
   // Scenario parameters (that we will use inside this script):
   uint16_t gNbNum = 1;
-  uint16_t ueNumPergNb = 2;
+  uint16_t nStas = 2;
   bool logging = false;
   bool doubleOperationalBand = true;
 
@@ -125,7 +125,7 @@ main (int argc, char *argv[])
 
   // Simulation parameters. Please don't use double to indicate seconds; use
   // ns-3 Time values which use integers to avoid portability issues.
-  Time simTime = MilliSeconds (10000);
+  Time simulationTime = MilliSeconds (10000);
   Time udpAppStartTime = MilliSeconds (1000);
 
   // NR parameters. We will take the input from the command line, and then we
@@ -157,9 +157,9 @@ main (int argc, char *argv[])
   cmd.AddValue ("gNbNum",
                 "The number of gNbs in multiple-ue topology",
                 gNbNum);
-  cmd.AddValue ("ueNumPergNb",
+  cmd.AddValue ("nStas",
                 "The number of UE per gNb in multiple-ue topology",
-                ueNumPergNb);
+                nStas);
   cmd.AddValue ("logging",
                 "Enable logging",
                 logging);
@@ -179,9 +179,9 @@ main (int argc, char *argv[])
   cmd.AddValue ("lambdaBe",
                 "Number of UDP packets in one second for best effor traffic",
                 lambdaBe);
-  cmd.AddValue ("simTime",
+  cmd.AddValue ("simulationTime",
                 "Simulation time",
-                simTime);
+                simulationTime);
   cmd.AddValue ("numerologyBwp1",
                 "The numerology to be used in bandwidth part 1",
                 numerologyBwp1);
@@ -267,7 +267,7 @@ main (int argc, char *argv[])
   // must be set before BS number
   gridScenario.SetSectorization (GridScenarioHelper::SINGLE);
   gridScenario.SetBsNumber (gNbNum);
-  gridScenario.SetUtNumber (ueNumPergNb * gNbNum);
+  gridScenario.SetUtNumber (nStas * gNbNum);
   gridScenario.SetScenarioHeight (3); // Create a 3x3 scenario where the UE will
   gridScenario.SetScenarioLength (3); // be distribuited.
   randomStream += gridScenario.AssignStreams (randomStream);
@@ -596,7 +596,7 @@ main (int argc, char *argv[])
   Config::SetDefault ("ns3::BurstyApplicationServer::FragmentSize", UintegerValue (fragmentSize));
 
 Config::SetDefault ("ns3::BurstyApplicationServer::appDuration",
-                      TimeValue (simTime));
+                      TimeValue (simulationTime));
 
 
   // Config::SetDefault ("ns3::QuicSocketBase::SocketSndBufSize", UintegerValue (40000000));
@@ -749,8 +749,8 @@ Config::SetDefault ("ns3::BurstyApplicationServer::appDuration",
   // start UDP server and client apps
   serverApps.Start (udpAppStartTime);
   // clientApps.Start (udpAppStartTime);
-  serverApps.Stop (simTime + Seconds (10));
-  clientApps.Stop (simTime + Seconds (15));
+  serverApps.Stop (simulationTime + Seconds (10));
+  clientApps.Stop (simulationTime + Seconds (15));
 
   // enable the traces provided by the nr module
   //nrHelper->EnableTraces();
@@ -765,7 +765,7 @@ Config::SetDefault ("ns3::BurstyApplicationServer::appDuration",
   monitor->SetAttribute ("JitterBinWidth", DoubleValue (0.001));
   monitor->SetAttribute ("PacketSizeBinWidth", DoubleValue (20));
 
-  Simulator::Stop (simTime + Seconds (20));
+  Simulator::Stop (simulationTime + Seconds (20));
   Simulator::Run ();
 
   // burst info
@@ -845,7 +845,7 @@ Config::SetDefault ("ns3::BurstyApplicationServer::appDuration",
 
   // outFile.setf (std::ios_base::fixed);
 
-  // double flowDuration = (simTime - udpAppStartTime).GetSeconds ();
+  // double flowDuration = (simulationTime - udpAppStartTime).GetSeconds ();
   // for (std::map<FlowId, FlowMonitor::FlowStats>::const_iterator i = stats.begin (); i != stats.end (); ++i)
   //   {
   //     Ipv6FlowClassifier::FiveTuple t = classifier->FindFlow (i->first);
