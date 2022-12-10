@@ -312,7 +312,7 @@ BurstyApplicationServerInstance::StopApplication ()
   NS_LOG_FUNCTION (this);
 
   CancelEvents ();
-  if (m_socket != 0)
+  if (m_socket)
     {
       m_socket->Close ();
     }

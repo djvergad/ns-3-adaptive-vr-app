@@ -205,6 +205,8 @@ class BurstyApplicationClient : public Application
             {
                 InetSocketAddress a = InetSocketAddress::ConvertFrom(x);
                 return std::hash<uint32_t>()(a.GetIpv4().Get());
+            } else {
+                return 0;
             }
         }
     };

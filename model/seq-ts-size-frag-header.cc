@@ -73,12 +73,12 @@ SeqTsSizeFragHeader::GetFrags (void) const
 }
 
 void
-SeqTsSizeFragHeader::SetFragBytes (uint32_t frags)
+SeqTsSizeFragHeader::SetFragBytes (uint64_t frags)
 {
   m_fragBytes = frags;
 }
 
-uint32_t
+uint64_t
 SeqTsSizeFragHeader::GetFragBytes (void) const
 {
   return m_fragBytes;
@@ -96,7 +96,7 @@ SeqTsSizeFragHeader::Print (std::ostream &os) const
 uint32_t
 SeqTsSizeFragHeader::GetSerializedSize (void) const
 {
-  return SeqTsSizeHeader::GetSerializedSize () + 4 + sizeof(uint32_t);
+  return SeqTsSizeHeader::GetSerializedSize () + 2 + 2 + 8;
 }
 
 void
@@ -104,7 +104,7 @@ SeqTsSizeFragHeader::Serialize (Buffer::Iterator start) const
 {
   NS_LOG_FUNCTION (this << &start);
   Buffer::Iterator i = start;
-  i.WriteHtonU32 (m_fragBytes);
+  i.WriteHtonU64 (m_fragBytes);
   i.WriteHtonU16 (m_fragSeq);
   i.WriteHtonU16 (m_frags);
   SeqTsSizeHeader::Serialize (i);
@@ -115,7 +115,7 @@ SeqTsSizeFragHeader::Deserialize (Buffer::Iterator start)
 {
   NS_LOG_FUNCTION (this << &start);
   Buffer::Iterator i = start;
-  m_fragBytes = i.ReadNtohU32 ();
+  m_fragBytes = i.ReadNtohU64 ();
   m_fragSeq = i.ReadNtohU16 ();
   m_frags = i.ReadNtohU16 ();
   SeqTsSizeHeader::Deserialize (i);
