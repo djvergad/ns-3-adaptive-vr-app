@@ -78,9 +78,22 @@ NS_LOG_COMPONENT_DEFINE("CttcNrDemo");
 std::string
 AddressToString(const Address& addr)
 {
-    std::stringstream addressStr;
-    addressStr << Inet6SocketAddress::ConvertFrom(addr).GetIpv6();
-    return addressStr.str();
+    if (Inet6SocketAddress::IsMatchingType(addr))
+    {
+        std::stringstream addressStr;
+        addressStr << Inet6SocketAddress::ConvertFrom(addr).GetIpv6();
+        return addressStr.str();
+    }
+    else if (InetSocketAddress::IsMatchingType(addr))
+    {
+        std::stringstream addressStr;
+        addressStr << InetSocketAddress::ConvertFrom(addr).GetIpv4();
+        return addressStr.str();
+    }
+    else
+    {
+        NS_ABORT_MSG("Wrong address type");
+    }
 }
 
 void
@@ -235,8 +248,8 @@ main(int argc, char* argv[])
      * Default values for the simulation. We are progressively removing all
      * the instances of SetDefault, but we need it for legacy code (LTE)
      */
-    Config::SetDefault("ns3::LteRlcUm::MaxTxBufferSize", UintegerValue(999999999));
-    // Config::SetDefault ("ns3::LteRlcUm::MaxTxBufferSize", UintegerValue (50 * 1024));
+    // Config::SetDefault("ns3::LteRlcUm::MaxTxBufferSize", UintegerValue(999999999));
+    Config::SetDefault("ns3::LteRlcUm::MaxTxBufferSize", UintegerValue(50 * 1024 * 1024));
 
     /*
      * Create the scenario. In our examples, we heavily use helpers that setup
@@ -521,47 +534,54 @@ main(int argc, char* argv[])
     p2ph.SetDeviceAttribute("Mtu", UintegerValue(2500));
     p2ph.SetChannelAttribute("Delay", TimeValue(Seconds(0.000)));
     NetDeviceContainer internetDevices = p2ph.Install(pgw, remoteHost);
-    Ipv6AddressHelper ipv6h;
-    // Ipv4StaticRoutingHelper ipv4RoutingHelper;
-    // ipv4h.SetBase ("1.0.0.0", "255.0.0.0");
-    ipv6h.SetBase(Ipv6Address("6001:db80::"), Ipv6Prefix(64));
+    Ipv4AddressHelper ipv4h;
+    // Ipv6AddressHelper ipv6h;
+    Ipv4StaticRoutingHelper ipv4RoutingHelper;
+    ipv4h.SetBase("1.0.0.0", "255.0.0.0");
+    // ipv6h.SetBase(Ipv6Address("6001:db80::"), Ipv6Prefix(64));
 
-    // Ipv4InterfaceContainer internetIpIfaces = ipv4h.Assign (internetDevices);
-    Ipv6InterfaceContainer internetIpIfaces = ipv6h.Assign(internetDevices);
+    Ipv4InterfaceContainer internetIpIfaces = ipv4h.Assign(internetDevices);
+    // Ipv6InterfaceContainer internetIpIfaces = ipv6h.Assign(internetDevices);
 
-    internetIpIfaces.SetForwarding(0, true);
-    internetIpIfaces.SetDefaultRouteInAllNodes(0);
+    // internetIpIfaces.SetForwarding(0, true);
+    // internetIpIfaces.SetDefaultRouteInAllNodes(0);
 
-    // Ptr<Ipv4StaticRouting> remoteHostStaticRouting = ipv4RoutingHelper.GetStaticRouting
-    // (remoteHost->GetObject<Ipv4> ()); remoteHostStaticRouting->AddNetworkRouteTo (Ipv4Address
-    // ("7.0.0.0"), Ipv4Mask ("255.0.0.0"), 1);
+    Ptr<Ipv4StaticRouting> remoteHostStaticRouting =
+        ipv4RoutingHelper.GetStaticRouting(remoteHost->GetObject<Ipv4>());
+    remoteHostStaticRouting->AddNetworkRouteTo(Ipv4Address("7.0.0.0"), Ipv4Mask("255.0.0.0"), 1);
     //  internet.InstallQuic (gridScenario.GetUserTerminals ());
 
-    Ipv6StaticRoutingHelper ipv6RoutingHelper;
-    Ptr<Ipv6StaticRouting> remoteHostStaticRouting =
-        ipv6RoutingHelper.GetStaticRouting(remoteHost->GetObject<Ipv6>());
-    remoteHostStaticRouting
-        ->AddNetworkRouteTo("7777:f00d::", Ipv6Prefix(64), internetIpIfaces.GetAddress(0, 1), 1, 0);
+    // Ipv6StaticRoutingHelper ipv6RoutingHelper;
+    // Ptr<Ipv6StaticRouting> remoteHostStaticRouting =
+    //     ipv6RoutingHelper.GetStaticRouting(remoteHost->GetObject<Ipv6>());
+    // remoteHostStaticRouting
+    //     ->AddNetworkRouteTo("7777:f00d::", Ipv6Prefix(64), internetIpIfaces.GetAddress(0, 1), 1,
+    //     0);
 
     internet.Install(gridScenario.GetUserTerminals());
 
-    Ipv6InterfaceContainer ueLowLatIpIface =
-        epcHelper->AssignUeIpv6Address(NetDeviceContainer(ueLowLatNetDev));
-    Ipv6InterfaceContainer ueVoiceIpIface =
-        epcHelper->AssignUeIpv6Address(NetDeviceContainer(ueVoiceNetDev));
+    Ipv4InterfaceContainer ueLowLatIpIface =
+        epcHelper->AssignUeIpv4Address(NetDeviceContainer(ueLowLatNetDev));
+    Ipv4InterfaceContainer ueVoiceIpIface =
+        epcHelper->AssignUeIpv4Address(NetDeviceContainer(ueVoiceNetDev));
+
+    // Ipv6InterfaceContainer ueLowLatIpIface =
+    //     epcHelper->AssignUeIpv6Address(NetDeviceContainer(ueLowLatNetDev));
+    // Ipv6InterfaceContainer ueVoiceIpIface =
+    //     epcHelper->AssignUeIpv6Address(NetDeviceContainer(ueVoiceNetDev));
 
     // Set the default gateway for the UEs
     for (uint32_t j = 0; j < gridScenario.GetUserTerminals().GetN(); ++j)
     {
-        // Ptr<Ipv4StaticRouting> ueStaticRouting = ipv4RoutingHelper.GetStaticRouting
-        // (gridScenario.GetUserTerminals ().Get (j)->GetObject<Ipv4> ());
-        // ueStaticRouting->SetDefaultRoute (epcHelper->GetUeDefaultGatewayAddress (), 1);
+        Ptr<Ipv4StaticRouting> ueStaticRouting = ipv4RoutingHelper.GetStaticRouting(
+            gridScenario.GetUserTerminals().Get(j)->GetObject<Ipv4>());
+        ueStaticRouting->SetDefaultRoute(epcHelper->GetUeDefaultGatewayAddress(), 1);
 
-        Ptr<Node> ueNode = gridScenario.GetUserTerminals().Get(j);
-        // Set the default gateway for the UEs
-        Ptr<Ipv6StaticRouting> ueStaticRouting =
-            ipv6RoutingHelper.GetStaticRouting(ueNode->GetObject<Ipv6>());
-        ueStaticRouting->SetDefaultRoute(epcHelper->GetUeDefaultGatewayAddress6(), 1);
+        // Ptr<Node> ueNode = gridScenario.GetUserTerminals().Get(j);
+        // // Set the default gateway for the UEs
+        // Ptr<Ipv6StaticRouting> ueStaticRouting =
+        //     ipv6RoutingHelper.GetStaticRouting(ueNode->GetObject<Ipv6>());
+        // ueStaticRouting->SetDefaultRoute(epcHelper->GetUeDefaultGatewayAddress6(), 1);
     }
 
     // attach UEs to the closest eNB
@@ -645,7 +665,8 @@ main(int argc, char* argv[])
     // The sink will always listen to the specified ports
     // UdpServerHelper dlPacketSinkLowLat (dlPortLowLat);
 
-    BurstyApplicationServerHelper server(protocol, Inet6SocketAddress(Ipv6Address::GetAny(), port));
+    BurstyApplicationServerHelper server(protocol, InetSocketAddress(Ipv4Address::GetAny(), port));
+    // BurstyApplicationServerHelper server(protocol, Inet6SocketAddress(Ipv6Address::GetAny(), port));
 
     UdpServerHelper dlPacketSinkVoice(dlPortVoice);
 
@@ -659,9 +680,13 @@ main(int argc, char* argv[])
      *
      * Low-Latency configuration and object creation:
      */
-    BurstyApplicationClientHelper client(
-        protocol,
-        Inet6SocketAddress(internetIpIfaces.GetAddress(1, 1), port));
+
+    BurstyApplicationClientHelper client(protocol,
+                                         InetSocketAddress(internetIpIfaces.GetAddress(1), port));
+
+    // BurstyApplicationClientHelper client(
+    //     protocol,
+    //     Inet6SocketAddress(internetIpIfaces.GetAddress(1, 1), port));
 
     // dlClientLowLat.SetAttribute ("RemotePort", UintegerValue (dlPortLowLat));
     // dlClientLowLat.SetAttribute ("MaxPackets", UintegerValue (0xFFFFFFFF));
