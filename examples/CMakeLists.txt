@@ -43,6 +43,7 @@ endforeach()
 set(nr_examples
     vr-nr-example
     adaptive-cttc-lte-ca-demo
+    vr-cttc-fh-compression
 )
 foreach(
   example
