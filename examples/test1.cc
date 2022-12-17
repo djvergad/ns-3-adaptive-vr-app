@@ -62,16 +62,21 @@ BurstRx (Ptr<const Packet> burst, const Address &from, const Address &to,
 int
 main (int argc, char *argv[])
 {
-  double simTime = 5;
+  double simTime = 500;
   double frameRate = 30;
-  std::string targetDataRate = "40Mbps";
+  std::string appRate = "40Mbps";
   std::string vrAppName = "VirusPopper";
+  std::string burstGeneratorType = "model";
 
   CommandLine cmd (__FILE__);
   cmd.AddValue ("frameRate", "VR application frame rate [FPS].", frameRate);
-  cmd.AddValue ("targetDataRate", "Target data rate of the VR application.", targetDataRate);
+  cmd.AddValue ("appRate", "Target data rate of the VR application.", appRate);
   cmd.AddValue ("vrAppName", "The VR application on which the model is based upon.", vrAppName);
   cmd.AddValue ("simTime", "Length of simulation [s].", simTime);
+  cmd.AddValue("burstGeneratorType",
+              "type of burst generator {\"model\", \"adaptive\"}",
+                 burstGeneratorType);
+
   cmd.Parse (argc, argv);
 
   Time::SetResolution (Time::NS);
@@ -79,15 +84,68 @@ main (int argc, char *argv[])
   LogComponentEnable ("Test1", LOG_INFO);
   LogComponentEnable ("BurstyApplicationClient", LOG_ALL);
   LogComponentEnable ("BurstyApplicationServer", LOG_ALL);
-  LogComponentEnable ("BurstyApplicationServerInstance", LOG_ALL);
+  // LogComponentEnable ("BurstyApplicationServerInstance", LOG_ALL);
+
+      LogComponentEnable("TcpTxBuffer", LOG_LEVEL_ALL);
+
+
+    Config::SetDefault("ns3::TcpSocket::SndBufSize", UintegerValue(1 << 21));
+    Config::SetDefault("ns3::TcpSocket::RcvBufSize", UintegerValue(1 << 21));
+    Config::SetDefault("ns3::TcpSocketBase::Sack", BooleanValue(true));
+
+    Config::SetDefault("ns3::TcpL4Protocol::RecoveryType",
+                       TypeIdValue(TypeId::LookupByName("ns3::TcpPrrRecovery")));
+
+    Config::SetDefault("ns3::TcpL4Protocol::SocketType", TypeIdValue(TypeId::LookupByName("ns3::TcpHtcp")));
+// Config::SetDefault ("ns3::TcpSocketBase::UseEcn", StringValue ("On"));
+    // Config::SetDefault ("ns3::TcpSocket::PersistTimeout", TimeValue (MilliSeconds (20)));
+Config::SetDefault("ns3::TcpSocket::SegmentSize", UintegerValue(1024));
+        
+
+
+    Config::SetDefault("ns3::VrBurstGenerator::FrameRate", DoubleValue(frameRate));
+    Config::SetDefault("ns3::VrBurstGenerator::TargetDataRate", DataRateValue(DataRate(appRate)));
+    Config::SetDefault("ns3::VrBurstGenerator::VrAppName", StringValue(vrAppName));
+    Config::SetDefault("ns3::BurstyApplicationServer::FragmentSize", UintegerValue(500));
+
+    Config::SetDefault("ns3::BurstyApplicationServer::appDuration", TimeValue(Seconds(simTime)));
+
+
+
+    std::string protocol;
+    if (burstGeneratorType == "model")
+    {
+        protocol = "ns3::UdpSocketFactory";
+        Config::SetDefault("ns3::BurstyApplicationServer::adaptationAlgorithm", StringValue(""));
+    }
+    else if (burstGeneratorType == "google")
+    {
+        protocol = "ns3::TcpSocketFactory";
+        Config::SetDefault("ns3::BurstyApplicationServer::adaptationAlgorithm",
+                           StringValue("GoogleAlgorithmServer"));
+    }
+    else if (burstGeneratorType == "fuzzy")
+    {
+        protocol = "ns3::TcpSocketFactory";
+        Config::SetDefault("ns3::BurstyApplicationServer::adaptationAlgorithm",
+                           StringValue("FuzzyAlgorithmServer"));
+    }
+    else
+    {
+        NS_ABORT_MSG("Wrong burstGeneratorType type");
+    }
+
+
+
+
 
   // Setup two nodes
   NodeContainer nodes;
   nodes.Create (2);
 
   PointToPointHelper pointToPoint;
-  pointToPoint.SetDeviceAttribute ("DataRate", StringValue ("100Mbps"));
-  pointToPoint.SetChannelAttribute ("Delay", StringValue ("2ms"));
+  pointToPoint.SetDeviceAttribute ("DataRate", StringValue ("200Mbps"));
+  pointToPoint.SetChannelAttribute ("Delay", StringValue ("50ms"));
 
   NetDeviceContainer devices;
   devices = pointToPoint.Install (nodes);
@@ -108,7 +166,7 @@ main (int argc, char *argv[])
 
   // Create burst sink helper
   BurstyApplicationServerHelper burstyApplicationServerHelper (
-      "ns3::TcpSocketFactory", InetSocketAddress (sinkAddress, portNumber));
+      protocol, InetSocketAddress (sinkAddress, portNumber));
 
   // Install bursty application
   ApplicationContainer serverApps = burstyApplicationServerHelper.Install (nodes.Get (0));
@@ -118,12 +176,12 @@ main (int argc, char *argv[])
 
   // Create bursty application helper
   BurstyApplicationClientHelper burstyApplicationClientHelper (
-      "ns3::TcpSocketFactory", InetSocketAddress (serverAddress, portNumber));
+      protocol, InetSocketAddress (serverAddress, portNumber));
   // burstyHelper.SetAttribute ("FragmentSize", UintegerValue (1200));
 
   // burstyHelper.SetBurstGenerator ("ns3::VrBurstGenerator",
   //                                 "FrameRate", DoubleValue (frameRate),
-  //                                 "TargetDataRate", DataRateValue (DataRate (targetDataRate)),
+  //                                 "appRate", DataRateValue (DataRate (appRate)),
   //                                 "VrAppName", StringValue(vrAppName));
 
   // Install HTTP client

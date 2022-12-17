@@ -29,13 +29,20 @@ AdaptationAlgorithmServer::~AdaptationAlgorithmServer ()
 }
 
 DataRate
-AdaptationAlgorithmServer::nextBurstRate (Ptr<TcpSocketBase> socket, uint64_t bytesAddedToSocket,
+AdaptationAlgorithmServer::nextBurstRate (Ptr<Socket> socket, uint64_t bytesAddedToSocket,
                                           Time txTime)
 {
   NS_LOG_FUNCTION (this << socket << bytesAddedToSocket);
 
   UintegerValue buf_size;
-  socket->GetAttribute ("SndBufSize", buf_size);
+  Ptr<QuicSocketBase> qsock = DynamicCast<QuicSocketBase> (socket);
+  if (qsock) {
+    qsock->GetAttribute ("SocketSndBufSize", buf_size);
+  } else {
+    DynamicCast<TcpSocketBase> (socket)->GetAttribute ("SndBufSize", buf_size);
+  }
+  
+
 
   Time dt = Simulator::Now () - m_lastBurstTime;
   m_lastBurstTime = Simulator::Now ();

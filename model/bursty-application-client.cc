@@ -204,107 +204,131 @@ BurstyApplicationClient::HandleRead(Ptr<Socket> socket)
 
     while ((fragment = socket->RecvFrom(from)))
     {
+        // std::cout << "Read from socket " << fragment->GetSize() << std::endl;
+
         if (fragment->GetSize() == 0)
         { // EOF
             break;
         }
 
-        m_totRxBytes += fragment->GetSize();
-
-        if (m_incomplete_packets[socket] && m_incomplete_packets[socket]->GetSize() > 0)
+        if (m_incomplete_packets.count(socket) == 1 && m_incomplete_packets[socket] != nullptr)
         {
-            NS_LOG_DEBUG("FRAGMENT SIZE " << m_incomplete_packets[socket]->GetSize()
-                                          << " fm_incomplete_packets[socket] serialized "
-                                          << m_incomplete_packets[socket]->GetSerializedSize()
-                                          << " fragment " << fragment->GetSize()
-                                          << " fragment serialized "
-                                          << fragment->GetSerializedSize());
-
-            m_incomplete_packets[socket]->AddAtEnd(fragment->Copy());
-            fragment = m_incomplete_packets[socket]->Copy();
-            m_incomplete_packets[socket] = nullptr;
-        }
-
-        std::stringstream addressStr;
-        if (InetSocketAddress::IsMatchingType(from))
-        {
-            addressStr << InetSocketAddress::ConvertFrom(from).GetIpv4() << " port "
-                       << InetSocketAddress::ConvertFrom(from).GetPort();
-        }
-        else if (Inet6SocketAddress::IsMatchingType(from))
-        {
-            addressStr << Inet6SocketAddress::ConvertFrom(from).GetIpv6() << " port "
-                       << Inet6SocketAddress::ConvertFrom(from).GetPort();
+            m_incomplete_packets[socket]->AddAtEnd(fragment);
         }
         else
         {
-            addressStr << "UNKNOWN ADDRESS TYPE";
+            m_incomplete_packets[socket] = fragment->Copy();
         }
 
-        NS_LOG_INFO("At time " << Simulator::Now().As(Time::S) << " burst sink received "
-                               << fragment->GetSize() << " bytes from " << addressStr.str()
-                               << " total Rx " << m_totRxBytes << " bytes");
+        // std::cout << "Buffer has " << m_incomplete_packets[socket]->GetSize() << std::endl;
 
-        socket->GetSockName(localAddress);
-
-        // handle received fragment
-        auto itBuffer = m_burstHandlerMap.find(from); // rename m_burstBufferMap, itBuffer
-        if (itBuffer == m_burstHandlerMap.end())
-        {
-            NS_LOG_LOGIC("New stream from " << from);
-            itBuffer = m_burstHandlerMap.insert(std::make_pair(from, BurstHandler())).first;
-        }
-
-        uint64_t del_size = 0;
-
-        while (1)
+        while (m_incomplete_packets[socket] && m_incomplete_packets[socket]->GetSize() > 0)
         {
             SeqTsSizeFragHeader header;
-            if (header.GetSerializedSize() <= fragment->GetSize())
+
+            // std::cout << "m_incomplete_packet size " << m_incomplete_packets[socket]->GetSize()
+            // << " header size " << header.GetSerializedSize() << std::endl;
+
+            if (m_incomplete_packets[socket]->GetSize() < header.GetSerializedSize())
             {
-                fragment->PeekHeader(header);
-                NS_LOG_DEBUG("HEADER SIZE " << header.GetSize() << " header seriqlized "
-                                            << header.GetSerializedSize() << " fragment bytes "
-                                            << header.GetFragBytes() << " fragment size "
-                                            << fragment->GetSize() << " fragment serialized "
-                                            << fragment->GetSerializedSize());
-                del_size = header.GetFragBytes();
+                break;
+            }
 
-                if (del_size <= fragment->GetSize())
-                {
-                    m_incomplete_packets[socket] =
-                        fragment->Copy()->CreateFragment(del_size, fragment->GetSize() - del_size);
-                    fragment = fragment->Copy()->CreateFragment(0, del_size);
-                    NS_LOG_DEBUG("Incomplete packet in rxbuffer, received. size: "
-                                 << m_incomplete_packets[socket]->GetSize() << " hsize "
-                                 << del_size);
+            m_incomplete_packets[socket]->PeekHeader(header);
 
-                    if (header.GetSeq() != UINT32_MAX)
-                    {
-                        FragmentReceived(itBuffer->second, fragment, from, localAddress);
-                        fragment = m_incomplete_packets[socket]->Copy();
-                    }
-                    else
-                    {
-                        socket->Close();
-                    }
-                }
-                else
-                {
-                    m_incomplete_packets[socket] = fragment->Copy();
-                    NS_LOG_DEBUG("Incomplete packet in rxbuffer, not received. size: "
-                                 << m_incomplete_packets[socket]->GetSize() << " hsize "
-                                 << del_size);
-                    break;
-                }
+            // std::cout << "Before " << header.GetSeq() << " " << header.GetFragSeq() << " hsize "
+            // << header.GetFragBytes() << " psize " << m_incomplete_packets[socket]->GetSize() <<
+            // std::endl;
+
+            if (header.GetFragBytes() == 0)
+            {
+                NS_FATAL_ERROR("wrong header size");
+            }
+
+            int64_t extra_bytes = m_incomplete_packets[socket]->GetSize() - header.GetFragBytes();
+
+            if (extra_bytes > 0)
+            {
+                // std::cout << " packet start " << 0 << " length  " << header.GetFragBytes() <<
+                // std::endl;
+                fragment = m_incomplete_packets[socket]->CreateFragment(0, header.GetFragBytes());
+
+                // std::cout << " incomplete start " << header.GetFragBytes() << " length  "
+                //           << extra_bytes << std::endl;
+
+                Ptr<Packet> frag2 =
+                    m_incomplete_packets[socket]->CreateFragment(header.GetFragBytes(),
+                                                                 extra_bytes);
+                m_incomplete_packets[socket] = frag2;
+                // m_incomplete_packets[socket]->CreateFragment(header.GetFragBytes(), extra_bytes);
+
+                // SeqTsSizeFragHeader seqTs2;
+                // m_incomplete_packets[socket]->PeekHeader(seqTs2);
+                // std::cout << " AAAAAAAA " << seqTs2.GetFragBytes() << std::endl;
+            }
+            if (extra_bytes == 0)
+            {
+                fragment = m_incomplete_packets[socket]->Copy();
+                m_incomplete_packets[socket] = nullptr;
+            }
+            if (extra_bytes < 0)
+            {
+                // m_incomplete_packet = m_incomplete_packet->Copy();
+                SeqTsSizeFragHeader seqTs2;
+                m_incomplete_packets[socket]->PeekHeader(seqTs2);
+
+                // std::cout << "We have incompete m_incomplete_packet" << seqTs2.GetFragBytes()
+                //           << std::endl;
+                break;
+            }
+
+            m_totRxBytes += fragment->GetSize();
+
+            std::stringstream addressStr;
+            if (InetSocketAddress::IsMatchingType(from))
+            {
+                addressStr << InetSocketAddress::ConvertFrom(from).GetIpv4() << " port "
+                           << InetSocketAddress::ConvertFrom(from).GetPort();
+            }
+            else if (Inet6SocketAddress::IsMatchingType(from))
+            {
+                addressStr << Inet6SocketAddress::ConvertFrom(from).GetIpv6() << " port "
+                           << Inet6SocketAddress::ConvertFrom(from).GetPort();
             }
             else
             {
-                NS_LOG_DEBUG("HEADER SIZE TOO SMALL: fragment size "
-                             << fragment->GetSize() << " fragment serialized "
-                             << fragment->GetSerializedSize());
-                m_incomplete_packets[socket] = fragment->Copy();
-                break;
+                addressStr << "UNKNOWN ADDRESS TYPE";
+            }
+
+            NS_LOG_INFO("At time " << Simulator::Now().As(Time::S) << " burst sink received "
+                                   << fragment->GetSize() << " bytes from " << addressStr.str()
+                                   << " total Rx " << m_totRxBytes << " bytes");
+
+            socket->GetSockName(localAddress);
+
+            // handle received fragment
+            auto itBuffer = m_burstHandlerMap.find(from); // rename m_burstBufferMap, itBuffer
+            if (itBuffer == m_burstHandlerMap.end())
+            {
+                NS_LOG_LOGIC("New stream from " << from);
+                itBuffer = m_burstHandlerMap.insert(std::make_pair(from, BurstHandler())).first;
+            }
+
+            if (header.GetSeq() != UINT32_MAX)
+            {
+                if (fragment->GetSize() == 0)
+                {
+                    break;
+                }
+                // std::cout << Simulator::Now() << " Received seq " << header.GetSeq() << " frag
+                // seq " << header.GetFragSeq()<< " hsize " << header.GetSize() << " hfragbytes " <<
+                // header.GetFragBytes() << " psize " << fragment->GetSize() << std::endl;
+
+                FragmentReceived(itBuffer->second, fragment->Copy(), from, localAddress);
+            }
+            else
+            {
+                socket->Close();
             }
         }
     }

@@ -5,6 +5,7 @@
 #include "ns3/tcp-socket-base.h"
 #include "ns3/packet.h"
 #include "ns3/simulator.h"
+#include "ns3/quic-socket-base.h"
 
 namespace ns3 {
 
@@ -16,7 +17,7 @@ public:
   AdaptationAlgorithmServer ();
   virtual ~AdaptationAlgorithmServer ();
 
-  virtual DataRate nextBurstRate (Ptr<TcpSocketBase> socket, uint64_t bytesAddedToSocket,
+  virtual DataRate nextBurstRate (Ptr<Socket> socket, uint64_t bytesAddedToSocket,
                                   Time txTime);
 
 protected:

@@ -1137,13 +1137,13 @@ main(int argc, char* argv[])
      * the instances of SetDefault, but we need it for legacy code (LTE)
      */
     // Config::SetDefault("ns3::LteRlcUm::MaxTxBufferSize", UintegerValue(999999999));
-    Config::SetDefault("ns3::LteRlcUm::MaxTxBufferSize", UintegerValue(50 * 1024));
+    // Config::SetDefault("ns3::LteRlcUm::MaxTxBufferSize", UintegerValue(50 * 1024 * 1024));
 
     uint32_t fragmentSize = 1024; // bytes
 
     Config::SetDefault("ns3::TcpL4Protocol::SocketType",
-                       TypeIdValue(TypeId::LookupByName("ns3::TcpYeah")));
-    Config::SetDefault("ns3::TcpSocket::PersistTimeout", TimeValue(MilliSeconds(20)));
+                       TypeIdValue(TypeId::LookupByName("ns3::TcpWestwood")));
+    // Config::SetDefault ("ns3::TcpSocket::PersistTimeout", TimeValue (MilliSeconds (20)));
 
     Config::SetDefault("ns3::TcpSocketBase::Sack", BooleanValue(true));
 
@@ -1153,9 +1153,10 @@ main(int argc, char* argv[])
     Config::SetDefault("ns3::VrBurstGenerator::TargetDataRate", DataRateValue(DataRate(appRate)));
     Config::SetDefault("ns3::VrBurstGenerator::VrAppName", StringValue(vrAppName));
     Config::SetDefault("ns3::BurstyApplicationServer::FragmentSize", UintegerValue(fragmentSize));
+
     Config::SetDefault("ns3::TcpL4Protocol::RecoveryType",
                        TypeIdValue(TypeId::LookupByName("ns3::TcpPrrRecovery")));
-    Config::SetDefault("ns3::TcpSocket::SegmentSize", UintegerValue(fragmentSize));
+    Config::SetDefault("ns3::TcpSocket::SegmentSize", UintegerValue(350));
 
     Config::SetDefault("ns3::BurstyApplicationServer::appDuration",
                        TimeValue(MilliSeconds(simTimeMs)));
@@ -1339,11 +1340,6 @@ main(int argc, char* argv[])
         epcHelper->AssignUeIpv4Address(NetDeviceContainer(ueSector3NetDev));
 
     Ipv4Address remoteHostAddr = internetIpIfaces.GetAddress(1);
-
-    Ipv4InterfaceContainer clientIps;
-    clientIps.Add(ueSector1IpIface);
-    clientIps.Add(ueSector2IpIface);
-    clientIps.Add(ueSector3IpIface);
 
     // Set the default gateway for the UEs
     for (uint32_t j = 0; j < gridScenario.GetUserTerminals().GetN(); ++j)
@@ -1575,8 +1571,6 @@ main(int argc, char* argv[])
             Ptr<BurstyApplicationClient> app =
                 DynamicCast<BurstyApplicationClient>(clientApps.Get(i));
             // app->SetStartTime (startTime);
-            app->SetAttribute("Local", AddressValue(InetSocketAddress(clientIps.GetAddress(i), 0)));
-
             app->TraceConnectWithoutContext("BurstRx", MakeBoundCallback(&BurstRx, burstTrace));
             app->TraceConnectWithoutContext("FragmentRx",
                                             MakeBoundCallback(&FragmentRx, fragmentTrace));

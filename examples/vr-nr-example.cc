@@ -63,7 +63,7 @@ $ ./ns3 run "cttc-nr-demo --PrintHelp"
 #include "ns3/point-to-point-module.h"
 #include "ns3/seq-ts-size-frag-header.h"
 
-// #include "ns3/quic-module.h"
+#include "ns3/quic-module.h"
 /*
  * Use, always, the namespace ns3. All the NR classes are inside such namespace.
  */
@@ -248,8 +248,8 @@ main(int argc, char* argv[])
      * Default values for the simulation. We are progressively removing all
      * the instances of SetDefault, but we need it for legacy code (LTE)
      */
-    // Config::SetDefault("ns3::LteRlcUm::MaxTxBufferSize", UintegerValue(999999999));
-    Config::SetDefault("ns3::LteRlcUm::MaxTxBufferSize", UintegerValue(50 * 1024 * 1024));
+    Config::SetDefault("ns3::LteRlcUm::MaxTxBufferSize", UintegerValue(999999999));
+    // Config::SetDefault("ns3::LteRlcUm::MaxTxBufferSize", UintegerValue(50 * 1024 * 1024));
 
     /*
      * Create the scenario. In our examples, we heavily use helpers that setup
@@ -308,6 +308,8 @@ main(int argc, char* argv[])
     Ptr<NrPointToPointEpcHelper> epcHelper = CreateObject<NrPointToPointEpcHelper>();
     Ptr<IdealBeamformingHelper> idealBeamformingHelper = CreateObject<IdealBeamformingHelper>();
     Ptr<NrHelper> nrHelper = CreateObject<NrHelper>();
+    nrHelper->SetSchedulerTypeId(TypeId::LookupByName("ns3::NrMacSchedulerOfdmaPF"));
+
 
     // Put the pointers inside nrHelper
     nrHelper->SetBeamformingHelper(idealBeamformingHelper);
@@ -470,6 +472,8 @@ main(int argc, char* argv[])
     NetDeviceContainer ueLowLatNetDev = nrHelper->InstallUeDevice(ueLowLatContainer, allBwps);
     NetDeviceContainer ueVoiceNetDev = nrHelper->InstallUeDevice(ueVoiceContainer, allBwps);
 
+    
+
     randomStream += nrHelper->AssignStreams(enbNetDev, randomStream);
     randomStream += nrHelper->AssignStreams(ueLowLatNetDev, randomStream);
     randomStream += nrHelper->AssignStreams(ueVoiceNetDev, randomStream);
@@ -522,11 +526,11 @@ main(int argc, char* argv[])
     remoteHostContainer.Create(1);
     Ptr<Node> remoteHost = remoteHostContainer.Get(0);
 
-    InternetStackHelper internet;
+    // InternetStackHelper internet;
 
-    // QuicHelper internet;
-    // internet.InstallQuic (remoteHostContainer);
-    internet.Install(remoteHostContainer);
+    QuicHelper internet;
+    internet.InstallQuic (remoteHostContainer);
+    // internet.Install(remoteHostContainer);
 
     // connect a remoteHost to pgw. Setup routing too
     PointToPointHelper p2ph;
@@ -549,7 +553,6 @@ main(int argc, char* argv[])
     Ptr<Ipv4StaticRouting> remoteHostStaticRouting =
         ipv4RoutingHelper.GetStaticRouting(remoteHost->GetObject<Ipv4>());
     remoteHostStaticRouting->AddNetworkRouteTo(Ipv4Address("7.0.0.0"), Ipv4Mask("255.0.0.0"), 1);
-    //  internet.InstallQuic (gridScenario.GetUserTerminals ());
 
     // Ipv6StaticRoutingHelper ipv6RoutingHelper;
     // Ptr<Ipv6StaticRouting> remoteHostStaticRouting =
@@ -558,7 +561,8 @@ main(int argc, char* argv[])
     //     ->AddNetworkRouteTo("7777:f00d::", Ipv6Prefix(64), internetIpIfaces.GetAddress(0, 1), 1,
     //     0);
 
-    internet.Install(gridScenario.GetUserTerminals());
+     internet.InstallQuic (gridScenario.GetUserTerminals ());
+    // internet.Install(gridScenario.GetUserTerminals());
 
     Ipv4InterfaceContainer ueLowLatIpIface =
         epcHelper->AssignUeIpv4Address(NetDeviceContainer(ueLowLatNetDev));
@@ -607,12 +611,16 @@ main(int argc, char* argv[])
 
     uint32_t fragmentSize = 500; // bytes
 
-    Config::SetDefault("ns3::TcpL4Protocol::SocketType",
-                       TypeIdValue(TypeId::LookupByName("ns3::TcpYeah")));
-    // Config::SetDefault ("ns3::TcpSocket::PersistTimeout", TimeValue (MilliSeconds (20)));
-
     Config::SetDefault("ns3::TcpSocket::SndBufSize", UintegerValue(1 << 23));
     Config::SetDefault("ns3::TcpSocket::RcvBufSize", UintegerValue(1 << 23));
+    Config::SetDefault("ns3::TcpSocketBase::Sack", BooleanValue(true));
+
+      Config::SetDefault("ns3::TcpL4Protocol::RecoveryType",
+                       TypeIdValue(TypeId::LookupByName("ns3::TcpPrrRecovery")));
+
+    // Config::SetDefault("ns3::TcpL4Protocol::SocketType", TypeIdValue(TypeId::LookupByName("ns3::TcpWestwood")));
+
+
     Config::SetDefault("ns3::VrBurstGenerator::FrameRate", DoubleValue(frameRate));
     Config::SetDefault("ns3::VrBurstGenerator::TargetDataRate", DataRateValue(DataRate(appRate)));
     Config::SetDefault("ns3::VrBurstGenerator::VrAppName", StringValue(vrAppName));
@@ -620,15 +628,15 @@ main(int argc, char* argv[])
 
     Config::SetDefault("ns3::BurstyApplicationServer::appDuration", TimeValue(simulationTime));
 
-    // Config::SetDefault ("ns3::QuicSocketBase::SocketSndBufSize", UintegerValue (40000000));
-    // Config::SetDefault ("ns3::QuicSocketBase::SocketRcvBufSize", UintegerValue (40000000));
-    // Config::SetDefault ("ns3::QuicStreamBase::StreamSndBufSize", UintegerValue (40000000));
-    // Config::SetDefault ("ns3::QuicStreamBase::StreamRcvBufSize", UintegerValue (40000000));
-    // Config::SetDefault ("ns3::QuicSocketBase::SchedulingPolicy",
-    //                     TypeIdValue (QuicSocketTxEdfScheduler::GetTypeId ()));
+    Config::SetDefault ("ns3::QuicSocketBase::SocketSndBufSize", UintegerValue (40000000));
+    Config::SetDefault ("ns3::QuicSocketBase::SocketRcvBufSize", UintegerValue (40000000));
+    Config::SetDefault ("ns3::QuicStreamBase::StreamSndBufSize", UintegerValue (40000000));
+    Config::SetDefault ("ns3::QuicStreamBase::StreamRcvBufSize", UintegerValue (40000000));
+    Config::SetDefault ("ns3::QuicSocketBase::SchedulingPolicy",
+                        TypeIdValue (QuicSocketTxEdfScheduler::GetTypeId ()));
 
-    // Config::SetDefault ("ns3::QuicL4Protocol::SocketType",
-    //                     TypeIdValue (TypeId::LookupByName ("ns3::TcpYeah")));
+    Config::SetDefault ("ns3::QuicL4Protocol::SocketType",
+                        TypeIdValue (TypeId::LookupByName ("ns3::TcpWestwood")));
 
     uint16_t port = 50000;
 
@@ -640,13 +648,13 @@ main(int argc, char* argv[])
     }
     else if (burstGeneratorType == "google")
     {
-        protocol = "ns3::TcpSocketFactory";
+        protocol = "ns3::QuicSocketFactory";
         Config::SetDefault("ns3::BurstyApplicationServer::adaptationAlgorithm",
                            StringValue("GoogleAlgorithmServer"));
     }
     else if (burstGeneratorType == "fuzzy")
     {
-        protocol = "ns3::TcpSocketFactory";
+        protocol = "ns3::QuicSocketFactory";
         Config::SetDefault("ns3::BurstyApplicationServer::adaptationAlgorithm",
                            StringValue("FuzzyAlgorithmServer"));
     }
@@ -769,6 +777,8 @@ main(int argc, char* argv[])
         // NS_LOG_UNCOND ("STA" << i << " will start at " << startTime.As (Time::S));
         Ptr<BurstyApplicationClient> app = DynamicCast<BurstyApplicationClient>(clientApps.Get(i));
         // app->SetStartTime (startTime);
+      app->SetAttribute ("Local",
+                         AddressValue (InetSocketAddress (ueLowLatIpIface.GetAddress (i), 0)));
         app->TraceConnectWithoutContext("BurstRx", MakeBoundCallback(&BurstRx, burstTrace));
         app->TraceConnectWithoutContext("FragmentRx",
                                         MakeBoundCallback(&FragmentRx, fragmentTrace));

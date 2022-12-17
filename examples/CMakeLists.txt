@@ -15,6 +15,7 @@ foreach(
                       ${libapplications}
                       ${libpoint-to-point}
                       ${libinternet}
+                      ${libquic}
                       ${libnetwork}
   )
 endforeach()
@@ -36,11 +37,13 @@ foreach(
                       ${libcore}
                       ${libapplications}
                       ${libwifi}
+                      ${libquic}
   )
 endforeach()
 
 
 set(nr_examples
+    test1
     vr-nr-example
     adaptive-cttc-lte-ca-demo
     vr-cttc-fh-compression
@@ -57,6 +60,7 @@ foreach(
                       ${libapplications}
                       ${libwifi}
                       ${libnr}
+                      ${libquic}
                       ${libflow-monitor}
   )
 endforeach()
