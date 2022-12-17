@@ -983,7 +983,7 @@ main(int argc, char* argv[])
      */
     // Scenario parameters (that we will use inside this script):
     uint16_t numOuterRings = 0;
-    uint16_t ueNumPergNb = 2;
+    uint16_t nStas = 6;
     bool logging = false;
     bool traces = true;
     std::string simulator = "";
@@ -1009,7 +1009,7 @@ main(int argc, char* argv[])
     uint32_t ftpServerAppStartTimeMs = 400;
     // Simulation parameters. Please don't use double to indicate seconds, use
     // milliseconds and integers to avoid representation errors.
-    uint32_t simTimeMs = 1400;
+    uint32_t simulationTime = 1.4;
     uint32_t udpAppStartTimeMs = 400;
     std::string direction = "DL";
 
@@ -1053,9 +1053,7 @@ main(int argc, char* argv[])
 
     cmd.AddValue("scenario", "The urban scenario string (UMa or UMi)", scenario);
     cmd.AddValue("numRings", "The number of rings around the central site", numOuterRings);
-    cmd.AddValue("ueNumPergNb",
-                 "The number of UE per cell or gNB in multiple-ue topology",
-                 ueNumPergNb);
+    cmd.AddValue("nStas", "The number of UE per cell or gNB in multiple-ue topology", nStas);
     cmd.AddValue("logging", "Enable logging", logging);
     cmd.AddValue("traces", "Enable output traces", traces);
     cmd.AddValue("packetSize", "packet size in bytes to be used by UE traffic", udpPacketSize);
@@ -1064,7 +1062,7 @@ main(int argc, char* argv[])
                  "1: Use same lambda (packets/s) for all UEs and cells (equal to 'lambda' input), "
                  "0: use different packet arrival rates (lambdas) among cells",
                  uniformLambda);
-    cmd.AddValue("simTimeMs", "Simulation time", simTimeMs);
+    cmd.AddValue("simulationTime", "Simulation time", simulationTime);
     cmd.AddValue("numerologyBwp", "The numerology to be used (NR only)", numerologyBwp);
     cmd.AddValue("pattern1", "The TDD pattern to use", pattern1);
     cmd.AddValue("pattern2", "The TDD pattern to use", pattern2);
@@ -1158,7 +1156,7 @@ main(int argc, char* argv[])
     Config::SetDefault("ns3::TcpSocket::SegmentSize", UintegerValue(fragmentSize));
 
     Config::SetDefault("ns3::BurstyApplicationServer::appDuration",
-                       TimeValue(MilliSeconds(simTimeMs)));
+                       TimeValue(Seconds(simulationTime)));
 
     std::string protocol;
     if (burstGeneratorType == "model")
@@ -1194,7 +1192,7 @@ main(int argc, char* argv[])
     gridScenario.SetScenarioParameters(scenario);
     uint16_t gNbNum = gridScenario.GetNumCells();
     std::cout << "numcells: " << gNbNum << std::endl;
-    uint32_t ueNum = ueNumPergNb * gNbNum;
+    uint32_t ueNum = nStas / gNbNum * gNbNum;
     std::cout << "numUEs: " << ueNum << std::endl;
     gridScenario.SetUtNumber(ueNum);
     gridScenario.AssignStreams(RngSeedManager::GetRun());
@@ -1557,8 +1555,6 @@ main(int argc, char* argv[])
 
         serverApps.Start(MilliSeconds(ftpServerAppStartTimeMs));
         clientApps.Start(MilliSeconds(ftpClientAppStartTimeMs));
-        serverApps.Stop(MilliSeconds(simTimeMs));
-        clientApps.Stop(MilliSeconds(simTimeMs + 1000));
 
         // Setup traces
         Ptr<OutputStreamWrapper> burstTrace = ascii.CreateFileStream("burstTrace.csv");
@@ -1592,7 +1588,7 @@ main(int argc, char* argv[])
         // ftpHelperSector1->Configure(ftpPortSector1,
         //                             MilliSeconds(ftpServerAppStartTimeMs),
         //                             MilliSeconds(ftpClientAppStartTimeMs),
-        //                             MilliSeconds(simTimeMs),
+        //                             MilliSeconds(simulationTime),
         //                             ftpLambda,
         //                             ftpFileSize);
         // ftpHelperSector1->Start();
@@ -1606,7 +1602,7 @@ main(int argc, char* argv[])
         // ftpHelperSector2->Configure(ftpPortSector2,
         //                             MilliSeconds(ftpServerAppStartTimeMs),
         //                             MilliSeconds(ftpClientAppStartTimeMs),
-        //                             MilliSeconds(simTimeMs),
+        //                             MilliSeconds(simulationTime),
         //                             ftpLambda,
         //                             ftpFileSize);
         // ftpHelperSector2->Start();
@@ -1620,7 +1616,7 @@ main(int argc, char* argv[])
         // ftpHelperSector3->Configure(ftpPortSector3,
         //                             MilliSeconds(ftpServerAppStartTimeMs),
         //                             MilliSeconds(ftpClientAppStartTimeMs),
-        //                             MilliSeconds(simTimeMs),
+        //                             MilliSeconds(simulationTime),
         //                             ftpLambda,
         //                             ftpFileSize);
         // ftpHelperSector3->Start();
@@ -1772,8 +1768,8 @@ main(int argc, char* argv[])
     // start UDP server and client apps
     serverApps.Start(MilliSeconds(udpAppStartTimeMs));
     clientApps.Start(MilliSeconds(udpAppStartTimeMs));
-    serverApps.Stop(MilliSeconds(simTimeMs));
-    clientApps.Stop(MilliSeconds(simTimeMs + 1000));
+    serverApps.Stop(Seconds(simulationTime + 1));
+    clientApps.Stop(Seconds(simulationTime));
 
     // enable the traces provided by the nr module
     if (traces == true)
@@ -1798,7 +1794,7 @@ main(int argc, char* argv[])
     monitor->SetAttribute("JitterBinWidth", DoubleValue(0.001));
     monitor->SetAttribute("PacketSizeBinWidth", DoubleValue(20));
 
-    Simulator::Stop(MilliSeconds(simTimeMs + 2000));
+    Simulator::Stop(Seconds(simulationTime + 3000));
     Simulator::Run();
 
     Ptr<OutputStreamWrapper> txBurstsBySta = ascii.CreateFileStream("txBurstsBySta.csv");
@@ -1925,7 +1921,7 @@ main(int argc, char* argv[])
             // Measure the duration of the flow from receiver's perspective
             // double rxDuration = i->second.timeLastRxPacket.GetSeconds () -
             // i->second.timeFirstTxPacket.GetSeconds ();
-            double rxDuration = (simTimeMs - udpAppStartTimeMs) / 1000.0;
+            double rxDuration = (1000 * simulationTime - udpAppStartTimeMs) / 1000.0;
 
             averageFlowThroughput += i->second.rxBytes * 8.0 / rxDuration / 1000 / 1000;
             averageFlowDelay += 1000 * i->second.delaySum.GetSeconds() / i->second.rxPackets;
