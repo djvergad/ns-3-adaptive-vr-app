@@ -1794,7 +1794,7 @@ main(int argc, char* argv[])
     monitor->SetAttribute("JitterBinWidth", DoubleValue(0.001));
     monitor->SetAttribute("PacketSizeBinWidth", DoubleValue(20));
 
-    Simulator::Stop(Seconds(simulationTime + 3000));
+    Simulator::Stop(Seconds(simulationTime + 3));
     Simulator::Run();
 
     Ptr<OutputStreamWrapper> txBurstsBySta = ascii.CreateFileStream("txBurstsBySta.csv");
