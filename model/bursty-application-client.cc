@@ -242,7 +242,10 @@ BurstyApplicationClient::HandleRead(Ptr<Socket> socket)
 
             if (header.GetFragBytes() == 0)
             {
-                NS_FATAL_ERROR("wrong header size");
+                // NS_FATAL_ERROR("wrong header size");
+                std::cout << "wrong header size " << std::endl;
+                m_incomplete_packets[socket] = nullptr;
+                break;
             }
 
             int64_t extra_bytes = m_incomplete_packets[socket]->GetSize() - header.GetFragBytes();

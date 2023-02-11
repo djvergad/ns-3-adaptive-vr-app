@@ -985,7 +985,7 @@ main(int argc, char* argv[])
     uint16_t numOuterRings = 0;
     uint16_t nStas = 6;
     bool logging = false;
-    bool traces = true;
+    bool traces = false;
     std::string simulator = "";
     std::string scenario = "UMi";
     std::string radioNetwork = "NR";   // LTE or NR
@@ -1768,8 +1768,8 @@ main(int argc, char* argv[])
     // start UDP server and client apps
     serverApps.Start(MilliSeconds(udpAppStartTimeMs));
     clientApps.Start(MilliSeconds(udpAppStartTimeMs));
-    serverApps.Stop(Seconds(simulationTime + 1));
-    clientApps.Stop(Seconds(simulationTime));
+    serverApps.Stop(Seconds(simulationTime + 3));
+    clientApps.Stop(Seconds(simulationTime + 3));
 
     // enable the traces provided by the nr module
     if (traces == true)
@@ -1794,7 +1794,7 @@ main(int argc, char* argv[])
     monitor->SetAttribute("JitterBinWidth", DoubleValue(0.001));
     monitor->SetAttribute("PacketSizeBinWidth", DoubleValue(20));
 
-    Simulator::Stop(Seconds(simulationTime + 3));
+    Simulator::Stop(Seconds(simulationTime + 5));
     Simulator::Run();
 
     Ptr<OutputStreamWrapper> txBurstsBySta = ascii.CreateFileStream("txBurstsBySta.csv");
