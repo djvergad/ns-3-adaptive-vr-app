@@ -1145,8 +1145,8 @@ main(int argc, char* argv[])
 
     Config::SetDefault("ns3::TcpSocketBase::Sack", BooleanValue(true));
 
-    Config::SetDefault("ns3::TcpSocket::RcvBufSize", UintegerValue(1 << 23));
-    Config::SetDefault("ns3::TcpSocket::SndBufSize", UintegerValue(1 << 23));
+    // Config::SetDefault("ns3::TcpSocket::RcvBufSize", UintegerValue(1 << 23));
+    // Config::SetDefault("ns3::TcpSocket::SndBufSize", UintegerValue(1 << 23));
     Config::SetDefault("ns3::VrBurstGenerator::FrameRate", DoubleValue(frameRate));
     Config::SetDefault("ns3::VrBurstGenerator::TargetDataRate", DataRateValue(DataRate(appRate)));
     Config::SetDefault("ns3::VrBurstGenerator::VrAppName", StringValue(vrAppName));
