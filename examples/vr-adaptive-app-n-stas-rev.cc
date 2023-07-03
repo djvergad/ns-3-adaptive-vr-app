@@ -262,6 +262,11 @@ main (int argc, char *argv[])
       protocol = "ns3::TcpSocketFactory";
       Config::SetDefault ("ns3::BurstyApplicationServer::adaptationAlgorithm", StringValue ("FuzzyAlgorithmServer"));
     }
+      else if (burstGeneratorType == "bola")
+    {
+      protocol = "ns3::TcpSocketFactory";
+      Config::SetDefault ("ns3::BurstyApplicationServer::adaptationAlgorithm", StringValue ("BolaAlgo"));
+    }
   else
     {
       NS_ABORT_MSG ("Wrong burstGeneratorType type");

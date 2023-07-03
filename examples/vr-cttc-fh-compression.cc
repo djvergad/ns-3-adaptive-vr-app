@@ -1128,7 +1128,7 @@ main(int argc, char* argv[])
     }
 
     // LogComponentEnable("TcpSocket", LOG_LEVEL_ALL);
-    LogComponentEnable("TcpTxBuffer", LOG_LEVEL_ALL);
+    // LogComponentEnable("TcpTxBuffer", LOG_LEVEL_ALL);
 
     /*
      * Default values for the simulation. We are progressively removing all
