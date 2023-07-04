@@ -102,7 +102,7 @@ FuzzyAlgorithmServer::adaptation_algorithm (double buffOcc, double diffBuffOcc, 
 
   std::vector<DataRate> averageBitrate = { 3128000, 3254000, 3974000, 4496000, 6408000, 10938000, 17156000, 35018000 };
 
-  for (int i = 1; i < averageBitrate.size(); i++) {
+  for (uint32_t i = 1; i < averageBitrate.size(); i++) {
     if (averageBitrate[i] > result_non_quant) {
       return averageBitrate[i - 1];
     }
