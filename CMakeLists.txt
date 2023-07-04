@@ -20,6 +20,8 @@ set(source_files
     model/adaptation-algorithms/google-algorithm-server.cc
     model/adaptation-algorithms/tcp-stream-adaptation-algorithm.cc
     model/adaptation-algorithms/bola.cc
+    model/adaptation-algorithms/mpc.cc
+    model/adaptation-algorithms/festive.cc
     model/bursty-application-client.cc
     model/bursty-application-server.cc
     model/bursty-application-server-instance.cc
@@ -52,6 +54,8 @@ set(header_files
     model/adaptation-algorithms/tcp-stream-interface.h
     model/adaptation-algorithms/tcp-stream-adaptation-algorithm.h
     model/adaptation-algorithms/bola.h
+    model/adaptation-algorithms/mpc.h
+    model/adaptation-algorithms/festive.h
     model/bursty-application-client.h
     model/bursty-application-server.h
     model/bursty-application-server-instance.h

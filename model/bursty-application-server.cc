@@ -25,6 +25,8 @@
 #include "ns3/double.h"
 #include "ns3/fuzzy-algorithm-server.h"
 #include "ns3/bola.h"
+#include "ns3/festive.h"
+#include "ns3/mpc.h"
 #include "ns3/google-algorithm-server.h"
 #include "ns3/inet-socket-address.h"
 #include "ns3/inet6-socket-address.h"
@@ -325,6 +327,14 @@ BurstyApplicationServer::CreateInstance(Ptr<Socket> socket, Address peer)
     else if (m_adaptationAlgorithm == "BolaAlgo")
     {
         m_server_instances[peer].m_adaptationAlgorithmServer = CreateObject<BolaAlgo>(0,0);
+    }
+    else if (m_adaptationAlgorithm == "MPCAlgo")
+    {
+        m_server_instances[peer].m_adaptationAlgorithmServer = CreateObject<MPCAlgo>(0,0);
+    }
+    else if (m_adaptationAlgorithm == "FestiveAlgorithm")
+    {
+        m_server_instances[peer].m_adaptationAlgorithmServer = CreateObject<FestiveAlgorithm>(0,0);
     }
     else if (m_adaptationAlgorithm == "GoogleAlgorithmServer")
     {

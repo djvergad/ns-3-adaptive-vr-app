@@ -35,7 +35,8 @@ AdaptationAlgorithm::AdaptationAlgorithm()
 DataRate
 AdaptationAlgorithm::adaptation_algorithm (double buffOcc, double diffBuffOcc, DataRate lastRate)
 {
-  m_bufferData.bufferLevelNew.push_back(1000000 * 8 * (buffOcc) / lastRate.GetBitRate()  );
+  m_bufferData.bufferLevelNew.push_back(30000000 - 1000000 * 8 * (buffOcc) / lastRate.GetBitRate()  );
+  // m_bufferData.bufferLevelNew.push_back(90000000);
   m_bufferData.timeNow.push_back(Simulator::Now().GetMicroSeconds());
   
   algorithmReply reply = GetNextRep(m_segmentCounter++, 0);
@@ -48,8 +49,11 @@ DataRate
 AdaptationAlgorithm::nextBurstRate (Ptr<Socket> socket, uint64_t bytesAddedToSocket,
                                           Time txTime)
 {
+  if (bytesAddedToSocket == 0) {
+    return DataRate(100000);
+  }
   m_throughput.bytesReceived.push_back(bytesAddedToSocket);
-  m_throughput.transmissionRequested.push_back((Simulator::Now() - txTime).GetMicroSeconds());
+  m_throughput.transmissionRequested.push_back((Simulator::Now() - 1.2 * txTime).GetMicroSeconds());
   m_throughput.transmissionStart.push_back((Simulator::Now() - txTime).GetMicroSeconds());
   m_throughput.transmissionEnd.push_back(Simulator::Now().GetMicroSeconds());
   return AdaptationAlgorithmServer::nextBurstRate(socket, bytesAddedToSocket, txTime);

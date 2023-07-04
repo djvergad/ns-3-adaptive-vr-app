@@ -98,7 +98,17 @@ FuzzyAlgorithmServer::adaptation_algorithm (double buffOcc, double diffBuffOcc, 
   NS_LOG_DEBUG ("empty " << empty << " ok " << ok << " full " << full << " falling " << falling
                          << " steady " << steady << " rising " << rising << " output " << output);
 
-  return DataRate (output * lastRate.GetBitRate ());
+  DataRate result_non_quant = DataRate(output * lastRate.GetBitRate ());
+
+  std::vector<DataRate> averageBitrate = { 3128000, 3254000, 3974000, 4496000, 6408000, 10938000, 17156000, 35018000 };
+
+  for (int i = 1; i < averageBitrate.size(); i++) {
+    if (averageBitrate[i] > result_non_quant) {
+      return averageBitrate[i - 1];
+    }
+  }
+
+  return averageBitrate[averageBitrate.size() - 1];
 }
 
 } // namespace ns3
