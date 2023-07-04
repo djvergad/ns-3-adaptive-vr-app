@@ -233,8 +233,7 @@ BurstyApplicationServer::HandleRead(Ptr<Socket> socket)
     // std::cout << m_tid << std::endl;
 
     if ((m_socket->GetSocketType() != Socket::NS3_SOCK_STREAM &&
-         m_socket->GetSocketType() != Socket::NS3_SOCK_SEQPACKET) ||
-        m_tid.GetName() == "ns3::QuicSocketFactory")
+         m_socket->GetSocketType() != Socket::NS3_SOCK_SEQPACKET))
     {
         Address peer;
         ;

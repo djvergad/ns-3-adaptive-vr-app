@@ -469,13 +469,6 @@ BurstyApplicationClient::ConnectionSucceeded(Ptr<Socket> socket)
         // Ptr<Packet> dummy = Create<Packet> (100);
         // m_socket->Send (dummy);
     }
-    else if (m_tid.GetName() == "ns3::QuicSocketFactory")
-    {
-        // SendDummy ();
-
-        Ptr<Packet> dummy = Create<Packet>(100);
-        m_socket->Send(dummy);
-    }
 }
 
 void

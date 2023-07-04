@@ -5,7 +5,6 @@
 #include "ns3/tcp-socket-base.h"
 #include "ns3/packet.h"
 #include "ns3/simulator.h"
-#include "ns3/quic-socket-base.h"
 
 namespace ns3 {
 
