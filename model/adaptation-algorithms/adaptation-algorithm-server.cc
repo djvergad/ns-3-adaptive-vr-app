@@ -35,12 +35,7 @@ AdaptationAlgorithmServer::nextBurstRate (Ptr<Socket> socket, uint64_t bytesAdde
   NS_LOG_FUNCTION (this << socket << bytesAddedToSocket);
 
   UintegerValue buf_size;
-  Ptr<QuicSocketBase> qsock = DynamicCast<QuicSocketBase> (socket);
-  if (qsock) {
-    qsock->GetAttribute ("SocketSndBufSize", buf_size);
-  } else {
-    DynamicCast<TcpSocketBase> (socket)->GetAttribute ("SndBufSize", buf_size);
-  }
+  DynamicCast<TcpSocketBase> (socket)->GetAttribute ("SndBufSize", buf_size);
   
 
 

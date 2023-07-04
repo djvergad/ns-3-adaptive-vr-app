@@ -31,7 +31,6 @@
 #include "ns3/packet-socket-address.h"
 #include "ns3/packet.h"
 #include "ns3/pointer.h"
-#include "ns3/quic-socket-base.h"
 #include "ns3/random-variable-stream.h"
 #include "ns3/simulator.h"
 #include "ns3/socket-factory.h"
@@ -185,15 +184,7 @@ BurstyApplicationServerInstance::AdaptRate()
     m_txTime = Seconds(0);
 
     UintegerValue buf_size;
-    Ptr<QuicSocketBase> qsock = DynamicCast<QuicSocketBase>(m_socket);
-    if (qsock)
-    {
-        qsock->GetAttribute("SocketSndBufSize", buf_size);
-    }
-    else
-    {
-        DynamicCast<TcpSocketBase>(m_socket)->GetAttribute("SndBufSize", buf_size);
-    }
+    DynamicCast<TcpSocketBase>(m_socket)->GetAttribute("SndBufSize", buf_size);
 
     if (m_queue.size() == 0 && buf_size.Get() == m_socket->GetTxAvailable())
     {
@@ -592,16 +583,8 @@ BurstyApplicationServerInstance::DataSend(Ptr<Socket> socket, uint32_t)
     {
         UintegerValue buf_size;
 
-        Ptr<QuicSocketBase> tcp = DynamicCast<QuicSocketBase>(socket);
-        if (tcp)
-        {
-            socket->GetAttribute("SocketSndBufSize", buf_size);
-        }
-        else
-        {
-            Ptr<TcpSocketBase> tcp = DynamicCast<TcpSocketBase>(socket);
-            socket->GetAttribute("SndBufSize", buf_size);
-        }
+        Ptr<TcpSocketBase> tcp = DynamicCast<TcpSocketBase>(socket);
+        socket->GetAttribute("SndBufSize", buf_size);
         if (buf_size.Get() == m_socket->GetTxAvailable() && m_txStarted != Seconds(0))
         {
             m_txTime += (Simulator::Now() - m_txStarted);
