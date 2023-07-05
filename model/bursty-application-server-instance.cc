@@ -179,7 +179,7 @@ BurstyApplicationServerInstance::AdaptRate()
 
     DataRate nextDataRate = std::max(
         m_adaptationAlgorithmServer->nextBurstRate(m_socket, m_bytesAddedToSocket, m_txTime),
-        DataRate("100kbps"));
+        DataRate("3128000"));
 
     m_txTime = Seconds(0);
 
