@@ -24,6 +24,7 @@ set(wifi_examples
     vr-app-n-stas
     vr-adaptive-app-n-stas
     vr-adaptive-app-n-stas-rev
+    vr-a-rev-back
 )
 foreach(
   example

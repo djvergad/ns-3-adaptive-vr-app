@@ -41,6 +41,22 @@ def check_stderr(result):
     else:
         return []
 
+def compute_avg_back_thr_mbps(results):
+    # print("id:", results['meta']['id'])
+    trace = results['output']['backBytesTrace.csv']
+
+    delays = np.array([float(row.split(',')[1]) * 8 / 1e6  # Mb
+                      for i, row in enumerate(trace.split('\n')[:-1]) if (i > 0)])
+
+    if len(delays) > 0:
+        delay = np.sum(delays) / results['params']['simulationTime']
+    else:
+        delay = 0
+
+    # print(delay)
+
+    return delay
+
 
 def compute_avg_burst_thr_mbps(results):
     # print("id:", results['meta']['id'])
@@ -82,6 +98,39 @@ def compute_fairness_burst_thr_mbps(results):
         s2 += thr**2
 
     return s**2/(len(throughputs) * s2)
+
+
+def compute_avg_back_delay_ms(results):
+    # print("id:", results['meta']['id'])
+    trace = results['output']['backDelayTrace.csv']
+
+    delays = np.array([float(row.split(',')[2]) / 1e6  # ms
+                      for i, row in enumerate(trace.split('\n')[:-1]) if (i > 0)])
+
+    if len(delays) > 0:
+        delay = np.mean(delays)
+    else:
+        delay = 0
+
+    # print(delay)
+
+    return delay
+
+def compute_avg_back_rtt_ms(results):
+    # print("id:", results['meta']['id'])
+    trace = results['output']['backRttTrace.csv']
+
+    delays = np.array([float(row.split(',')[2]) / 1e6  # ms
+                      for i, row in enumerate(trace.split('\n')[:-1]) if (i > 0)])
+
+    if len(delays) > 0:
+        delay = np.mean(delays)
+    else:
+        delay = 0
+
+    # print(delay)
+
+    return delay
 
 
 def compute_avg_burst_delay_ms(results):
@@ -356,7 +405,7 @@ if __name__ == '__main__':
     sem.parallelrunner.MAX_PARALLEL_PROCESSES = args.cores
     ns_path = os.path.dirname(os.path.realpath(__file__))
     campaign_name = args.campaignName
-    script = "vr-adaptive-app-n-stas-rev"
+    script = "vr-a-rev-back"
     campaign_dir = os.path.join(
         ns_path, "campaigns", f"{campaign_name}-{args.paramSet}")
     img_dir = os.path.join(ns_path, 'campaigns-img',
@@ -412,6 +461,39 @@ if __name__ == '__main__':
     param_combination.pop("RngRun")
 
     # Plots
+
+    plot_line_metric(campaign=campaign,
+                     parameter_space=param_combination,
+                     result_parsing_function=compute_avg_back_thr_mbps,
+                     runs=args.numRuns,
+                     xx=param_combination[args.paramSet],
+                     hue_var="burstGeneratorType",
+                     xlabel=args.paramSet,
+                     ylabel='Avg. Background Throughput [Mbps]',
+                     filename='avg_back_thr_mbps')
+
+    plot_line_metric(campaign=campaign,
+                     parameter_space=param_combination,
+                     result_parsing_function=compute_avg_back_delay_ms,
+                     runs=args.numRuns,
+                     xx=param_combination[args.paramSet],
+                     hue_var="burstGeneratorType",
+                     xlabel=args.paramSet,
+                     ylabel='Avg. Background Delay [ms]',
+                     yscale='log',
+                     filename='avg_back_delay_ms')
+
+    plot_line_metric(campaign=campaign,
+                     parameter_space=param_combination,
+                     result_parsing_function=compute_avg_back_rtt_ms,
+                     runs=args.numRuns,
+                     xx=param_combination[args.paramSet],
+                     hue_var="burstGeneratorType",
+                     xlabel=args.paramSet,
+                     ylabel='Avg. Background RTT [ms]',
+                     yscale='log',
+                     filename='avg_back_rtt_ms')
+
     plot_line_metric(campaign=campaign,
                      parameter_space=param_combination,
                      result_parsing_function=compute_avg_burst_thr_mbps,
