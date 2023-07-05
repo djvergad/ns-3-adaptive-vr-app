@@ -297,8 +297,8 @@ def plot_line_metric(campaign, parameter_space, result_parsing_function, runs, x
     metric_ci95 = metric.reduce(
         np.std, 'runs').squeeze() * 1.96 / np.sqrt(runs)
 
-    symbols = iter([markers.CARETDOWN, markers.CARETUP, 's'])
-    linestyles = iter(['-', '--', '-.'])
+    symbols = iter([markers.CARETDOWN, markers.CARETUP, 's', 'o', '2', '3'])
+    linestyles = iter(['-', '--', '-.', ':', 'dotted', 'dotted'])
 
     fig = plt.figure()
     for val in metric_mean.coords[hue_var].values:
@@ -337,7 +337,7 @@ if __name__ == '__main__':
     parser.add_argument("--numRuns",
                         help="The number of runs per simulation. Default: 50",
                         type=int,
-                        default=50)
+                        default=20)
     parser.add_argument("--campaignName",
                         help="MANDATORY parameter for the campaign name. Suggested: commit hash",
                         default=None)
@@ -379,9 +379,9 @@ if __name__ == '__main__':
     # Set up baseline parameters
     if args.paramSet == "nStas":
         param_combination = OrderedDict({
-            "appRate": "100Mbps",
+            "appRate": "35018000",
             "frameRate": args.frameRate,
-            "burstGeneratorType": ["model", "google", "fuzzy"],
+            "burstGeneratorType": ["model", "fuzzy", "google", "bola", "mpc", "festive"],
             "nStas": list(range(1, 16+1, 1)),
             "simulationTime": 10,
             "RngRun": list(range(args.numRuns))
@@ -440,6 +440,7 @@ if __name__ == '__main__':
                      hue_var="burstGeneratorType",
                      xlabel=args.paramSet,
                      ylabel='Avg. Burst Delay [ms]',
+                     yscale='log',
                      filename='avg_burst_delay_ms')
 
     plot_line_metric(campaign=campaign,
@@ -450,6 +451,7 @@ if __name__ == '__main__':
                      hue_var="burstGeneratorType",
                      xlabel=args.paramSet,
                      ylabel='Fairness Burst Delay [ms]',
+                     yscale='log',
                      filename='fairness_burst_delay_ms')
 
     plot_line_metric(campaign=campaign,
@@ -460,6 +462,7 @@ if __name__ == '__main__':
                      hue_var="burstGeneratorType",
                      xlabel=args.paramSet,
                      ylabel='95th perc. Burst Delay [ms]',
+                     yscale='log',
                      filename='95perc_burst_delay_ms')
 
     plot_line_metric(campaign=campaign,
@@ -500,6 +503,7 @@ if __name__ == '__main__':
                      hue_var="burstGeneratorType",
                      xlabel=args.paramSet,
                      ylabel='Avg. Fragment Delay [ms]',
+                     yscale='log',
                      filename='avg_fragment_delay_ms')
 
     plot_line_metric(campaign=campaign,
@@ -520,6 +524,7 @@ if __name__ == '__main__':
                      hue_var="burstGeneratorType",
                      xlabel=args.paramSet,
                      ylabel='95th perc. Fragment Delay [ms]',
+                     yscale='log',
                      filename='95perc_fragment_delay_ms')
 
     plot_line_metric(campaign=campaign,
