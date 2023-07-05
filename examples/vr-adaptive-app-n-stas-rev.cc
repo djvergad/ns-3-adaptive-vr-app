@@ -310,7 +310,7 @@ main(int argc, char* argv[])
 
     ApplicationContainer serverApp = server.Install(wifiApNode);
     serverApp.Start(Seconds(0.0));
-    serverApp.Stop(Seconds(simulationTime + 5));
+    serverApp.Stop(Seconds(simulationTime + 19));
 
     BurstyApplicationClientHelper client(protocol,
                                          InetSocketAddress(ApInterface.GetAddress(0), port));
@@ -346,7 +346,7 @@ main(int argc, char* argv[])
         app->TraceConnectWithoutContext("FragmentRx",
                                         MakeBoundCallback(&FragmentRx, fragmentTrace));
     }
-    clientApps.Stop(Seconds(simulationTime + 5));
+    clientApps.Stop(Seconds(simulationTime + 19));
 
     // Start simulation
     Simulator::Stop(Seconds(simulationTime + 10));
