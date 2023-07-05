@@ -222,8 +222,8 @@ main(int argc, char* argv[])
         "/NodeList/*/DeviceList/*/$ns3::WifiNetDevice/HtConfiguration/ShortGuardIntervalSupported",
         BooleanValue(sgi));
 
-    // Config::SetDefault("ns3::TcpSocket::SndBufSize", UintegerValue(1 << 23));
-    // Config::SetDefault("ns3::TcpSocket::RcvBufSize", UintegerValue(1 << 23));
+    Config::SetDefault("ns3::TcpSocket::SndBufSize", UintegerValue(1 << 23));
+    Config::SetDefault("ns3::TcpSocket::RcvBufSize", UintegerValue(1 << 23));
 
     // Setting mobility model
     MobilityHelper mobility;
