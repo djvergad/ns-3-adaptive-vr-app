@@ -16,6 +16,7 @@ import numpy as np
 from matplotlib import pyplot as plt, markers as markers
 import copy
 import tikzplotlib
+import math
 
 sys.stdout.flush()
 
@@ -40,6 +41,42 @@ def check_stderr(result):
         return result
     else:
         return []
+
+
+def compute_qoe(results):
+    trace = results['output']['burstTrace.csv']
+
+    # SrcAddress,TxTime_ns,RxTime_ns,BurstSeq,BurstSize
+    bytes_recv = np.array([float(row.split(',')[4]) * 8 / 1e6  # Mb
+                      for i, row in enumerate(trace.split('\n')[:-1]) if (i > 0)])
+
+    delays = np.array([(float(row.split(',')[2]) - float(row.split(',')[1])) / 1e6  # ms
+                      for i, row in enumerate(trace.split('\n')[:-1]) if (i > 0)])
+
+    trace = results['output']['txBurstsBySta.csv']
+    tot_tx = np.sum([float(n) for n in trace.split('\n')[:-1]])
+
+    trace = results['output']['rxBursts.csv']
+    tot_rx = float(trace.rstrip('\n'))
+
+    if tot_rx > 0:
+        succ = tot_rx / tot_tx
+    else:
+        succ = 0
+
+
+    if len(bytes_recv) > 0:
+        avg_throughput = np.sum(bytes_recv) / results['params']['simulationTime']/ results['params']['nStas']
+        avg_delay = np.mean(delays)
+        stalled = (1-succ) * 1000
+    else:
+        avg_throughput = float('nan')
+
+    # print(delay)
+
+    return 60 * math.log10(avg_throughput) - avg_delay - stalled
+
+
 
 def compute_avg_back_thr_mbps(results):
     # print("id:", results['meta']['id'])
@@ -464,6 +501,18 @@ if __name__ == '__main__':
 
     plot_line_metric(campaign=campaign,
                      parameter_space=param_combination,
+                     result_parsing_function=compute_qoe,
+                     runs=args.numRuns,
+                     xx=param_combination[args.paramSet],
+                     hue_var="burstGeneratorType",
+                     xlabel=args.paramSet,
+                     ylabel='Avg. QoE [MOS]',
+                     ylim=(0,100),
+    #                 yscale='log',
+                     filename='avg_qoe')
+
+    plot_line_metric(campaign=campaign,
+                     parameter_space=param_combination,
                      result_parsing_function=compute_avg_back_thr_mbps,
                      runs=args.numRuns,
                      xx=param_combination[args.paramSet],
@@ -618,3 +667,4 @@ if __name__ == '__main__':
                      xlabel=args.paramSet,
                      ylabel='Fragment Succ. Rate',
                      filename='fragment_succ_rate')
+
