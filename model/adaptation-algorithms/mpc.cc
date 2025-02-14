@@ -206,7 +206,8 @@ algorithmReply MPCAlgo::GetNextRep ( const int64_t segmentCounter, int64_t clien
 
 	int possibleCombos = (int)std::pow(5.0, m_highestRepIndex+1);
 
-	int combos[possibleCombos+1][5];
+	std::vector<std::vector<int>> combos(possibleCombos + 1, std::vector<int>(5));
+
 	count = 0;
 	for(int i=0; i<=m_highestRepIndex; i++) {
 		for(int j=0; j<=m_highestRepIndex; j++) {

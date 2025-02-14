@@ -30,6 +30,7 @@
 #include "ns3/traced-callback.h"
 
 #include <unordered_map>
+#include <map>
 
 namespace ns3
 {
@@ -199,7 +200,8 @@ class BurstyApplicationClient : public Application
                 Inet6SocketAddress a = Inet6SocketAddress::ConvertFrom(x);
                 uint8_t buf[16];
                 a.GetIpv6().Serialize(buf);
-                return std::hash<uint128_t>()(*((uint128_t*)buf));
+                std::string addrStr(buf, buf + sizeof(buf));
+                return std::hash<std::string>{}(addrStr);
             }
             else if (InetSocketAddress::IsMatchingType(x))
             {

@@ -3,6 +3,7 @@
 
 #include "ns3/data-rate.h"
 #include "ns3/packet.h"
+#include <map>
 
 namespace ns3 {
 

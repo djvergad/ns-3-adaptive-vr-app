@@ -29,6 +29,7 @@
 #include "ns3/socket.h"
 #include "ns3/seq-ts-size-frag-header.h"
 #include <unordered_map>
+#include <map>
 
 namespace ns3 {
 
