@@ -94,6 +94,9 @@ public:
 
   void StopBursts (void);
 
+  Address m_peer; //!< Peer address
+
+
 protected:
   virtual void DoDispose (void);
 
@@ -128,7 +131,6 @@ protected:
                      uint16_t fragmentSeq);
 
   Ptr<Socket> m_socket; //!< Associated socket
-  Address m_peer; //!< Peer address
   Address m_local; //!< Local address to bind to
   bool m_connected; //!< True if connected
   Ptr<BurstGenerator> m_burstGenerator =

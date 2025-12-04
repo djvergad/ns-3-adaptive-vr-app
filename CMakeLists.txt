@@ -22,6 +22,7 @@ set(source_files
     model/adaptation-algorithms/bola.cc
     model/adaptation-algorithms/mpc.cc
     model/adaptation-algorithms/festive.cc
+    model/adaptation-algorithms/oran-cell-utilization-udp-adaptation-algorithm.cc
     model/bursty-application-client.cc
     model/bursty-application-server.cc
     model/bursty-application-server-instance.cc
@@ -56,6 +57,7 @@ set(header_files
     model/adaptation-algorithms/bola.h
     model/adaptation-algorithms/mpc.h
     model/adaptation-algorithms/festive.h
+    model/adaptation-algorithms/oran-cell-utilization-udp-adaptation-algorithm.h
     model/bursty-application-client.h
     model/bursty-application-server.h
     model/bursty-application-server-instance.h
@@ -76,5 +78,6 @@ build_lib(
   HEADER_FILES ${header_files}
   LIBRARIES_TO_LINK
     ${libcore}
+    ${liboran}
   TEST_SOURCES ${test_sources}
 )

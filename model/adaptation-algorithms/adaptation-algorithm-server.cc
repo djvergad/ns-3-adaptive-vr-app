@@ -35,7 +35,20 @@ AdaptationAlgorithmServer::nextBurstRate (Ptr<Socket> socket, uint64_t bytesAdde
   NS_LOG_FUNCTION (this << socket << bytesAddedToSocket);
 
   UintegerValue buf_size;
-  DynamicCast<TcpSocketBase> (socket)->GetAttribute ("SndBufSize", buf_size);
+  // Prefer to query TCP sockets for SndBufSize; UDP sockets do not expose this
+  // attribute. If the socket is not TCP, fall back to using the current
+  // available tx space as the buffer size so occupancy calculations still work.
+  Ptr<TcpSocketBase> tcp = DynamicCast<TcpSocketBase>(socket);
+  if (tcp)
+    {
+      tcp->GetAttribute("SndBufSize", buf_size);
+    }
+  else
+    {
+      // Fallback: treat current available tx space as the buffer size (so
+      // buffer occupancy becomes zero). This is conservative for UDP.
+      buf_size = UintegerValue(socket->GetTxAvailable());
+    }
   
 
 
@@ -50,13 +63,12 @@ AdaptationAlgorithmServer::nextBurstRate (Ptr<Socket> socket, uint64_t bytesAdde
   // DataRate lastRate = DataRate (bytesSent * 8 / dt.GetSeconds ());
   DataRate lastRate = DataRate (bytesSent * 8 / txTime.GetSeconds ());
 
-  std::cout << "bytesSent " << bytesSent << " txTime " << txTime.GetSeconds () << " dt "
-            << dt.GetSeconds () << std::endl;
+  // std::cout << "bytesSent " << bytesSent << " txTime " << txTime.GetSeconds () << " dt "
+  //           << dt.GetSeconds () << std::endl;
 
   NS_LOG_DEBUG ("buffOcc " << buffOcc << " diffBuffOcc " << (int) diffBuffOcc << " lastRate "
                             << lastRate.GetBitRate () / 1e6);
-
-  if (txTime > Seconds (0))
+  if (txTime > Seconds (0) || !tcp)
     {
       return adaptation_algorithm (buffOcc, diffBuffOcc, lastRate);
     }

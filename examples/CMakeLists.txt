@@ -40,3 +40,20 @@ foreach(
   )
 endforeach()
 
+set(nr_examples
+  vr-cttc-nr-oran
+)
+foreach(
+  example
+  ${nr_examples}
+)
+  build_lib_example(
+    NAME ${example}
+    SOURCE_FILES ${example}.cc
+    LIBRARIES_TO_LINK ${libns-3-adaptive-vr-app}
+                      ${libcore}
+                      ${libapplications}
+                      ${libnr}
+                      ${liboran}
+  )
+endforeach()

@@ -179,13 +179,15 @@ BurstyApplicationServerInstance::AdaptRate()
 
     DataRate nextDataRate = std::max(
         m_adaptationAlgorithmServer->nextBurstRate(m_socket, m_bytesAddedToSocket, m_txTime),
-        DataRate("3128000"));
+        DataRate("10kbps"));
 
     m_txTime = Seconds(0);
 
     UintegerValue buf_size;
-    DynamicCast<TcpSocketBase>(m_socket)->GetAttribute("SndBufSize", buf_size);
-
+    if (m_socket != nullptr && m_socket->GetSocketType() == Socket::NS3_SOCK_STREAM)
+    {
+        DynamicCast<TcpSocketBase>(m_socket)->GetAttribute("SndBufSize", buf_size);
+    }
     if (m_queue.size() == 0 && buf_size.Get() == m_socket->GetTxAvailable())
     {
         m_txStarted = Seconds(0);
@@ -584,7 +586,10 @@ BurstyApplicationServerInstance::DataSend(Ptr<Socket> socket, uint32_t)
         UintegerValue buf_size;
 
         Ptr<TcpSocketBase> tcp = DynamicCast<TcpSocketBase>(socket);
-        socket->GetAttribute("SndBufSize", buf_size);
+        if (socket != nullptr && socket->GetSocketType() == Socket::NS3_SOCK_STREAM)
+        {
+            socket->GetAttribute("SndBufSize", buf_size);
+        }
         if (buf_size.Get() == m_socket->GetTxAvailable() && m_txStarted != Seconds(0))
         {
             m_txTime += (Simulator::Now() - m_txStarted);
