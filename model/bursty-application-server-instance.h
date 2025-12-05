@@ -102,6 +102,8 @@ protected:
 
   virtual void StopApplication (void); // Called at time specified by Stop
 
+  virtual void CloseIfEmpty(void);
+
   //helpers
   /**
    * \brief Cancel all pending events.
@@ -153,6 +155,10 @@ protected:
   void DataSend (Ptr<Socket>, uint32_t); // Called when a new segment is transmitted
   // A structure that contains the generated MPEG frames, for each client.
   std::deque<Packet> m_queue;
+
+  uint64_t m_bytesAddedToQueue{0}; 
+  uint64_t m_bytesRemovedFromQueue{0}; 
+
   uint32_t m_queueSize = 100000;
 
   DataRate m_initRate = 0;

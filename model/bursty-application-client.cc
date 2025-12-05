@@ -177,9 +177,40 @@ BurstyApplicationClient::StartApplication() // Called at time specified by Start
         if (m_socket->GetSocketType() != Socket::NS3_SOCK_STREAM &&
             m_socket->GetSocketType() != Socket::NS3_SOCK_SEQPACKET)
         {
-            Ptr<Packet> dummy = Create<Packet>(100);
-            m_socket->Send(dummy);
+            SeqTsSizeFragHeader header;
+            header.SetSeq(UINT32_MAX); // indicate dummy packet
+            header.SetFrags(0);
+            header.SetFragSeq(0);
+            header.SetFragBytes(0);
+            Ptr<Packet> request = Create<Packet>(100);
+            request->AddHeader(header);
+            m_socket->Send(request);
+
+        } else {
+            Simulator::Schedule(MilliSeconds(100), &BurstyApplicationClient::PeriodicTask, this);
         }
+    }
+}
+
+void
+BurstyApplicationClient::PeriodicTask()
+{
+    NS_LOG_FUNCTION(this);
+
+    // Whatever you want to run every 100 ms
+    NS_LOG_INFO("PeriodicTask executed at " << Simulator::Now().GetSeconds());
+
+
+    if (m_socket && !m_finishing)
+    {
+        // Reschedule next execution
+        Simulator::Schedule(MilliSeconds(100), &BurstyApplicationClient::PeriodicTask, this);
+
+        Ptr<Packet> request = Create<Packet>(100);
+        m_socket->Send(request);
+        HandleRead(m_socket);
+    }else if (m_finishing) {
+        m_socket->ShutdownSend();
     }
 }
 
@@ -187,6 +218,7 @@ void
 BurstyApplicationClient::StopApplication() // Called at time specified by Stop
 {
     NS_LOG_FUNCTION(this);
+    m_finishing = true;
     if (m_socket)
     {
         m_socket->Close();
@@ -198,95 +230,89 @@ void
 BurstyApplicationClient::HandleRead(Ptr<Socket> socket)
 {
     NS_LOG_FUNCTION(this << socket);
-    Ptr<Packet> fragment;
+
+    Ptr<Packet> packet;
     Address from;
     Address localAddress;
 
-    while ((fragment = socket->RecvFrom(from)))
+    SeqTsSizeFragHeader header;
+    const uint32_t HEADER_SIZE = header.GetSerializedSize();
+
+    NS_LOG_DEBUG("HandleRead called on socket");
+    // Read all available packets and append to the reassembly buffer
+    while ((packet = socket->RecvFrom(from)) && packet->GetSize() > 0)
     {
-        // std::cout << "Read from socket " << fragment->GetSize() << std::endl;
+        NS_LOG_DEBUG("Packet received of size " << packet->GetSize());
+        m_totRxBytes += packet->GetSize();
 
-        if (fragment->GetSize() == 0)
-        { // EOF
-            break;
+        if (packet->GetSize() == 0)
+        {
+            continue; // ignore empty
         }
 
-        if (m_incomplete_packets.count(socket) == 1 && m_incomplete_packets[socket] != nullptr)
+        NS_LOG_DEBUG("Received packet of size " << packet->GetSize() << " from " << from);
+        std::vector<uint8_t> tmp(packet->GetSize());
+        packet->CopyData(tmp.data(), tmp.size());
+
+        // append to per-socket buffer
+        auto& buf = m_reassemblyBuffers[socket];
+        buf.insert(buf.end(), tmp.begin(), tmp.end());
+        NS_LOG_DEBUG("Reassembly buffer size is now " << buf.size());
+
+        // try to parse as many complete fragments as possible
+        // try to parse as many complete fragments as possible
+        while (true)
         {
-            m_incomplete_packets[socket]->AddAtEnd(fragment);
-        }
-        else
-        {
-            m_incomplete_packets[socket] = fragment->Copy();
-        }
-
-        // std::cout << "Buffer has " << m_incomplete_packets[socket]->GetSize() << std::endl;
-
-        while (m_incomplete_packets[socket] && m_incomplete_packets[socket]->GetSize() > 0)
-        {
-            SeqTsSizeFragHeader header;
-
-            // std::cout << "m_incomplete_packet size " << m_incomplete_packets[socket]->GetSize()
-            // << " header size " << header.GetSerializedSize() << std::endl;
-
-            if (m_incomplete_packets[socket]->GetSize() < header.GetSerializedSize())
+            // need header first
+            if (buf.size() < HEADER_SIZE)
             {
+                break; // wait for more bytes (partial header)
+            }
+
+            SeqTsSizeFragHeader hdr;
+            // Parse only if we have full header bytes (ParseHeaderFromBuffer checks this)
+            if (!ParseHeaderFromBuffer(buf, hdr))
+            {
+                // Not enough bytes for a full header (shouldn't happen because of the size check),
+                // but be conservative: wait for more bytes.
+                NS_LOG_DEBUG("Not enough bytes for full header yet — wait for more");
                 break;
             }
 
-            m_incomplete_packets[socket]->PeekHeader(header);
+            // total bytes we need for a full framed message = header + payload
+            uint32_t totalNeeded = static_cast<uint32_t>(hdr.GetFragBytes());
 
-            // std::cout << "Before " << header.GetSeq() << " " << header.GetFragSeq() << " hsize "
-            // << header.GetFragBytes() << " psize " << m_incomplete_packets[socket]->GetSize() <<
-            // std::endl;
-
-            if (header.GetFragBytes() == 0)
+            // Sanity check: protect against absurdly large fragBytes
+            const uint32_t MAX_REASONABLE_FRAG = 10 * 1024 * 1024; // 10 MB
+            if (hdr.GetFragBytes() > MAX_REASONABLE_FRAG)
             {
-                // NS_FATAL_ERROR("wrong header size");
-                std::cout << "wrong header size " << std::endl;
-                m_incomplete_packets[socket] = nullptr;
+                NS_LOG_ERROR("Suspicious fragBytes=" << hdr.GetFragBytes()
+                                                     << " — dropping connection data");
+                buf.clear();
                 break;
             }
 
-            int64_t extra_bytes = m_incomplete_packets[socket]->GetSize() - header.GetFragBytes();
-
-            if (extra_bytes > 0)
+            if (buf.size() < totalNeeded)
             {
-                // std::cout << " packet start " << 0 << " length  " << header.GetFragBytes() <<
-                // std::endl;
-                fragment = m_incomplete_packets[socket]->CreateFragment(0, header.GetFragBytes());
-
-                // std::cout << " incomplete start " << header.GetFragBytes() << " length  "
-                //           << extra_bytes << std::endl;
-
-                Ptr<Packet> frag2 =
-                    m_incomplete_packets[socket]->CreateFragment(header.GetFragBytes(),
-                                                                 extra_bytes);
-                m_incomplete_packets[socket] = frag2;
-                // m_incomplete_packets[socket]->CreateFragment(header.GetFragBytes(), extra_bytes);
-
-                // SeqTsSizeFragHeader seqTs2;
-                // m_incomplete_packets[socket]->PeekHeader(seqTs2);
-                // std::cout << " AAAAAAAA " << seqTs2.GetFragBytes() << std::endl;
-            }
-            if (extra_bytes == 0)
-            {
-                fragment = m_incomplete_packets[socket]->Copy();
-                m_incomplete_packets[socket] = nullptr;
-            }
-            if (extra_bytes < 0)
-            {
-                // m_incomplete_packet = m_incomplete_packet->Copy();
-                SeqTsSizeFragHeader seqTs2;
-                m_incomplete_packets[socket]->PeekHeader(seqTs2);
-
-                // std::cout << "We have incompete m_incomplete_packet" << seqTs2.GetFragBytes()
-                //           << std::endl;
+                // not enough bytes for full fragment yet — wait for more
+                NS_LOG_DEBUG("Not enough bytes for full fragment yet — wait for more");
                 break;
             }
 
-            m_totRxBytes += fragment->GetSize();
+            // Extract payload (bytes after the header)
+            std::vector<uint8_t> payload;
+            if (hdr.GetFragBytes() > 0)
+            {
+                payload.insert(payload.end(), buf.begin() + HEADER_SIZE, buf.begin() + totalNeeded);
+            }
 
+            // Remove parsed bytes (header + payload) from buffer
+            buf.erase(buf.begin(), buf.begin() + totalNeeded);
+
+            // Now handle the fragment using the parsed 'hdr' (NOT 'header')
+            // m_totRxBytes += hdr.GetFragBytes();
+
+            // Build address string (same as before)...
             std::stringstream addressStr;
             if (InetSocketAddress::IsMatchingType(from))
             {
@@ -304,28 +330,33 @@ BurstyApplicationClient::HandleRead(Ptr<Socket> socket)
             }
 
             NS_LOG_INFO("At time " << Simulator::Now().As(Time::S) << " burst sink received "
-                                   << fragment->GetSize() << " bytes from " << addressStr.str()
+                                   << totalNeeded << " bytes from " << addressStr.str()
                                    << " total Rx " << m_totRxBytes << " bytes");
 
             socket->GetSockName(localAddress);
 
             // handle received fragment
-            auto itBuffer = m_burstHandlerMap.find(from); // rename m_burstBufferMap, itBuffer
+            auto itBuffer = m_burstHandlerMap.find(from);
             if (itBuffer == m_burstHandlerMap.end())
             {
                 NS_LOG_LOGIC("New stream from " << from);
                 itBuffer = m_burstHandlerMap.insert(std::make_pair(from, BurstHandler())).first;
             }
 
-            if (header.GetSeq() != UINT32_MAX)
+            if (hdr.GetSeq() != UINT32_MAX)
             {
-                if (fragment->GetSize() == 0)
+                if (hdr.GetFragBytes() == 0)
                 {
-                    break;
+                    // zero-length fragment — nothing to push; continue
+                    continue;
                 }
-                // std::cout << Simulator::Now() << " Received seq " << header.GetSeq() << " frag
-                // seq " << header.GetFragSeq()<< " hsize " << header.GetSize() << " hfragbytes " <<
-                // header.GetFragBytes() << " psize " << fragment->GetSize() << std::endl;
+
+                Ptr<Packet> fragment = Create<Packet>(payload.data(), payload.size());
+                fragment->AddHeader(hdr);
+                NS_LOG_DEBUG("Fragment received: seq="
+                             << hdr.GetSeq() << " fragSeq=" << hdr.GetFragSeq()
+                             << " fragBytes=" << hdr.GetFragBytes()
+                             << " totalRxBytes=" << m_totRxBytes << " bufsize= " << buf.size());
 
                 FragmentReceived(itBuffer->second, fragment->Copy(), from, localAddress);
             }

@@ -126,6 +126,13 @@ BurstyApplicationServerInstance::BurstyApplicationServerInstance()
 BurstyApplicationServerInstance::~BurstyApplicationServerInstance()
 {
     NS_LOG_FUNCTION(this);
+    NS_LOG_INFO("Just sent " << m_peer << " total: " << m_totTxBytes << " total2: "
+                             << m_bytesAddedToQueue << " total3: " << m_bytesRemovedFromQueue);
+    if (m_socket)
+    {
+        uint32_t max_tx_size = m_socket->GetTxAvailable();
+        NS_LOG_INFO("Socket tx available: " << max_tx_size);
+    }
 }
 
 Ptr<Socket>
@@ -165,6 +172,7 @@ BurstyApplicationServerInstance::StopBursts(void)
 {
     NS_LOG_FUNCTION(this);
     m_isfinishing = true;
+    StopApplication();
 }
 
 void
@@ -297,6 +305,8 @@ BurstyApplicationServerInstance::SendBurst()
 
         // schedule next burst
         NS_LOG_DEBUG("Next burst scheduled in " << period.As(Time::S));
+        m_nextBurstEvent =
+            Simulator::Schedule(period, &BurstyApplicationServerInstance::SendBurst, this);
     }
     else
     {
@@ -310,8 +320,6 @@ BurstyApplicationServerInstance::SendBurst()
         //     m_socket->Send (dummy);
         //   }
     }
-    m_nextBurstEvent =
-        Simulator::Schedule(period, &BurstyApplicationServerInstance::SendBurst, this);
     DataSend(m_socket, 0);
     // UintegerValue buf_size;
     // m_socket->GetAttribute ("SndBufSize", buf_size);
@@ -324,16 +332,26 @@ BurstyApplicationServerInstance::SendBurst()
 void
 BurstyApplicationServerInstance::StopApplication()
 {
-    NS_LOG_FUNCTION(this);
-
     CancelEvents();
+
     if (m_socket)
+    {
+        m_socket->ShutdownSend(); // Tell TCP to send remaining data
+        // Wait until buffer is empty
+        Simulator::Schedule(Seconds(0.1), &BurstyApplicationServerInstance::CloseIfEmpty, this);
+    }
+}
+
+void
+BurstyApplicationServerInstance::CloseIfEmpty()
+{
+    if (m_socket->GetTxAvailable() == 131072)
     {
         m_socket->Close();
     }
     else
     {
-        NS_LOG_WARN("BurstyApplication found null socket to close in StopApplication");
+        Simulator::Schedule(Seconds(0.1), &BurstyApplicationServerInstance::CloseIfEmpty, this);
     }
 }
 
@@ -466,6 +484,7 @@ BurstyApplicationServerInstance::SendFragment(Ptr<Packet> fragment,
     // std::cout << "before " << fragment->GetSize () << " headersize " << header.GetSerializedSize
     // ()
     //           << std::endl;
+    // header.SetFragBytes(fragment->GetSize());
     header.SetFragBytes(fragment->GetSize() + header.GetSerializedSize());
     // std::cout << "frag bytes " << header.GetFragBytes () << " headersize "
     //           << header.GetSerializedSize () << std::endl;
@@ -486,12 +505,14 @@ BurstyApplicationServerInstance::SendFragment(Ptr<Packet> fragment,
 
     if (m_queue.size() < m_queueSize)
     {
+        m_bytesAddedToQueue += fragment->GetSize();
         m_queue.push_back(*fragment);
     }
     else
     {
         NS_ABORT_MSG("m_queue got full, it shouldn't");
     }
+
     // int actual = m_socket->Send (fragment);
     // if (uint32_t (actual) == fragmentSize)
     // {
@@ -504,7 +525,7 @@ BurstyApplicationServerInstance::SendFragment(Ptr<Packet> fragment,
                       to,
                       header); // TODO should fragment already include header in trace?
     m_totTxFragments++;
-    m_totTxBytes += fragmentSize;
+    // m_totTxBytes += fragmentSize;
 
     std::stringstream addressStr;
     if (InetSocketAddress::IsMatchingType(to))
@@ -558,11 +579,16 @@ BurstyApplicationServerInstance::DataSend(Ptr<Socket> socket, uint32_t)
         Ptr<Packet> frame = m_queue.front().Copy();
         uint32_t init_size = frame->GetSize();
 
+        NS_LOG_DEBUG("Socket available " << max_tx_size << " frame size " << init_size);
+
         if (max_tx_size <= init_size)
         {
+            NS_LOG_DEBUG("Socket Send buffer is full, cannot send frame of size " << init_size);
             // NS_ABORT_MSG ("Socket Send buffer is full");
-            return;
+            break;
         }
+
+        m_bytesRemovedFromQueue += frame->GetSize();
 
         m_queue.pop_front();
 
@@ -576,10 +602,26 @@ BurstyApplicationServerInstance::DataSend(Ptr<Socket> socket, uint32_t)
         //     frame = frag0;
         //   }
 
-        socket->SendTo(frame, 0, m_peer);
+        int bytes = socket->SendTo(frame, 0, m_peer);
+        if (bytes > 0 && bytes == ((int)frame->GetSize()))
+        {
+            m_totTxBytes += frame->GetSize();
+        }
+        else
+        {
+            NS_ABORT_MSG("Sent bytes " << bytes << " different from frame size "
+                                       << frame->GetSize());
+        }
         m_bytesAddedToSocket += frame->GetSize();
-        NS_LOG_INFO("Just sent " << frame->GetSerializedSize() << " " << frame->GetSize());
+        NS_LOG_INFO("Just sent " << m_peer << " " << frame->GetSerializedSize() << " "
+                                 << frame->GetSize() << " total: " << m_totTxBytes << " total2: "
+                                 << m_bytesAddedToQueue << " total3: " << m_bytesRemovedFromQueue);
     }
+
+    // if (m_queue.empty() && m_isfinishing)
+    // {
+    //     StopApplication();
+    // }
 
     if (m_adaptationAlgorithmServer)
     {

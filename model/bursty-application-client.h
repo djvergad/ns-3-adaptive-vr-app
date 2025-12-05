@@ -22,6 +22,7 @@
 
 #include "ns3/address.h"
 #include "ns3/application.h"
+#include "ns3/buffer.h"
 #include "ns3/event-id.h"
 #include "ns3/inet-socket-address.h"
 #include "ns3/ptr.h"
@@ -29,8 +30,9 @@
 #include "ns3/socket.h"
 #include "ns3/traced-callback.h"
 
-#include <unordered_map>
+#include <arpa/inet.h> // for ntohl
 #include <map>
+#include <unordered_map>
 
 namespace ns3
 {
@@ -121,7 +123,8 @@ class BurstyApplicationClient : public Application
     // inherited from Application base class.
     virtual void StartApplication(void); // Called at time specified by Start
     virtual void StopApplication(void);  // Called at time specified by Stop
-
+    virtual void PeriodicTask(void);
+    bool m_finishing{false};
     /**
      * \brief Handle a fragment received by the application
      * \param socket the receiving socket
@@ -207,7 +210,9 @@ class BurstyApplicationClient : public Application
             {
                 InetSocketAddress a = InetSocketAddress::ConvertFrom(x);
                 return std::hash<uint32_t>()(a.GetIpv4().Get());
-            } else {
+            }
+            else
+            {
                 return 0;
             }
         }
@@ -237,6 +242,36 @@ class BurstyApplicationClient : public Application
         m_rxBurstTrace;
 
     std::map<Ptr<Socket>, Ptr<Packet>> m_incomplete_packets;
+
+    struct PtrSocketComparator
+    {
+        bool operator()(const Ptr<Socket>& a, const Ptr<Socket>& b) const
+        {
+            return a < b; // compare underlying pointers
+        }
+    };
+
+    static bool ParseHeaderFromBuffer(const std::vector<uint8_t>& buf, SeqTsSizeFragHeader& hdr)
+    {
+        // First check we have at least the header bytes
+        const uint32_t HEADER_SIZE = hdr.GetSerializedSize();
+        if (buf.size() < HEADER_SIZE)
+        {
+            return false;
+        }
+
+        // Only copy the header bytes into an ns3::Buffer and deserialize those bytes.
+        ns3::Buffer tmp;
+        tmp.AddAtEnd(HEADER_SIZE);
+        tmp.Begin().Write(buf.data(), HEADER_SIZE);
+
+        ns3::Buffer::Iterator it = tmp.Begin();
+        hdr.Deserialize(it);
+
+        return true;
+    }
+
+    std::map<Ptr<Socket>, std::vector<uint8_t>, PtrSocketComparator> m_reassemblyBuffers;
 };
 
 } // namespace ns3

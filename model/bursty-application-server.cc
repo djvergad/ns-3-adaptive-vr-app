@@ -241,7 +241,11 @@ BurstyApplicationServer::HandleRead(Ptr<Socket> socket)
 
         Ptr<Packet> packet = socket->RecvFrom(peer);
 
-        CreateInstance(socket, peer);
+        SeqTsSizeFragHeader header;
+        if(packet->PeekHeader(header))
+        {
+            CreateInstance(socket, peer);     
+        }
     }
 }
 
@@ -314,6 +318,7 @@ BurstyApplicationServer::CreateInstance(Ptr<Socket> socket, Address peer)
 
     // m_server_instances[peer] = Create<BurstyApplicationServerInstance> ();
     m_server_instances[peer].m_socket = socket;
+    // m_server_instances[peer].m_socket->SetAttribute("TcpNoDelay", BooleanValue(true));
 
     m_server_instances[peer].m_peer = peer;
     m_server_instances[peer].m_txBurstTrace = m_txBurstTrace;
