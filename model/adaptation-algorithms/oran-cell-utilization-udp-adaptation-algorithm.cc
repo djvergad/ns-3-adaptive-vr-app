@@ -53,7 +53,7 @@ OranCellUtilizationUdpAdaptationAlgorithm::adaptation_algorithm(double buffOcc,
     NS_LOG_FUNCTION(this << buffOcc << diffBuffOcc << lastRate);
 
 
-    return m_lm->GetVrBitrate(m_server_instance->m_peer, 4);
+    return m_lm->GetVrBitrate(m_server_instance->m_peer, 5);
 
 
     // double utilization = 0.0;
