@@ -646,10 +646,10 @@ main(int argc, char* argv[])
     dlpfLowLat.localPortEnd = dlPortLowLat;
     lowLatTft->Add(dlpfLowLat);
     // Also add uplink filter for same port
-    NrEpcTft::PacketFilter ulpfLowLat;
-    ulpfLowLat.remotePortStart = dlPortLowLat;
-    ulpfLowLat.remotePortEnd = dlPortLowLat;
-    lowLatTft->Add(ulpfLowLat);
+    // NrEpcTft::PacketFilter ulpfLowLat;
+    // ulpfLowLat.remotePortStart = dlPortLowLat;
+    // ulpfLowLat.remotePortEnd = dlPortLowLat;
+    // lowLatTft->Add(ulpfLowLat);
 
     // Voice configuration and object creation:
     UdpClientHelper dlClientVoice;
@@ -658,18 +658,18 @@ main(int argc, char* argv[])
     dlClientVoice.SetAttribute("Interval", TimeValue(Seconds(1.0 / lambdaBe)));
 
     // // The bearer that will carry voice traffic
-    // NrEpsBearer voiceBearer(NrEpsBearer::GBR_CONV_VOICE);
+    NrEpsBearer voiceBearer(NrEpsBearer::GBR_CONV_VOICE);
 
     // The filter for the voice traffic
     Ptr<NrEpcTft> voiceTft = Create<NrEpcTft>();
-    NrEpcTft::PacketFilter dlpfVoice;
-    dlpfVoice.localPortStart = dlPortVoice;
-    dlpfVoice.localPortEnd = dlPortVoice;
-    voiceTft->Add(dlpfVoice);
+    // NrEpcTft::PacketFilter dlpfVoice;
+    // dlpfVoice.localPortStart = dlPortVoice;
+    // dlpfVoice.localPortEnd = dlPortVoice;
+    // voiceTft->Add(dlpfVoice);
     // Also add uplink filter for same port
     NrEpcTft::PacketFilter ulpfVoice;
-    ulpfVoice.remotePortStart = dlPortVoice;
-    ulpfVoice.remotePortEnd = dlPortVoice;
+    ulpfVoice.remotePortStart = dlPortLowLat;
+    ulpfVoice.remotePortEnd = dlPortLowLat;
     voiceTft->Add(ulpfVoice);
 
     // Ptr<ns3::OranInMemoryDataRepository> repo = CreateObject<ns3::OranInMemoryDataRepository>();
@@ -804,6 +804,7 @@ main(int argc, char* argv[])
     {
         Ptr<NetDevice> ueDevice = ueLowLatNetDev.Get(i);
         nrHelper->ActivateDedicatedEpsBearer(ueDevice, lowLatBearer, lowLatTft);
+        nrHelper->ActivateDedicatedEpsBearer(ueDevice, voiceBearer, voiceTft);
     }
 
     // Install UDP servers on UEs to receive downlink traffic
@@ -1039,71 +1040,75 @@ main(int argc, char* argv[])
     // Add deployed terminators to the container that will be activated later.
     e2NodeTerminatorsEnbs.Add(deployedEnbTerminators);
 
-    // Connect each gNB MAC BufferStatusReportTrace to the corresponding
-    // OranReporterNrUeBitratePerLcid instance created by the terminator.
-    for (uint32_t idx = 0; idx < gnbNetDev.GetN(); ++idx)
+    if (burstGeneratorType == "oran-util-udp")
     {
-        Ptr<NetDevice> dev = gnbNetDev.Get(idx);
-        Ptr<NrGnbNetDevice> gnbDevice = dev->GetObject<NrGnbNetDevice>();
-        if (!gnbDevice)
+        // Connect each gNB MAC BufferStatusReportTrace to the corresponding
+        // OranReporterNrUeBitratePerLcid instance created by the terminator.
+        for (uint32_t idx = 0; idx < gnbNetDev.GetN(); ++idx)
         {
-            continue;
-        }
-        Ptr<NrGnbMac> gnbMac = gnbDevice->GetMac(0);
-        if (!gnbMac)
-        {
-            continue;
-        }
-
-        // Find the terminator attached to this node
-        for (uint32_t t = 0; t < deployedEnbTerminators.GetN(); ++t)
-        {
-            Ptr<OranE2NodeTerminator> term = deployedEnbTerminators.Get(t);
-            if (term->GetNode() == dev->GetNode())
+            Ptr<NetDevice> dev = gnbNetDev.Get(idx);
+            Ptr<NrGnbNetDevice> gnbDevice = dev->GetObject<NrGnbNetDevice>();
+            if (!gnbDevice)
             {
-                // Retrieve reporters attribute and connect any bitrate reporter
-                ObjectVectorValue reportersVal;
-                term->GetAttribute("Reporters", reportersVal);
-                for (std::size_t r = 0; r < reportersVal.GetN(); ++r)
+                continue;
+            }
+            Ptr<NrGnbMac> gnbMac = gnbDevice->GetMac(0);
+            if (!gnbMac)
+            {
+                continue;
+            }
+
+            // Find the terminator attached to this node
+            for (uint32_t t = 0; t < deployedEnbTerminators.GetN(); ++t)
+            {
+                Ptr<OranE2NodeTerminator> term = deployedEnbTerminators.Get(t);
+                if (term->GetNode() == dev->GetNode())
                 {
-                    Ptr<Object> repObj = reportersVal.Get(r);
-                    Ptr<OranReporterNrUeBitratePerLcid> br =
-                        DynamicCast<OranReporterNrUeBitratePerLcid>(repObj);
-                    if (br)
+                    // Retrieve reporters attribute and connect any bitrate reporter
+                    ObjectVectorValue reportersVal;
+                    term->GetAttribute("Reporters", reportersVal);
+                    for (std::size_t r = 0; r < reportersVal.GetN(); ++r)
                     {
-                        // gnbMac->TraceConnectWithoutContext(
-                        //     "BufferStatusReportTrace",
-                        //     MakeCallback(&OranReporterNrUeBitratePerLcid::OnBufferStatusReport,
-                        //     br));
-                        // Also attach to scheduler SchedStats trace (if available)
-
-                        // std::cout << "Connecting SchedStats trace for bitrate reporter" << " t= "
-                        // << t << std::endl;
-                        for (uint32_t q = 0; q < 2; ++q)
+                        Ptr<Object> repObj = reportersVal.Get(r);
+                        Ptr<OranReporterNrUeBitratePerLcid> br =
+                            DynamicCast<OranReporterNrUeBitratePerLcid>(repObj);
+                        if (br)
                         {
-                            std::cout << " Node devices[" << q
-                                      << "]="  << std::endl;
+                            // gnbMac->TraceConnectWithoutContext(
+                            //     "BufferStatusReportTrace",
+                            //     MakeCallback(&OranReporterNrUeBitratePerLcid::OnBufferStatusReport,
+                            //     br));
+                            // Also attach to scheduler SchedStats trace (if available)
 
-                            Ptr<NrMacScheduler> sched = nrHelper->GetScheduler(dev, q);
-                            if (sched)
+                            // std::cout << "Connecting SchedStats trace for bitrate reporter" << "
+                            // t= "
+                            // << t << std::endl;
+                            for (uint32_t q = 0; q < 2; ++q)
                             {
-                                sched->TraceConnectWithoutContext(
-                                    "SchedStats",
-                                    MakeCallback(&OranReporterNrUeBitratePerLcid::OnSchedStats,
-                                                 br));
+                                std::cout << " Node devices[" << q << "]=" << std::endl;
+
+                                Ptr<NrMacScheduler> sched = nrHelper->GetScheduler(dev, q);
+                                if (sched)
+                                {
+                                    sched->TraceConnectWithoutContext(
+                                        "SchedStats",
+                                        MakeCallback(&OranReporterNrUeBitratePerLcid::OnSchedStats,
+                                                     br));
+                                }
                             }
                         }
+                        Ptr<OranReporterNrUeTxQueueSize> txq =
+                            DynamicCast<OranReporterNrUeTxQueueSize>(repObj);
+                        if (txq)
+                        {
+                            gnbMac->TraceConnectWithoutContext(
+                                "BufferStatusReportTrace",
+                                MakeCallback(&OranReporterNrUeTxQueueSize::OnBufferStatusReport,
+                                             txq));
+                        }
                     }
-                    Ptr<OranReporterNrUeTxQueueSize> txq =
-                        DynamicCast<OranReporterNrUeTxQueueSize>(repObj);
-                    if (txq)
-                    {
-                        gnbMac->TraceConnectWithoutContext(
-                            "BufferStatusReportTrace",
-                            MakeCallback(&OranReporterNrUeTxQueueSize::OnBufferStatusReport, txq));
-                    }
+                    break; // found the terminator for this node
                 }
-                break; // found the terminator for this node
             }
         }
     }
