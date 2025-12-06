@@ -19,12 +19,11 @@ OranCellUtilizationUdpAdaptationAlgorithm::GetTypeId(void)
             .SetParent<AdaptationAlgorithmServer>()
             .SetGroupName("Applications")
             .AddConstructor<OranCellUtilizationUdpAdaptationAlgorithm>()
-            .AddAttribute(
-                "OranLogicVrBitrate",
-                "The OranLogicVrBitrate used.",
-                PointerValue(0),
-                MakePointerAccessor(&OranCellUtilizationUdpAdaptationAlgorithm::m_lm),
-                MakePointerChecker<OranLogicVrBitrate>());
+            .AddAttribute("OranLogicVrBitrate",
+                          "The OranLogicVrBitrate used.",
+                          PointerValue(0),
+                          MakePointerAccessor(&OranCellUtilizationUdpAdaptationAlgorithm::m_lm),
+                          MakePointerChecker<OranLogicVrBitrate>());
     return tid;
 }
 
@@ -52,9 +51,22 @@ OranCellUtilizationUdpAdaptationAlgorithm::adaptation_algorithm(double buffOcc,
 {
     NS_LOG_FUNCTION(this << buffOcc << diffBuffOcc << lastRate);
 
+    DataRate result_non_quant = m_lm->GetVrBitrate(m_server_instance->m_peer, 5);
 
-    return m_lm->GetVrBitrate(m_server_instance->m_peer, 5);
+    std::vector<DataRate> averageBitrate = {55000,    77000,    108000,  151000,  212000,  297000,
+                                            415000,   582000,   814000,  1140000, 1596000, 2234000,
+                                            3128000,  3128000,  3254000, 3974000, 4496000, 6408000,
+                                            10938000, 17156000, 35018000};
 
+    for (uint32_t i = 1; i < averageBitrate.size(); i++)
+    {
+        if (averageBitrate[i] > result_non_quant)
+        {
+            return averageBitrate[i - 1];
+        }
+    }
+
+    return averageBitrate[averageBitrate.size() - 1];
 
     // double utilization = 0.0;
     // double delay = 0.0;
@@ -65,7 +77,8 @@ OranCellUtilizationUdpAdaptationAlgorithm::adaptation_algorithm(double buffOcc,
     //     // well because m_peer is an Address regardless of socket type.
     //     // utilization = m_collector->GetCurrentUtilizationByAddress(m_server_instance->m_peer);
     //     // delay = m_collector->DelayEstimate(0,0);
-    //     // std::cout << "Estimated delay for " << m_server_instance->m_peer << ": " << delay << " s"
+    //     // std::cout << "Estimated delay for " << m_server_instance->m_peer << ": " << delay << "
+    //     s"
     //     // << std::endl;
 
     //     txQueueSize = m_collector->TxQueueSizeEstimate(0, 0);
@@ -123,9 +136,8 @@ OranCellUtilizationUdpAdaptationAlgorithm::adaptation_algorithm(double buffOcc,
     //     // Set slow-start threshold similar to TCP: ssthresh = newRate
     //     m_ssthresh = newRate;
     //     m_inSlowStart = false;
-    //     NS_LOG_DEBUG("Multiplicative decrease (AIMD): factor=" << factor << " newRate=" << newRate);
-    //     m_prevRate = newRate;
-    //     return m_prevRate;
+    //     NS_LOG_DEBUG("Multiplicative decrease (AIMD): factor=" << factor << " newRate=" <<
+    //     newRate); m_prevRate = newRate; return m_prevRate;
     // }
 
     // // If well below threshold -> increase rate (AIMD). Use slow-start if enabled.

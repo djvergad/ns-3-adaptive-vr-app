@@ -100,8 +100,10 @@ FuzzyAlgorithmServer::adaptation_algorithm (double buffOcc, double diffBuffOcc, 
 
   DataRate result_non_quant = DataRate(output * lastRate.GetBitRate ());
 
-  std::vector<DataRate> averageBitrate = { 3128000, 3254000, 3974000, 4496000, 6408000, 10938000, 17156000, 35018000 };
-
+  std::vector<DataRate> averageBitrate = {55000,    77000,    108000,  151000,  212000,  297000,
+                                          415000,   582000,   814000,  1140000, 1596000, 2234000,
+                                          3128000,  3128000,  3254000, 3974000, 4496000, 6408000,
+                                          10938000, 17156000, 35018000};
   for (uint32_t i = 1; i < averageBitrate.size(); i++) {
     if (averageBitrate[i] > result_non_quant) {
       return averageBitrate[i - 1];
