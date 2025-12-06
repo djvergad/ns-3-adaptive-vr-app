@@ -636,50 +636,9 @@ main(int argc, char* argv[])
     dlClientLowLat.SetAttribute("PacketSize", UintegerValue(udpPacketSizeULL));
     dlClientLowLat.SetAttribute("Interval", TimeValue(Seconds(1.0 / lambdaULL)));
 
-    // The bearer that will carry low latency traffic
-    NrEpsBearer lowLatBearer(NrEpsBearer::NGBR_LOW_LAT_EMBB);
-
-    // The filter for the low-latency traffic
-    Ptr<NrEpcTft> lowLatTft = Create<NrEpcTft>();
-    NrEpcTft::PacketFilter dlpfLowLat;
-    dlpfLowLat.localPortStart = dlPortLowLat;
-    dlpfLowLat.localPortEnd = dlPortLowLat;
-    lowLatTft->Add(dlpfLowLat);
-    // Also add uplink filter for same port
-    // NrEpcTft::PacketFilter ulpfLowLat;
-    // ulpfLowLat.remotePortStart = dlPortLowLat;
-    // ulpfLowLat.remotePortEnd = dlPortLowLat;
-    // lowLatTft->Add(ulpfLowLat);
-
-    // Voice configuration and object creation:
-    UdpClientHelper dlClientVoice;
-    dlClientVoice.SetAttribute("MaxPackets", UintegerValue(0xFFFFFFFF));
-    dlClientVoice.SetAttribute("PacketSize", UintegerValue(udpPacketSizeBe));
-    dlClientVoice.SetAttribute("Interval", TimeValue(Seconds(1.0 / lambdaBe)));
-
-    // // The bearer that will carry voice traffic
-    NrEpsBearer voiceBearer(NrEpsBearer::GBR_CONV_VOICE);
-
-    // The filter for the voice traffic
-    Ptr<NrEpcTft> voiceTft = Create<NrEpcTft>();
-    // NrEpcTft::PacketFilter dlpfVoice;
-    // dlpfVoice.localPortStart = dlPortVoice;
-    // dlpfVoice.localPortEnd = dlPortVoice;
-    // voiceTft->Add(dlpfVoice);
-    // Also add uplink filter for same port
-    NrEpcTft::PacketFilter ulpfVoice;
-    ulpfVoice.remotePortStart = dlPortLowLat;
-    ulpfVoice.remotePortEnd = dlPortLowLat;
-    voiceTft->Add(ulpfVoice);
-
     // Ptr<ns3::OranInMemoryDataRepository> repo = CreateObject<ns3::OranInMemoryDataRepository>();
     Ptr<ns3::OranLogicVrBitrate> oranLogicVrBitrate = CreateObject<ns3::OranLogicVrBitrate>();
 
-    /*OranReporterNrUeBitratePerLcid
-     * Let's install the applications!
-     */
-
-    uint16_t port = dlPortLowLat;
     std::string protocol;
     if (burstGeneratorType == "model")
     {
@@ -738,6 +697,50 @@ main(int argc, char* argv[])
     {
         NS_ABORT_MSG("Wrong burstGeneratorType type");
     }
+
+    // The bearer that will carry low latency traffic
+    NrEpsBearer lowLatBearer(NrEpsBearer::NGBR_LOW_LAT_EMBB);
+
+    // The filter for the low-latency traffic
+    Ptr<NrEpcTft> lowLatTft = Create<NrEpcTft>();
+    NrEpcTft::PacketFilter dlpfLowLat;
+    dlpfLowLat.localPortStart = dlPortLowLat;
+    dlpfLowLat.localPortEnd = dlPortLowLat;
+    lowLatTft->Add(dlpfLowLat);
+    // Also add uplink filter for same port
+    if (protocol != "ns3::TcpSocketFactory")
+    {
+        NrEpcTft::PacketFilter ulpfLowLat;
+        ulpfLowLat.remotePortStart = dlPortLowLat;
+        ulpfLowLat.remotePortEnd = dlPortLowLat;
+        lowLatTft->Add(ulpfLowLat);
+    }
+    // Voice configuration and object creation:
+    UdpClientHelper dlClientVoice;
+    dlClientVoice.SetAttribute("MaxPackets", UintegerValue(0xFFFFFFFF));
+    dlClientVoice.SetAttribute("PacketSize", UintegerValue(udpPacketSizeBe));
+    dlClientVoice.SetAttribute("Interval", TimeValue(Seconds(1.0 / lambdaBe)));
+
+    // // The bearer that will carry voice traffic
+    NrEpsBearer voiceBearer(NrEpsBearer::GBR_CONV_VOICE);
+
+    // The filter for the voice traffic
+    Ptr<NrEpcTft> voiceTft = Create<NrEpcTft>();
+    // NrEpcTft::PacketFilter dlpfVoice;
+    // dlpfVoice.localPortStart = dlPortVoice;
+    // dlpfVoice.localPortEnd = dlPortVoice;
+    // voiceTft->Add(dlpfVoice);
+    // Also add uplink filter for same port
+    NrEpcTft::PacketFilter ulpfVoice;
+    ulpfVoice.remotePortStart = dlPortLowLat;
+    ulpfVoice.remotePortEnd = dlPortLowLat;
+    voiceTft->Add(ulpfVoice);
+
+    /*OranReporterNrUeBitratePerLcid
+     * Let's install the applications!
+     */
+
+    uint16_t port = dlPortLowLat;
 
     uint32_t fragmentSize = 1472; // bytes
 
@@ -803,8 +806,8 @@ main(int argc, char* argv[])
     for (uint32_t i = 0; i < ueLowLatContainer.GetN(); ++i)
     {
         Ptr<NetDevice> ueDevice = ueLowLatNetDev.Get(i);
-        nrHelper->ActivateDedicatedEpsBearer(ueDevice, lowLatBearer, lowLatTft);
         nrHelper->ActivateDedicatedEpsBearer(ueDevice, voiceBearer, voiceTft);
+        nrHelper->ActivateDedicatedEpsBearer(ueDevice, lowLatBearer, lowLatTft);
     }
 
     // Install UDP servers on UEs to receive downlink traffic
@@ -1040,10 +1043,10 @@ main(int argc, char* argv[])
     // Add deployed terminators to the container that will be activated later.
     e2NodeTerminatorsEnbs.Add(deployedEnbTerminators);
 
+    // Connect each gNB MAC BufferStatusReportTrace to the corresponding
+    // OranReporterNrUeBitratePerLcid instance created by the terminator.
     if (burstGeneratorType == "oran-util-udp")
     {
-        // Connect each gNB MAC BufferStatusReportTrace to the corresponding
-        // OranReporterNrUeBitratePerLcid instance created by the terminator.
         for (uint32_t idx = 0; idx < gnbNetDev.GetN(); ++idx)
         {
             Ptr<NetDevice> dev = gnbNetDev.Get(idx);
