@@ -1055,7 +1055,8 @@ main(int argc, char* argv[])
 
     // Connect each gNB MAC BufferStatusReportTrace to the corresponding
     // OranReporterNrUeBitratePerLcid instance created by the terminator.
-    if (burstGeneratorType == "oran-util-udp")
+    if (burstGeneratorType == "oran-util-udp" ||
+        burstGeneratorType == "oran-util-udp-no-queue")
     {
         for (uint32_t idx = 0; idx < gnbNetDev.GetN(); ++idx)
         {
