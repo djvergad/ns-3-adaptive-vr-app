@@ -29,6 +29,7 @@
 #include "ns3/mpc.h"
 #include "ns3/google-algorithm-server.h"
 #include "ns3/oran-cell-utilization-udp-adaptation-algorithm.h"
+#include "ns3/oran-cell-utilization-udp-no-queue-adaptation-algorithm.h"
 #include "ns3/inet-socket-address.h"
 #include "ns3/inet6-socket-address.h"
 #include "ns3/log.h"
@@ -345,6 +346,13 @@ BurstyApplicationServer::CreateInstance(Ptr<Socket> socket, Address peer)
     {
         Ptr<OranCellUtilizationUdpAdaptationAlgorithm> oranUdpAlgo =
             CreateObject<OranCellUtilizationUdpAdaptationAlgorithm>();
+        m_server_instances[peer].m_adaptationAlgorithmServer = oranUdpAlgo;
+        oranUdpAlgo->m_server_instance = &m_server_instances[peer];
+    }
+    else if (m_adaptationAlgorithm == "OranCellUtilizationUdpNoQueueAdaptationAlgorithm")
+    {
+        Ptr<OranCellUtilizationUdpNoQueueAdaptationAlgorithm> oranUdpAlgo =
+            CreateObject<OranCellUtilizationUdpNoQueueAdaptationAlgorithm>();
         m_server_instances[peer].m_adaptationAlgorithmServer = oranUdpAlgo;
         oranUdpAlgo->m_server_instance = &m_server_instances[peer];
     }

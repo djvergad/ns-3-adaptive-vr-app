@@ -693,6 +693,16 @@ main(int argc, char* argv[])
         Config::SetDefault("ns3::OranCellUtilizationUdpAdaptationAlgorithm::OranLogicVrBitrate",
                            PointerValue(Ptr<OranLogicVrBitrate>(oranLogicVrBitrate)));
     }
+    else if (burstGeneratorType == "oran-util-udp-no-queue")
+    {
+        protocol = "ns3::UdpSocketFactory";
+        // Use UDP-based ORAN utilization adaptation algorithm
+        Config::SetDefault("ns3::BurstyApplicationServer::adaptationAlgorithm",
+                           StringValue("OranCellUtilizationUdpNoQueueAdaptationAlgorithm"));
+        // Provide the collector instance so the algorithm can query cell utilization
+        Config::SetDefault("ns3::OranCellUtilizationUdpNoQueueAdaptationAlgorithm::OranLogicVrBitrate",
+                           PointerValue(Ptr<OranLogicVrBitrate>(oranLogicVrBitrate)));
+    }
     else
     {
         NS_ABORT_MSG("Wrong burstGeneratorType type");
