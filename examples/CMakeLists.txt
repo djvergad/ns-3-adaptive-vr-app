@@ -57,3 +57,21 @@ foreach(
                       ${liboran}
   )
 endforeach()
+
+set(lte_examples
+  vr-cttc-lte-oran
+)
+foreach(
+  example
+  ${lte_examples}
+)
+  build_lib_example(
+    NAME ${example}
+    SOURCE_FILES ${example}.cc
+    LIBRARIES_TO_LINK ${libns-3-adaptive-vr-app}
+                      ${libcore}
+                      ${libapplications}
+                      ${liblte}
+                      ${liboran}
+  )
+endforeach()

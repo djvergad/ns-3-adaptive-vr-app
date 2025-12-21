@@ -1,7 +1,6 @@
 #include "oran-cell-utilization-udp-no-queue-adaptation-algorithm.h"
 
 #include "ns3/log.h"
-#include "ns3/oran-cell-utilization-collector.h"
 #include "ns3/pointer.h"
 
 namespace ns3
