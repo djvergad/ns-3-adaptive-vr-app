@@ -155,6 +155,10 @@ main(int argc, char* argv[])
     Config::SetDefault("ns3::TcpSocket::SndBufSize", UintegerValue(1 << 23));
     Config::SetDefault("ns3::TcpSocket::RcvBufSize", UintegerValue(1 << 23));
 
+    // LTE-A RLC Configuration for improved throughput with multiple carriers
+    Config::SetDefault("ns3::LteRlcAm::MaxTxBufferSize", UintegerValue(99999999));
+    Config::SetDefault("ns3::LteRlcUm::MaxTxBufferSize", UintegerValue(99999999));
+
     int64_t randomStream = 1;
 
     // Simple grid placement: create eNB and UE nodes and place them manually
@@ -207,6 +211,13 @@ main(int argc, char* argv[])
 
     Ptr<LteHelper> lteHelper = CreateObject<LteHelper>();
     lteHelper->SetSchedulerType("ns3::PfFfMacScheduler");
+
+    // LTE-A Configuration: Enable Carrier Aggregation
+    // Configure component carriers (2x20MHz for 40MHz total bandwidth)
+    uint16_t numberOfComponentCarriers = 2;
+    lteHelper->SetAttribute("NumberOfComponentCarriers", UintegerValue(numberOfComponentCarriers));
+    lteHelper->SetAttribute("EnbComponentCarrierManager", StringValue("ns3::RrComponentCarrierManager"));
+    lteHelper->SetAttribute("UeComponentCarrierManager", StringValue("ns3::SimpleUeComponentCarrierManager"));
 
     Ptr<PointToPointEpcHelper> epcHelper = CreateObject<PointToPointEpcHelper>();
     lteHelper->SetEpcHelper(epcHelper);
@@ -454,10 +465,11 @@ main(int argc, char* argv[])
     oranHelper->SetAttribute("LmQueryMaxWaitTime", TimeValue(maxWaitTime));
     oranHelper->SetAttribute("LmQueryLateCommandPolicy", StringValue(lateCommandPolicy));
 
-    // Set the reporting period to 10ms for the periodic trigger used by reporters
-    // This ensures bitrate data is available quickly for the VR logic module
+    // Set the reporting period to 50ms for the periodic trigger used by reporters
+    // Increased from 10ms to reduce database load and improve simulation performance
+    // This provides a good balance between data freshness and performance
     Config::SetDefault("ns3::OranReportTriggerPeriodic::IntervalRv",
-                       StringValue("ns3::ConstantRandomVariable[Constant=0.01]"));
+                       StringValue("ns3::ConstantRandomVariable[Constant=0.05]"));
 
     if (!dbFileName.empty())
     {
@@ -601,7 +613,7 @@ main(int argc, char* argv[])
     }
     outFile.setf(std::ios_base::fixed);
 
-    double flowDuration = (simTime - udpAppStartTime).GetSeconds();
+    double flowDuration = simTime.GetSeconds();
     for (auto i = stats.begin(); i != stats.end(); ++i)
     {
         Ipv4FlowClassifier::FiveTuple t = classifier->FindFlow(i->first);

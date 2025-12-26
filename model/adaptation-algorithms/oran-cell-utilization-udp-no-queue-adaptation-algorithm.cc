@@ -50,15 +50,28 @@ OranCellUtilizationUdpNoQueueAdaptationAlgorithm::adaptation_algorithm(double bu
                                             3128000,  3128000,  3254000, 3974000, 4496000, 6408000,
                                             10938000, 17156000, 35018000};
 
-    for (uint32_t i = 1; i < averageBitrate.size(); i++)
+    // Choose the first rung that is greater than or equal to the estimate
+    // This is more aggressive and helps ramp up to fill LTE TTI capacity
+    uint32_t chosenIdx = averageBitrate.size() - 1;
+    for (uint32_t i = 0; i < averageBitrate.size(); i++)
     {
-        if (averageBitrate[i] > result_non_quant)
+        if (averageBitrate[i] >= result_non_quant)
         {
-            return averageBitrate[i - 1];
+            chosenIdx = i;
+            break;
         }
     }
-
-    return averageBitrate[averageBitrate.size() - 1];
+    // If the estimate is close to the chosen rung, add headroom by stepping up one rung.
+    // This helps overcome underestimation due to low offered load.
+    if (chosenIdx < averageBitrate.size() - 1)
+    {
+        double threshold = 0.8 * static_cast<double>(averageBitrate[chosenIdx].GetBitRate());
+        if (static_cast<double>(result_non_quant.GetBitRate()) > threshold)
+        {
+            chosenIdx = std::min(chosenIdx + 1, static_cast<uint32_t>(averageBitrate.size() - 1));
+        }
+    }
+    return averageBitrate[chosenIdx];
 }
 
 } // namespace ns3

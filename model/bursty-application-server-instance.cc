@@ -282,7 +282,7 @@ BurstyApplicationServerInstance::SendBurst()
         //
         SeqTsSizeFragHeader hdrTmp;
 
-        uint32_t min_burst = 3000;
+        uint32_t min_burst = 100;
 
         if (burstSize < min_burst)
         {
