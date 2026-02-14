@@ -96,7 +96,9 @@ int
 main(int argc, char* argv[])
 {
     uint16_t gNbNum = 1; // reuse naming from NR example: number of eNBs
-    uint16_t ueNumPergNb = 2;
+    uint16_t ueNumNearPergNb = 1; // NEAR UEs per eNB (close to eNB)
+    uint16_t ueNumFarPergNb = 1;  // FAR UEs per eNB (at distance)
+    double farUeDistance = 100.0; // Distance of FAR UEs from eNB in meters
     bool logging = false;
 
     uint32_t udpPacketSizeULL = 100;
@@ -117,7 +119,9 @@ main(int argc, char* argv[])
 
     CommandLine cmd(__FILE__);
     cmd.AddValue("gNbNum", "The number of eNBs in multiple-ue topology", gNbNum);
-    cmd.AddValue("ueNumPergNb", "The number of UE per eNB in multiple-ue topology", ueNumPergNb);
+    cmd.AddValue("ueNumNearPergNb", "The number of NEAR UEs per eNB (close to eNB)", ueNumNearPergNb);
+    cmd.AddValue("ueNumFarPergNb", "The number of FAR UEs per eNB (at distance from eNB)", ueNumFarPergNb);
+    cmd.AddValue("farUeDistance", "Distance of FAR UEs from eNB in meters", farUeDistance);
     cmd.AddValue("logging", "Enable logging", logging);
     cmd.AddValue("packetSizeUll", "packet size in bytes to be used by ultra low latency traffic", udpPacketSizeULL);
     cmd.AddValue("packetSizeBe", "packet size in bytes to be used by best effort traffic", udpPacketSizeBe);
@@ -140,6 +144,7 @@ main(int argc, char* argv[])
 
     LogComponentEnableAll(LOG_PREFIX_ALL);
     LogComponentEnable("OranLogicVrBitrate", LOG_LEVEL_ALL);
+    // LogComponentEnable("OranReporterLteUeBitratePerLcid", LOG_LEVEL_ALL);
     // LogComponentEnable("BurstyApplicationClient", LOG_LEVEL_ALL);
     // LogComponentEnable("BurstyApplicationServer", LOG_LEVEL_ALL);
     // LogComponentEnable("BurstyApplication", LOG_LEVEL_ALL);
@@ -165,7 +170,8 @@ main(int argc, char* argv[])
     NodeContainer enbNodes;
     enbNodes.Create(gNbNum);
     NodeContainer ueNodes;
-    ueNodes.Create(ueNumPergNb * gNbNum);
+    uint16_t totalUesPerEnb = ueNumNearPergNb + ueNumFarPergNb;
+    ueNodes.Create(totalUesPerEnb * gNbNum);
 
     MobilityHelper mobility;
     Ptr<ListPositionAllocator> enbPos = CreateObject<ListPositionAllocator>();
@@ -178,13 +184,28 @@ main(int argc, char* argv[])
     mobility.Install(enbNodes);
 
     Ptr<ListPositionAllocator> uePos = CreateObject<ListPositionAllocator>();
-    // place UEs near their serving eNB
+    double enbSpacing = 10.0; // Distance between eNBs
+    
+    // Place UEs (both NEAR and FAR)
     for (uint32_t i = 0; i < gNbNum; ++i)
     {
-        for (uint32_t j = 0; j < ueNumPergNb; ++j)
+        double enbX = i * enbSpacing;
+        double enbY = 0.0;
+        
+        // Place NEAR UEs close to the eNB
+        for (uint32_t j = 0; j < ueNumNearPergNb; ++j)
         {
-            double x = i * 10.0 + 1.0 + j * 0.5;
-            double y = 0.0 + j * 0.5;
+            double x = enbX + 1.0 + j * 0.5;
+            double y = enbY + 0.0 + j * 0.5;
+            uePos->Add(Vector(x, y, 1.5));
+        }
+        
+        // Place FAR UEs in a circle around the eNB
+        for (uint32_t j = 0; j < ueNumFarPergNb; ++j)
+        {
+            double angle = j * 2.0 * M_PI / ueNumFarPergNb;
+            double x = enbX + farUeDistance * cos(angle);
+            double y = enbY + farUeDistance * sin(angle);
             uePos->Add(Vector(x, y, 1.5));
         }
     }
