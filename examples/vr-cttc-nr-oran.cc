@@ -639,6 +639,54 @@ main(int argc, char* argv[])
     // Ptr<ns3::OranInMemoryDataRepository> repo = CreateObject<ns3::OranInMemoryDataRepository>();
     Ptr<ns3::OranLogicVrBitrate> oranLogicVrBitrate = CreateObject<ns3::OranLogicVrBitrate>();
 
+    // ORAN Models -- Initialize RIC BEFORE application setup
+    // This ensures oranLogicVrBitrate is properly initialized with the data repository
+    // before the adaptation algorithm instances are created
+
+    std::string dbFileName = "oran-repository.db";
+    Time lmQueryInterval = Seconds(5);
+    Time maxWaitTime = Seconds(0.010);
+    std::string lateCommandPolicy = "DROP";
+    std::string processingDelayRv = "ns3::NormalRandomVariable[Mean=0.005|Variance=0.000031]";
+
+    Ptr<OranNearRtRic> nearRtRic = nullptr;
+    OranE2NodeTerminatorContainer e2NodeTerminatorsEnbs;
+    OranE2NodeTerminatorContainer e2NodeTerminatorsUes;
+    Ptr<OranHelper> oranHelper = CreateObject<OranHelper>();
+
+    oranHelper->SetAttribute("Verbose", BooleanValue(true));
+    oranHelper->SetAttribute("LmQueryInterval", TimeValue(lmQueryInterval));
+    oranHelper->SetAttribute("E2NodeInactivityThreshold", TimeValue(Seconds(2)));
+    oranHelper->SetAttribute("E2NodeInactivityIntervalRv",
+                             StringValue("ns3::ConstantRandomVariable[Constant=0.2]"));
+    oranHelper->SetAttribute("LmQueryMaxWaitTime",
+                             TimeValue(maxWaitTime)); // 0 means wait for all LMs to finish
+    oranHelper->SetAttribute("LmQueryLateCommandPolicy", StringValue(lateCommandPolicy));
+
+    // RIC setup
+    if (!dbFileName.empty())
+    {
+        std::remove(dbFileName.c_str());
+    }
+
+    oranHelper->SetDataRepository("ns3::OranDataRepositorySqlite",
+                                  "DatabaseFile",
+                                  StringValue(dbFileName));
+    oranHelper->SetDefaultLogicModule("ns3::OranLmNr2NrRsrpHandover",
+                                      "ProcessingDelayRv",
+                                      StringValue(processingDelayRv));
+    oranHelper->SetConflictMitigationModule("ns3::OranCmmNoop");
+
+    nearRtRic = oranHelper->CreateNearRtRic();
+
+    // Connect the VR bitrate logic module to the data repository managed by the
+    // Near-RT RIC and register it so it participates in LM queries.
+    if (oranLogicVrBitrate != nullptr && nearRtRic != nullptr && nearRtRic->Data() != nullptr)
+    {
+        oranLogicVrBitrate->SetDataRepository(nearRtRic->Data());
+        // nearRtRic->AddLogicModule(oranLogicVrBitrate);
+    }
+
     std::string protocol;
     if (burstGeneratorType == "model")
     {
@@ -925,53 +973,7 @@ main(int argc, char* argv[])
     // enable the traces provided by the nr module
     // nrHelper->EnableTraces();
 
-    std::string dbFileName = "oran-repository.db";
-
-    // ORAN Models -- BEGIN
-
-    Time lmQueryInterval = Seconds(5);
-    Time maxWaitTime = Seconds(0.010);
-    std::string lateCommandPolicy = "DROP";
-    std::string processingDelayRv = "ns3::NormalRandomVariable[Mean=0.005|Variance=0.000031]";
-
-    Ptr<OranNearRtRic> nearRtRic = nullptr;
-    OranE2NodeTerminatorContainer e2NodeTerminatorsEnbs;
-    OranE2NodeTerminatorContainer e2NodeTerminatorsUes;
-    Ptr<OranHelper> oranHelper = CreateObject<OranHelper>();
-
-    oranHelper->SetAttribute("Verbose", BooleanValue(true));
-    oranHelper->SetAttribute("LmQueryInterval", TimeValue(lmQueryInterval));
-    oranHelper->SetAttribute("E2NodeInactivityThreshold", TimeValue(Seconds(2)));
-    oranHelper->SetAttribute("E2NodeInactivityIntervalRv",
-                             StringValue("ns3::ConstantRandomVariable[Constant=0.2]"));
-    oranHelper->SetAttribute("LmQueryMaxWaitTime",
-                             TimeValue(maxWaitTime)); // 0 means wait for all LMs to finish
-    oranHelper->SetAttribute("LmQueryLateCommandPolicy", StringValue(lateCommandPolicy));
-
-    // RIC setup
-    if (!dbFileName.empty())
-    {
-        std::remove(dbFileName.c_str());
-    }
-
-    oranHelper->SetDataRepository("ns3::OranDataRepositorySqlite",
-                                  "DatabaseFile",
-                                  StringValue(dbFileName));
-    oranHelper->SetDefaultLogicModule("ns3::OranLmNr2NrRsrpHandover",
-                                      "ProcessingDelayRv",
-                                      StringValue(processingDelayRv));
-    oranHelper->SetConflictMitigationModule("ns3::OranCmmNoop");
-
-    nearRtRic = oranHelper->CreateNearRtRic();
-
-    // Connect the VR bitrate logic module to the data repository managed by the
-    // Near-RT RIC and register it so it participates in LM queries.
-    if (oranLogicVrBitrate != nullptr && nearRtRic != nullptr && nearRtRic->Data() != nullptr)
-    {
-        oranLogicVrBitrate->SetDataRepository(nearRtRic->Data());
-        // nearRtRic->AddLogicModule(oranLogicVrBitrate);
-    }
-
+    // ORAN Models -- UE and ENB Node Setup
     // UE Nodes setup
     for (uint32_t idx = 0; idx < gridScenario.GetUserTerminals().GetN(); idx++)
     {
@@ -1148,7 +1150,7 @@ main(int argc, char* argv[])
     // Initialize collector so it connects to DlScheduling traces
     // collector->DoInitialize();
 
-    // ORAN Models -- END
+    // ORAN Models -- END (all initialization now completed before applications)
 
     FlowMonitorHelper flowmonHelper;
     NodeContainer endpointNodes;

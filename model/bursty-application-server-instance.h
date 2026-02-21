@@ -39,6 +39,7 @@ class Address;
 class RandomVariableStream;
 class Socket;
 class BurstGenerator;
+class Packet;
 
 class BurstyApplicationServerInstance : public Object
 {
@@ -152,7 +153,7 @@ protected:
 
   void DataSend (Ptr<Socket>, uint32_t); // Called when a new segment is transmitted
   // A structure that contains the generated MPEG frames, for each client.
-  std::deque<Packet> m_queue;
+  std::deque<Ptr<Packet>> m_queue;
   uint32_t m_queueSize = 100000;
 
   DataRate m_initRate = 0;

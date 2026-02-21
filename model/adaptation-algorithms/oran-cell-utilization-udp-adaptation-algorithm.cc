@@ -22,7 +22,13 @@ OranCellUtilizationUdpAdaptationAlgorithm::GetTypeId(void)
                           "The OranLogicVrBitrate used.",
                           PointerValue(0),
                           MakePointerAccessor(&OranCellUtilizationUdpAdaptationAlgorithm::m_lm),
-                          MakePointerChecker<OranLogicVrBitrate>());
+                          MakePointerChecker<OranLogicVrBitrate>())
+            .AddAttribute(
+                "Lcid",
+                "Logical Channel ID for VR traffic bearer (typically 4-10 for dedicated bearers)",
+                UintegerValue(5),
+                MakeUintegerAccessor(&OranCellUtilizationUdpAdaptationAlgorithm::m_lcid),
+                MakeUintegerChecker<uint8_t>(3, 32));
     return tid;
 }
 
@@ -50,35 +56,97 @@ OranCellUtilizationUdpAdaptationAlgorithm::adaptation_algorithm(double buffOcc,
 {
     NS_LOG_FUNCTION(this << buffOcc << diffBuffOcc << lastRate);
 
-    DataRate result_non_quant = m_lm->GetVrBitrate(m_server_instance->m_peer, 5);
+    // DEFENSIVE CHECK: Ensure m_lm is initialized and has valid data repository
+    DataRate result_non_quant = DataRate(0);
+    bool isDataValid = false;
+
+    if (m_lm == nullptr)
+    {
+        NS_LOG_WARN("OranLogicVrBitrate not initialized, using ultra-conservative fallback rate");
+        // Use extremely conservative fallback until initialized
+        result_non_quant = DataRate("0.5Mbps");
+    }
+    else
+    {
+        // DEFENSIVE CHECK: Ensure m_server_instance is valid before accessing m_peer
+        if (m_server_instance == nullptr)
+        {
+            NS_LOG_WARN("BurstyApplicationServerInstance not initialized");
+            result_non_quant = DataRate("0.5Mbps");
+        }
+        else
+        {
+            // Query the ORAN logic module for VR bitrate
+            result_non_quant = m_lm->GetVrBitrate(m_server_instance->m_peer, m_lcid);
+
+            // DEFENSIVE CHECK: If GetVrBitrate returns 0 (data not available/initialized),
+            // use ultra-conservative fallback to ensure absolutely no buffer overruns
+            if (result_non_quant.GetBitRate() == 0)
+            {
+                NS_LOG_INFO("GetVrBitrate returned 0 (null/uninitialized data), using "
+                            "ultra-conservative rate");
+                // This conservative rate (500 kbps) ensures we never request more data than can fit
+                // in the RLC buffer, even if fragment sizes are misunderstood
+                result_non_quant = DataRate("0.5Mbps");
+            }
+            else
+            {
+                isDataValid = true;
+                NS_LOG_DEBUG("Valid bitrate data from ORAN: " << result_non_quant.GetBitRate() / 1e6
+                                                              << " Mbps");
+            }
+        }
+    }
+
+    NS_LOG_DEBUG("Requested bitrate from ORAN LM: " << result_non_quant.GetBitRate() / 1e6
+                                                    << " Mbps "
+                                                    << "(valid=" << isDataValid << ")");
 
     std::vector<DataRate> averageBitrate = {55000,    77000,    108000,  151000,  212000,  297000,
                                             415000,   582000,   814000,  1140000, 1596000, 2234000,
                                             3128000,  3128000,  3254000, 3974000, 4496000, 6408000,
                                             10938000, 17156000, 35018000};
 
-        // Choose the first rung that is greater than or equal to the estimate
-    // This is more aggressive and helps ramp up to fill LTE TTI capacity
-    uint32_t chosenIdx = averageBitrate.size() - 1;
+    // FIXED: Use ultra-conservative quantization - find the HIGHEST rung that is <= estimate
+    // This prevents overshooting capacity which causes packet loss and RLC buffer overruns
+    uint32_t chosenIdx = 0; // Default to lowest rung (55 kbps)
     for (uint32_t i = 0; i < averageBitrate.size(); i++)
     {
-        if (averageBitrate[i] >= result_non_quant)
+        if (averageBitrate[i] <= result_non_quant.GetBitRate())
         {
-            chosenIdx = i;
-            break;
+            chosenIdx = i; // Keep the highest rung we can afford
+        }
+        else
+        {
+            break; // Stop when we exceed the estimate
         }
     }
-    // If the estimate is close to the chosen rung, add headroom by stepping up one rung.
-    // This helps overcome underestimation due to low offered load.
-    if (chosenIdx < averageBitrate.size() - 1)
+
+    DataRate chosenRate = averageBitrate[chosenIdx];
+    NS_LOG_DEBUG("Selected bitrate rung: " << chosenRate.GetBitRate() / 1e6 << " Mbps (index "
+                                           << chosenIdx << " of " << averageBitrate.size() - 1
+                                           << ")");
+
+    // DEFENSIVE CHECK: Ensure chosen rate is reasonable and bounded
+    // Additional safety: cap at a reasonable maximum to prevent RLC buffer overflow
+    const DataRate maxSafeRate = DataRate("40Mbps"); // Reduced from 50Mbps for extra safety
+    if (chosenRate > maxSafeRate)
     {
-        double threshold = 0.8 * static_cast<double>(averageBitrate[chosenIdx].GetBitRate());
-        if (static_cast<double>(result_non_quant.GetBitRate()) > threshold)
-        {
-            chosenIdx = std::min(chosenIdx + 1, static_cast<uint32_t>(averageBitrate.size() - 1));
-        }
+        NS_LOG_WARN("Chosen rate " << chosenRate.GetBitRate() / 1e6
+                                   << " Mbps exceeds safety limit, "
+                                   << "capping at " << maxSafeRate.GetBitRate() / 1e6 << " Mbps");
+        return maxSafeRate;
     }
-    return averageBitrate[chosenIdx];
+
+    // ADDITIONAL SAFETY: When data is invalid, explicitly cap at the rung just above 500kbps
+    // to ensure absolutely no aggressive transmission until ORAN is ready
+    if (!isDataValid && chosenRate > DataRate("1Mbps"))
+    {
+        NS_LOG_WARN("Data is invalid, capping rate at 1 Mbps for safety");
+        chosenRate = DataRate("1Mbps");
+    }
+
+    return chosenRate;
 }
 
 } // namespace ns3

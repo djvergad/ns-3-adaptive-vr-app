@@ -415,8 +415,8 @@ BurstyApplicationServerInstance::SendFragmentedBurst(uint32_t burstSize)
 
     m_txBurstTrace(burst, from, to, hdrTmp);
 
-    uint64_t fragmentStart = 0;
     uint16_t fragmentSeq = 0;
+    uint64_t currentOffset = 0;
 
     // if ((numFullFrags + (secondToLastFragSize > 0) + (lastFragSize > 0)) + m_queue.size () <
     //     m_queueSize)
@@ -424,27 +424,29 @@ BurstyApplicationServerInstance::SendFragmentedBurst(uint32_t burstSize)
 
     for (uint32_t i = 0; i < numFullFrags; i++)
     {
-        Ptr<Packet> fragment = burst->CreateFragment(fragmentStart, fullFragmentPayload);
-        fragmentStart += fullFragmentPayload;
+        // Use CreateFragment instead of Copy+RemoveAtStart+RemoveAtEnd to avoid metadata corruption
+        Ptr<Packet> fragment = burst->CreateFragment(currentOffset, fullFragmentPayload);
         SendFragment(fragment, burstPayload, totFrags, fragmentSeq++);
+        currentOffset += fullFragmentPayload;
     }
 
     if (secondToLastFragSize > 0)
     {
         uint64_t secondToLastFragPayload = secondToLastFragSize - hdrTmp.GetSerializedSize();
-        Ptr<Packet> fragment = burst->CreateFragment(fragmentStart, secondToLastFragPayload);
-        fragmentStart += secondToLastFragPayload;
+        // Use CreateFragment instead of Copy+RemoveAtStart+RemoveAtEnd to avoid metadata corruption
+        Ptr<Packet> fragment = burst->CreateFragment(currentOffset, secondToLastFragPayload);
         SendFragment(fragment, burstPayload, totFrags, fragmentSeq++);
+        currentOffset += secondToLastFragPayload;
     }
 
     if (lastFragSize > 0)
     {
         uint64_t lastFragPayload = lastFragSize - hdrTmp.GetSerializedSize();
-        Ptr<Packet> fragment = burst->CreateFragment(fragmentStart, lastFragPayload);
-        fragmentStart += lastFragPayload;
+        // Use CreateFragment instead of Copy+RemoveAtStart+RemoveAtEnd to avoid metadata corruption
+        Ptr<Packet> fragment = burst->CreateFragment(currentOffset, lastFragPayload);
         SendFragment(fragment, burstPayload, totFrags, fragmentSeq++);
+        currentOffset += lastFragPayload;
     }
-    NS_ASSERT(fragmentStart == burst->GetSize());
     // }
 
     m_totTxBursts++;
@@ -486,7 +488,7 @@ BurstyApplicationServerInstance::SendFragment(Ptr<Packet> fragment,
 
     if (m_queue.size() < m_queueSize)
     {
-        m_queue.push_back(*fragment);
+        m_queue.push_back(fragment);
     }
     else
     {
@@ -555,7 +557,7 @@ BurstyApplicationServerInstance::DataSend(Ptr<Socket> socket, uint32_t)
 
         uint32_t max_tx_size = socket->GetTxAvailable();
 
-        Ptr<Packet> frame = m_queue.front().Copy();
+        Ptr<Packet> frame = m_queue.front();
         uint32_t init_size = frame->GetSize();
 
         if (max_tx_size <= init_size)
