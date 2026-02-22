@@ -800,7 +800,7 @@ main(int argc, char* argv[])
 
     uint16_t port = dlPortLowLat;
 
-    uint32_t fragmentSize = 1472; // bytes
+    uint32_t fragmentSize = 1200; // bytes
 
     Config::SetDefault("ns3::VrBurstGenerator::FrameRate", DoubleValue(frameRate));
     Config::SetDefault("ns3::VrBurstGenerator::TargetDataRate", DataRateValue(DataRate(appRate)));
