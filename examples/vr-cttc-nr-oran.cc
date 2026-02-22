@@ -464,8 +464,8 @@ main(int argc, char* argv[])
      *
      */
 
-    Packet::EnableChecking();
-    Packet::EnablePrinting();
+    // Packet::EnableChecking();
+    // Packet::EnablePrinting();
 
     /*
      *  Case (i): Attributes valid for all the nodes
