@@ -42,6 +42,7 @@ endforeach()
 
 set(nr_examples
   vr-cttc-nr-oran
+  cttc-nr-vehicular-multicell
 )
 foreach(
   example
@@ -60,6 +61,7 @@ endforeach()
 
 set(lte_examples
   vr-cttc-lte-oran
+  vr-cttc-lte-oran-mobile
 )
 foreach(
   example
