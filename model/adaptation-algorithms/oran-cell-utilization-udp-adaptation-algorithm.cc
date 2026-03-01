@@ -102,54 +102,54 @@ OranCellUtilizationUdpAdaptationAlgorithm::adaptation_algorithm(double buffOcc,
                                                     << " Mbps "
                                                     << "(valid=" << isDataValid << ")");
 
-    return result_non_quant;
+    // return result_non_quant;
 
 
-    // std::vector<DataRate> averageBitrate = {55000,    77000,    108000,  151000,  212000,  297000,
-    //                                         415000,   582000,   814000,  1140000, 1596000, 2234000,
-    //                                         3128000,  3128000,  3254000, 3974000, 4496000, 6408000,
-    //                                         10938000, 17156000, 35018000};
+    std::vector<DataRate> averageBitrate = {55000,    77000,    108000,  151000,  212000,  297000,
+                                            415000,   582000,   814000,  1140000, 1596000, 2234000,
+                                            3128000,  3128000,  3254000, 3974000, 4496000, 6408000,
+                                            10938000, 17156000, 35018000};
 
-    // // FIXED: Use ultra-conservative quantization - find the HIGHEST rung that is <= estimate
-    // // This prevents overshooting capacity which causes packet loss and RLC buffer overruns
-    // uint32_t chosenIdx = 0; // Default to lowest rung (55 kbps)
-    // for (uint32_t i = 0; i < averageBitrate.size(); i++)
-    // {
-    //     if (averageBitrate[i] <= result_non_quant.GetBitRate())
-    //     {
-    //         chosenIdx = i; // Keep the highest rung we can afford
-    //     }
-    //     else
-    //     {
-    //         break; // Stop when we exceed the estimate
-    //     }
-    // }
+    // FIXED: Use ultra-conservative quantization - find the HIGHEST rung that is <= estimate
+    // This prevents overshooting capacity which causes packet loss and RLC buffer overruns
+    uint32_t chosenIdx = 0; // Default to lowest rung (55 kbps)
+    for (uint32_t i = 0; i < averageBitrate.size(); i++)
+    {
+        if (averageBitrate[i] <= result_non_quant.GetBitRate())
+        {
+            chosenIdx = i; // Keep the highest rung we can afford
+        }
+        else
+        {
+            break; // Stop when we exceed the estimate
+        }
+    }
 
-    // DataRate chosenRate = averageBitrate[chosenIdx];
-    // NS_LOG_DEBUG("Selected bitrate rung: " << chosenRate.GetBitRate() / 1e6 << " Mbps (index "
-    //                                        << chosenIdx << " of " << averageBitrate.size() - 1
-    //                                        << ")");
+    DataRate chosenRate = averageBitrate[chosenIdx];
+    NS_LOG_DEBUG("Selected bitrate rung: " << chosenRate.GetBitRate() / 1e6 << " Mbps (index "
+                                           << chosenIdx << " of " << averageBitrate.size() - 1
+                                           << ")");
 
-    // // DEFENSIVE CHECK: Ensure chosen rate is reasonable and bounded
-    // // Additional safety: cap at a reasonable maximum to prevent RLC buffer overflow
-    // const DataRate maxSafeRate = DataRate("40Mbps"); // Reduced from 50Mbps for extra safety
-    // if (chosenRate > maxSafeRate)
-    // {
-    //     NS_LOG_WARN("Chosen rate " << chosenRate.GetBitRate() / 1e6
-    //                                << " Mbps exceeds safety limit, "
-    //                                << "capping at " << maxSafeRate.GetBitRate() / 1e6 << " Mbps");
-    //     return maxSafeRate;
-    // }
+    // DEFENSIVE CHECK: Ensure chosen rate is reasonable and bounded
+    // Additional safety: cap at a reasonable maximum to prevent RLC buffer overflow
+    const DataRate maxSafeRate = DataRate("40Mbps"); // Reduced from 50Mbps for extra safety
+    if (chosenRate > maxSafeRate)
+    {
+        NS_LOG_WARN("Chosen rate " << chosenRate.GetBitRate() / 1e6
+                                   << " Mbps exceeds safety limit, "
+                                   << "capping at " << maxSafeRate.GetBitRate() / 1e6 << " Mbps");
+        return maxSafeRate;
+    }
 
-    // // ADDITIONAL SAFETY: When data is invalid, explicitly cap at the rung just above 500kbps
-    // // to ensure absolutely no aggressive transmission until ORAN is ready
-    // if (!isDataValid && chosenRate > DataRate("1Mbps"))
-    // {
-    //     NS_LOG_WARN("Data is invalid, capping rate at 1 Mbps for safety");
-    //     chosenRate = DataRate("1Mbps");
-    // }
+    // ADDITIONAL SAFETY: When data is invalid, explicitly cap at the rung just above 500kbps
+    // to ensure absolutely no aggressive transmission until ORAN is ready
+    if (!isDataValid && chosenRate > DataRate("1Mbps"))
+    {
+        NS_LOG_WARN("Data is invalid, capping rate at 1 Mbps for safety");
+        chosenRate = DataRate("1Mbps");
+    }
 
-    // return chosenRate;
+    return chosenRate;
 }
 
 } // namespace ns3
