@@ -27,6 +27,8 @@
 #include "ns3/point-to-point-module.h"
 #include "ns3/buildings-module.h"
 
+#include <limits>
+
 using namespace ns3;
 
 NS_LOG_COMPONENT_DEFINE("CttcLteDemo");
@@ -211,6 +213,47 @@ main(int argc, char* argv[])
     }
     mobility.SetPositionAllocator(uePos);
     mobility.Install(ueNodes);
+
+    // Export UE locations and nearest eNB distances as a TSV text file.
+    std::string ueLocationDistanceFile = outputDir + "/ue-location-distance-" + simTag + ".csv";
+    std::ofstream ueLocationDistanceOut(ueLocationDistanceFile.c_str(),
+                                        std::ofstream::out | std::ofstream::trunc);
+    if (!ueLocationDistanceOut.is_open())
+    {
+        std::cerr << "Can't open file " << ueLocationDistanceFile << std::endl;
+        return 1;
+    }
+
+    ueLocationDistanceOut << "UeIndex\tUeX_m\tUeY_m\tUeZ_m\tNearestEnbIndex\tNearestEnbDistance_m\n";
+
+    for (uint32_t ueIdx = 0; ueIdx < ueNodes.GetN(); ++ueIdx)
+    {
+        Ptr<MobilityModel> ueMobility = ueNodes.Get(ueIdx)->GetObject<MobilityModel>();
+        NS_ABORT_MSG_IF(!ueMobility, "UE node is missing MobilityModel");
+
+        const Vector uePosVec = ueMobility->GetPosition();
+        double minDistance = std::numeric_limits<double>::max();
+        uint32_t nearestEnbIdx = 0;
+
+        for (uint32_t enbIdx = 0; enbIdx < enbNodes.GetN(); ++enbIdx)
+        {
+            Ptr<MobilityModel> enbMobility = enbNodes.Get(enbIdx)->GetObject<MobilityModel>();
+            NS_ABORT_MSG_IF(!enbMobility, "eNB node is missing MobilityModel");
+
+            const double distance = ueMobility->GetDistanceFrom(enbMobility);
+            if (distance < minDistance)
+            {
+                minDistance = distance;
+                nearestEnbIdx = enbIdx;
+            }
+        }
+
+        ueLocationDistanceOut << ueIdx << "\t" << uePosVec.x << "\t" << uePosVec.y << "\t"
+                              << uePosVec.z << "\t" << nearestEnbIdx << "\t" << minDistance
+                              << "\n";
+    }
+
+    ueLocationDistanceOut.close();
 
     NodeContainer ueLowLatContainer;
     NodeContainer ueVoiceContainer;
