@@ -111,6 +111,15 @@ main(int argc, char* argv[])
     Time simTime = MilliSeconds(1000);
     Time udpAppStartTime = MilliSeconds(400);
 
+    bool useCa = true;
+    bool harqEnabled = true;
+    uint16_t numberOfComponentCarriers = 2;
+    uint16_t lteBandwidthRb = 100;
+    uint32_t dlEarfcn = 100;
+    uint32_t ulEarfcn = 18100;
+    double enbTxPowerDbm = 43.0;
+    double ueTxPowerDbm = 23.0;
+
     std::string appRate = "50Mbps";
     double frameRate = 60;
     std::string vrAppName = "VirusPopper";
@@ -132,11 +141,28 @@ main(int argc, char* argv[])
     cmd.AddValue("simulationTime", "Simulation time", simTime);
     cmd.AddValue("appRate", "the app target data rate", appRate);
     cmd.AddValue("frameRate", "the app frame rate [FPS]", frameRate);
+    cmd.AddValue("useCa", "Enable LTE carrier aggregation", useCa);
+    cmd.AddValue("harqEnabled", "Enable LTE HARQ retransmissions", harqEnabled);
+    cmd.AddValue("numberOfComponentCarriers",
+                 "Number of LTE component carriers to use when CA is enabled",
+                 numberOfComponentCarriers);
+    cmd.AddValue("lteBandwidthRb",
+                 "Per-component-carrier LTE bandwidth in resource blocks (25=5MHz, 50=10MHz, 100=20MHz)",
+                 lteBandwidthRb);
+    cmd.AddValue("dlEarfcn", "Downlink EARFCN for the primary LTE component carrier", dlEarfcn);
+    cmd.AddValue("ulEarfcn", "Uplink EARFCN for the primary LTE component carrier", ulEarfcn);
+    cmd.AddValue("enbTxPowerDbm", "eNB transmit power in dBm", enbTxPowerDbm);
+    cmd.AddValue("ueTxPowerDbm", "UE transmit power in dBm", ueTxPowerDbm);
     cmd.AddValue("vrAppName", "the app name", vrAppName);
     cmd.AddValue("burstGeneratorType", "type of burst generator {\"model\", \"google\", \"fuzzy\"}", burstGeneratorType);
     cmd.AddValue("simTag", "tag to be appended to output filenames to distinguish simulation campaigns", simTag);
     cmd.AddValue("outputDir", "directory where to store simulation results", outputDir);
     cmd.Parse(argc, argv);
+
+    NS_ABORT_MSG_IF(!useCa && numberOfComponentCarriers > 1,
+                    "numberOfComponentCarriers > 1 requires useCa=true");
+    NS_ABORT_MSG_IF(lteBandwidthRb == 0 || lteBandwidthRb > 100,
+                    "lteBandwidthRb must be in the range [1, 100]");
 
     if (logging)
     {
@@ -275,20 +301,26 @@ main(int argc, char* argv[])
 
     Ptr<LteHelper> lteHelper = CreateObject<LteHelper>();
     lteHelper->SetSchedulerType("ns3::PfFfMacScheduler");
+    lteHelper->SetSchedulerAttribute("HarqEnabled", BooleanValue(harqEnabled));
 
-    // LTE-A Configuration: Enable Carrier Aggregation
-    // Configure component carriers (2x20MHz for 40MHz total bandwidth)
-    uint16_t numberOfComponentCarriers = 2;
+    // LTE-A configuration. The helper defaults to 25 RB (5 MHz), which is too
+    // restrictive for multi-user VR traffic. Use 100 RB (20 MHz) per carrier by
+    // default and enable CA explicitly so 2x20 MHz is actually provisioned.
+    lteHelper->SetAttribute("UseCa", BooleanValue(useCa));
     lteHelper->SetAttribute("NumberOfComponentCarriers", UintegerValue(numberOfComponentCarriers));
     lteHelper->SetAttribute("EnbComponentCarrierManager", StringValue("ns3::RrComponentCarrierManager"));
     lteHelper->SetAttribute("UeComponentCarrierManager", StringValue("ns3::SimpleUeComponentCarrierManager"));
+    lteHelper->SetEnbDeviceAttribute("DlBandwidth", UintegerValue(lteBandwidthRb));
+    lteHelper->SetEnbDeviceAttribute("UlBandwidth", UintegerValue(lteBandwidthRb));
+    lteHelper->SetEnbDeviceAttribute("DlEarfcn", UintegerValue(dlEarfcn));
+    lteHelper->SetEnbDeviceAttribute("UlEarfcn", UintegerValue(ulEarfcn));
 
     Ptr<PointToPointEpcHelper> epcHelper = CreateObject<PointToPointEpcHelper>();
     lteHelper->SetEpcHelper(epcHelper);
 
     // Set some LTE defaults
-    Config::SetDefault("ns3::LteEnbPhy::TxPower", DoubleValue(30.0));
-    Config::SetDefault("ns3::LteUePhy::TxPower", DoubleValue(23.0));
+    Config::SetDefault("ns3::LteEnbPhy::TxPower", DoubleValue(enbTxPowerDbm));
+    Config::SetDefault("ns3::LteUePhy::TxPower", DoubleValue(ueTxPowerDbm));
 
     NetDeviceContainer enbNetDev = lteHelper->InstallEnbDevice(enbNodes);
     NetDeviceContainer ueLowLatNetDev = lteHelper->InstallUeDevice(ueLowLatContainer);
