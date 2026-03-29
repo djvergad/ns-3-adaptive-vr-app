@@ -28,7 +28,14 @@ OranCellUtilizationUdpAdaptationAlgorithm::GetTypeId(void)
                 "Logical Channel ID for VR traffic bearer (typically 4-10 for dedicated bearers)",
                 UintegerValue(5),
                 MakeUintegerAccessor(&OranCellUtilizationUdpAdaptationAlgorithm::m_lcid),
-                MakeUintegerChecker<uint8_t>(3, 32));
+                MakeUintegerChecker<uint8_t>(3, 32))
+            .AddAttribute(
+                "UseDerivativeBitrate",
+                "If true, query GetVrBitrateDer instead of GetVrBitrate.",
+                BooleanValue(false),
+                MakeBooleanAccessor(
+                    &OranCellUtilizationUdpAdaptationAlgorithm::m_useDerivativeBitrate),
+                MakeBooleanChecker());
     return tid;
 }
 
@@ -76,8 +83,15 @@ OranCellUtilizationUdpAdaptationAlgorithm::adaptation_algorithm(double buffOcc,
         }
         else
         {
-            // Query the ORAN logic module for VR bitrate
-            result_non_quant = m_lm->GetVrBitrate(m_server_instance->m_peer, m_lcid);
+            // Query the ORAN logic module for VR bitrate.
+            if (m_useDerivativeBitrate)
+            {
+                result_non_quant = m_lm->GetVrBitrateDer(m_server_instance->m_peer, m_lcid);
+            }
+            else
+            {
+                result_non_quant = m_lm->GetVrBitrate(m_server_instance->m_peer, m_lcid);
+            }
 
             // DEFENSIVE CHECK: If GetVrBitrate returns 0 (data not available/initialized),
             // use ultra-conservative fallback to ensure absolutely no buffer overruns

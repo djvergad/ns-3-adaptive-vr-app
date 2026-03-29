@@ -154,7 +154,7 @@ main(int argc, char* argv[])
     cmd.AddValue("enbTxPowerDbm", "eNB transmit power in dBm", enbTxPowerDbm);
     cmd.AddValue("ueTxPowerDbm", "UE transmit power in dBm", ueTxPowerDbm);
     cmd.AddValue("vrAppName", "the app name", vrAppName);
-    cmd.AddValue("burstGeneratorType", "type of burst generator {\"model\", \"google\", \"fuzzy\"}", burstGeneratorType);
+    cmd.AddValue("burstGeneratorType", "type of burst generator {\"model\", \"google\", \"fuzzy\", \"oran-util-udp-der\"}", burstGeneratorType);
     cmd.AddValue("simTag", "tag to be appended to output filenames to distinguish simulation campaigns", simTag);
     cmd.AddValue("outputDir", "directory where to store simulation results", outputDir);
     cmd.Parse(argc, argv);
@@ -439,6 +439,14 @@ main(int argc, char* argv[])
     {
         protocol = "ns3::UdpSocketFactory";
         Config::SetDefault("ns3::BurstyApplicationServer::adaptationAlgorithm", StringValue("OranCellUtilizationUdpAdaptationAlgorithm"));
+        Config::SetDefault("ns3::OranCellUtilizationUdpAdaptationAlgorithm::UseDerivativeBitrate", BooleanValue(false));
+        Config::SetDefault("ns3::OranCellUtilizationUdpAdaptationAlgorithm::OranLogicVrBitrate", PointerValue(Ptr<OranLogicVrBitrate>(oranLogicVrBitrate)));
+    }
+    else if (burstGeneratorType == "oran-util-udp-der")
+    {
+        protocol = "ns3::UdpSocketFactory";
+        Config::SetDefault("ns3::BurstyApplicationServer::adaptationAlgorithm", StringValue("OranCellUtilizationUdpAdaptationAlgorithm"));
+        Config::SetDefault("ns3::OranCellUtilizationUdpAdaptationAlgorithm::UseDerivativeBitrate", BooleanValue(true));
         Config::SetDefault("ns3::OranCellUtilizationUdpAdaptationAlgorithm::OranLogicVrBitrate", PointerValue(Ptr<OranLogicVrBitrate>(oranLogicVrBitrate)));
     }
     else if (burstGeneratorType == "oran-util-udp-no-queue")

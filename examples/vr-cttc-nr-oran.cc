@@ -230,7 +230,7 @@ main(int argc, char* argv[])
     cmd.AddValue("frameRate", "the app frame rate [FPS]", frameRate);
     cmd.AddValue("vrAppName", "the app name", vrAppName);
     cmd.AddValue("burstGeneratorType",
-                 "type of burst generator {\"model\", \"google\", \"fuzzy\"}",
+                 "type of burst generator {\"model\", \"google\", \"fuzzy\", \"oran-util-udp-der\"}",
                  burstGeneratorType);
 
     cmd.AddValue("simTag",
@@ -737,7 +737,19 @@ main(int argc, char* argv[])
         // Use UDP-based ORAN utilization adaptation algorithm
         Config::SetDefault("ns3::BurstyApplicationServer::adaptationAlgorithm",
                            StringValue("OranCellUtilizationUdpAdaptationAlgorithm"));
+        Config::SetDefault("ns3::OranCellUtilizationUdpAdaptationAlgorithm::UseDerivativeBitrate",
+                           BooleanValue(false));
         // Provide the collector instance so the algorithm can query cell utilization
+        Config::SetDefault("ns3::OranCellUtilizationUdpAdaptationAlgorithm::OranLogicVrBitrate",
+                           PointerValue(Ptr<OranLogicVrBitrate>(oranLogicVrBitrate)));
+    }
+    else if (burstGeneratorType == "oran-util-udp-der")
+    {
+        protocol = "ns3::UdpSocketFactory";
+        Config::SetDefault("ns3::BurstyApplicationServer::adaptationAlgorithm",
+                           StringValue("OranCellUtilizationUdpAdaptationAlgorithm"));
+        Config::SetDefault("ns3::OranCellUtilizationUdpAdaptationAlgorithm::UseDerivativeBitrate",
+                           BooleanValue(true));
         Config::SetDefault("ns3::OranCellUtilizationUdpAdaptationAlgorithm::OranLogicVrBitrate",
                            PointerValue(Ptr<OranLogicVrBitrate>(oranLogicVrBitrate)));
     }
@@ -1058,6 +1070,7 @@ main(int argc, char* argv[])
     // Connect each gNB MAC BufferStatusReportTrace to the corresponding
     // OranReporterNrUeBitratePerLcid instance created by the terminator.
     if (burstGeneratorType == "oran-util-udp" ||
+        burstGeneratorType == "oran-util-udp-der" ||
         burstGeneratorType == "oran-util-udp-no-queue")
     {
         for (uint32_t idx = 0; idx < gnbNetDev.GetN(); ++idx)

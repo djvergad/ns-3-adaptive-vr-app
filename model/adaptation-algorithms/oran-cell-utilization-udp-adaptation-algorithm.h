@@ -57,6 +57,9 @@ private:
 
   // Logical Channel ID for VR traffic (configurable to match actual bearer LCID)
   uint8_t m_lcid = 5; // Default to 5, but can be configured from script
+
+  // Selects Predictive-BRAM derivative-aware bitrate query.
+  bool m_useDerivativeBitrate = false;
 };
 
 } // namespace ns3
