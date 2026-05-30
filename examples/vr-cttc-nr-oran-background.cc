@@ -939,7 +939,7 @@ main(int argc, char* argv[])
     ulServerApps2.Stop(simTime + Seconds(3));
 
     // Background traffic: 10 uplink sources with rapidly varying rates.
-    const Time backgroundStart = Seconds(1.0);
+    const Time backgroundStart = Seconds(4.0);
     const Time backgroundRateUpdatePeriod = MilliSeconds(100);
     const uint16_t backgroundPortBase = 20000;
     const uint32_t backgroundMinRateKbps = 250;
