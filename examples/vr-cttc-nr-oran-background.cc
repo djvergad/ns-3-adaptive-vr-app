@@ -547,11 +547,13 @@ main(int argc, char* argv[])
     // gNb routing between Bearer and bandwidh part
     nrHelper->SetGnbBwpManagerAlgorithmAttribute("NGBR_LOW_LAT_EMBB",
                                                  UintegerValue(bwpIdForLowLat));
-    nrHelper->SetGnbBwpManagerAlgorithmAttribute("GBR_CONV_VOICE", UintegerValue(bwpIdForVoice));
+    nrHelper->SetGnbBwpManagerAlgorithmAttribute("NGBR_VIDEO_TCP_DEFAULT",
+                                                 UintegerValue(bwpIdForVoice));
 
     // Ue routing between Bearer and bandwidth part
     nrHelper->SetUeBwpManagerAlgorithmAttribute("NGBR_LOW_LAT_EMBB", UintegerValue(bwpIdForLowLat));
-    nrHelper->SetUeBwpManagerAlgorithmAttribute("GBR_CONV_VOICE", UintegerValue(bwpIdForVoice));
+    nrHelper->SetUeBwpManagerAlgorithmAttribute("NGBR_VIDEO_TCP_DEFAULT",
+                                                UintegerValue(bwpIdForVoice));
 
     /*
      * We miss many other parameters. By default, not configuring them is equivalent
@@ -671,6 +673,8 @@ main(int argc, char* argv[])
      */
     uint16_t dlPortLowLat = 1234;
     uint16_t dlPortVoice = 1235;
+    const uint16_t backgroundPortBase = 20000;
+    const uint16_t vrClientPortBase = 30000;
 
     /*
      * Configure attributes for the different generators, using user-provided
@@ -821,8 +825,8 @@ main(int argc, char* argv[])
     // The filter for the low-latency traffic
     Ptr<NrEpcTft> lowLatTft = Create<NrEpcTft>();
     NrEpcTft::PacketFilter dlpfLowLat;
-    dlpfLowLat.localPortStart = dlPortLowLat;
-    dlpfLowLat.localPortEnd = dlPortLowLat;
+    dlpfLowLat.localPortStart = vrClientPortBase;
+    dlpfLowLat.localPortEnd = vrClientPortBase + vrTrafficNodeCount - 1;
     lowLatTft->Add(dlpfLowLat);
     // Also add uplink filter for same port
     if (protocol != "ns3::TcpSocketFactory")
@@ -838,20 +842,69 @@ main(int argc, char* argv[])
     dlClientVoice.SetAttribute("PacketSize", UintegerValue(udpPacketSizeBe));
     dlClientVoice.SetAttribute("Interval", TimeValue(Seconds(1.0 / lambdaBe)));
 
-    // // The bearer that will carry voice traffic
-    NrEpsBearer voiceBearer(NrEpsBearer::GBR_CONV_VOICE);
+    // The bearer that will carry background traffic with lower priority than VR.
+    NrEpsBearer backgroundBearer(NrEpsBearer::NGBR_VIDEO_TCP_DEFAULT);
 
-    // The filter for the voice traffic
-    Ptr<NrEpcTft> voiceTft = Create<NrEpcTft>();
-    // NrEpcTft::PacketFilter dlpfVoice;
-    // dlpfVoice.localPortStart = dlPortVoice;
-    // dlpfVoice.localPortEnd = dlPortVoice;
-    // voiceTft->Add(dlpfVoice);
-    // Also add uplink filter for same port
-    NrEpcTft::PacketFilter ulpfVoice;
-    ulpfVoice.remotePortStart = dlPortLowLat;
-    ulpfVoice.remotePortEnd = dlPortLowLat;
-    voiceTft->Add(ulpfVoice);
+    // The filter for the background traffic (OnOff downlink flows).
+    Ptr<NrEpcTft> backgroundTft = Create<NrEpcTft>();
+    if (backgroundNodeCount > 0)
+    {
+        NrEpcTft::PacketFilter dlpfBackground;
+        dlpfBackground.localPortStart = backgroundPortBase;
+        dlpfBackground.localPortEnd = backgroundPortBase + backgroundNodeCount - 1;
+        backgroundTft->Add(dlpfBackground);
+    }
+
+    // Activate dedicated bearers before creating server applications so that
+    // the adaptation algorithm can use the actual LCID assigned by NR.
+    uint8_t vrBearerId = 0;
+    uint8_t vrLcid = 5;
+    bool vrLcidDetected = false;
+
+    for (uint32_t i = 0; i < ueLowLatContainer.GetN(); ++i)
+    {
+        Ptr<NetDevice> ueDevice = ueLowLatNetDev.Get(i);
+        uint8_t bearerId = nrHelper->ActivateDedicatedEpsBearer(ueDevice, lowLatBearer, lowLatTft);
+
+        // NR mapping in NrUeManager: LCID = BID + 2 for data radio bearers.
+        uint8_t detectedLcid = bearerId + 2;
+        if (!vrLcidDetected)
+        {
+            vrBearerId = bearerId;
+            vrLcid = detectedLcid;
+            vrLcidDetected = true;
+        }
+        else if (bearerId != vrBearerId)
+        {
+            NS_LOG_WARN("Inconsistent VR bearer IDs across UEs ("
+                        << static_cast<uint32_t>(vrBearerId)
+                        << " vs " << static_cast<uint32_t>(bearerId)
+                        << "), keeping first detected LCID="
+                        << static_cast<uint32_t>(vrLcid));
+        }
+    }
+
+    // Activate a lower-priority dedicated bearer for background OnOff traffic.
+    for (uint32_t i = 0; i < ueVoiceContainer.GetN(); ++i)
+    {
+        Ptr<NetDevice> ueDevice = ueVoiceNetDev.Get(i);
+        nrHelper->ActivateDedicatedEpsBearer(ueDevice, backgroundBearer, backgroundTft);
+    }
+
+    if (vrLcidDetected)
+    {
+        NS_LOG_UNCOND("Auto-detected VR LCID=" << static_cast<uint32_t>(vrLcid)
+                                                << " (from bearer ID "
+                                                << static_cast<uint32_t>(vrBearerId) << ")");
+        Config::SetDefault("ns3::OranCellUtilizationUdpAdaptationAlgorithm::Lcid",
+                           UintegerValue(vrLcid));
+        Config::SetDefault("ns3::OranCellUtilizationUdpNoQueueAdaptationAlgorithm::Lcid",
+                           UintegerValue(vrLcid));
+    }
+    else
+    {
+        NS_LOG_WARN("Could not auto-detect VR LCID; using configured/default LCID");
+    }
 
     /*OranReporterNrUeBitratePerLcid
      * Let's install the applications!
@@ -905,12 +958,14 @@ main(int argc, char* argv[])
     for (uint32_t i = 0; i < ueLowLatContainer.GetN(); ++i)
     {
         Time startTime = Seconds(randomStart->GetValue());
+        uint16_t vrClientLocalPort = vrClientPortBase + i;
         NS_LOG_UNCOND("STA" << i << " will start at " << startTime.As(Time::S));
         Ptr<BurstyApplicationClient> app = DynamicCast<BurstyApplicationClient>(clientApps.Get(i));
 
         app->SetStartTime(startTime);
         app->SetAttribute("Local",
-                          AddressValue(InetSocketAddress(ueLowLatIpIface.GetAddress(i), 0)));
+                          AddressValue(InetSocketAddress(ueLowLatIpIface.GetAddress(i),
+                                                         vrClientLocalPort)));
 
         app->TraceConnectWithoutContext("BurstRx", MakeBoundCallback(&BurstRx, burstTrace));
         app->TraceConnectWithoutContext("FragmentRx",
@@ -918,14 +973,6 @@ main(int argc, char* argv[])
     }
 
     clientApps.Stop(simTime + Seconds(3));
-
-    // Activate dedicated bearers for low-latency traffic through BurstyApplicationClient
-    for (uint32_t i = 0; i < ueLowLatContainer.GetN(); ++i)
-    {
-        Ptr<NetDevice> ueDevice = ueLowLatNetDev.Get(i);
-        nrHelper->ActivateDedicatedEpsBearer(ueDevice, voiceBearer, voiceTft);
-        nrHelper->ActivateDedicatedEpsBearer(ueDevice, lowLatBearer, lowLatTft);
-    }
 
     // Install UDP servers on UEs to receive downlink traffic
     UdpServerHelper ulServer1(dlPortLowLat);
@@ -939,9 +986,8 @@ main(int argc, char* argv[])
     ulServerApps2.Stop(simTime + Seconds(3));
 
     // Background traffic: downlink sources with rapidly varying rates.
-    const Time backgroundStart = Seconds(4.0);
+    const Time backgroundStart = Seconds(3.0);
     const Time backgroundRateUpdatePeriod = MilliSeconds(100);
-    const uint16_t backgroundPortBase = 20000;
     const uint32_t backgroundMinRateKbps = 250;
     const uint32_t backgroundMaxRateKbps = 25000;
 
