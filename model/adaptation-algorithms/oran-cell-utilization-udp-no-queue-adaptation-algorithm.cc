@@ -23,7 +23,13 @@ OranCellUtilizationUdpNoQueueAdaptationAlgorithm::GetTypeId(void)
                 "The OranLogicVrBitrate used.",
                 PointerValue(0),
                 MakePointerAccessor(&OranCellUtilizationUdpNoQueueAdaptationAlgorithm::m_lm),
-                MakePointerChecker<OranLogicVrBitrate>());
+                MakePointerChecker<OranLogicVrBitrate>())
+            .AddAttribute(
+                "Lcid",
+                "Logical Channel ID for VR traffic bearer (typically 4-10 for dedicated bearers)",
+                UintegerValue(5),
+                MakeUintegerAccessor(&OranCellUtilizationUdpNoQueueAdaptationAlgorithm::m_lcid),
+                MakeUintegerChecker<uint8_t>(3, 32));
     return tid;
 }
 
@@ -65,7 +71,7 @@ OranCellUtilizationUdpNoQueueAdaptationAlgorithm::adaptation_algorithm(double bu
         else
         {
             // Query the ORAN logic module for VR bitrate (without tx queue)
-            result_non_quant = m_lm->GetVrBitrateNoTxQueue(m_server_instance->m_peer, 5);
+            result_non_quant = m_lm->GetVrBitrateNoTxQueue(m_server_instance->m_peer, m_lcid);
 
             // DEFENSIVE CHECK: If GetVrBitrateNoTxQueue returns 0 (data not available/initialized),
             // use ultra-conservative fallback to ensure absolutely no buffer overruns

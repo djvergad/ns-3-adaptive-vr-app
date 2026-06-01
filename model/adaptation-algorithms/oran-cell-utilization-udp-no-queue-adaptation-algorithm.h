@@ -25,6 +25,8 @@ private:
   // Override the adaptation algorithm
   virtual DataRate adaptation_algorithm (double buffOcc, double diffBuffOcc, DataRate lastRate);
   Ptr<OranLogicVrBitrate> m_lm;
+  // Logical Channel ID for VR traffic bearer (configurable).
+  uint8_t m_lcid = 5;
 };
 
 } // namespace ns3
