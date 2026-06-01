@@ -938,7 +938,7 @@ main(int argc, char* argv[])
     ulServerApps2.Start(Seconds(0.0));
     ulServerApps2.Stop(simTime + Seconds(3));
 
-    // Background traffic: 10 uplink sources with rapidly varying rates.
+    // Background traffic: downlink sources with rapidly varying rates.
     const Time backgroundStart = Seconds(4.0);
     const Time backgroundRateUpdatePeriod = MilliSeconds(100);
     const uint16_t backgroundPortBase = 20000;
@@ -951,13 +951,14 @@ main(int argc, char* argv[])
     for (uint16_t i = 0; i < backgroundNodeCount; ++i)
     {
         uint16_t flowPort = backgroundPortBase + i;
+        Ipv4Address ueAddress = ueVoiceIpIface.GetAddress(i);
 
         PacketSinkHelper sinkHelper("ns3::UdpSocketFactory",
                                     InetSocketAddress(Ipv4Address::GetAny(), flowPort));
-        backgroundSinkApps.Add(sinkHelper.Install(remoteHost));
+        backgroundSinkApps.Add(sinkHelper.Install(ueVoiceContainer.Get(i)));
 
         OnOffHelper backgroundOnOff("ns3::UdpSocketFactory",
-                                    InetSocketAddress(remoteHostActualAddress, flowPort));
+                                    InetSocketAddress(ueAddress, flowPort));
         backgroundOnOff.SetAttribute("PacketSize", UintegerValue(1200));
         backgroundOnOff.SetAttribute("OnTime",
                                      StringValue("ns3::ConstantRandomVariable[Constant=1]"));
@@ -965,7 +966,7 @@ main(int argc, char* argv[])
                                      StringValue("ns3::ConstantRandomVariable[Constant=0]"));
         backgroundOnOff.SetAttribute("DataRate", DataRateValue(DataRate("1Mbps")));
 
-        ApplicationContainer sourceApp = backgroundOnOff.Install(ueVoiceContainer.Get(i));
+        ApplicationContainer sourceApp = backgroundOnOff.Install(remoteHost);
         sourceApp.Start(backgroundStart);
         sourceApp.Stop(simTime + Seconds(3));
         backgroundClientApps.Add(sourceApp);
