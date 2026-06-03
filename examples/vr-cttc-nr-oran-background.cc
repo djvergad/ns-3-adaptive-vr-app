@@ -54,6 +54,7 @@ $ ./ns3 run "cttc-nr-demo --PrintHelp"
 #include "ns3/bursty-application-server-instance.h"
 #include "ns3/config-store-module.h"
 #include "ns3/core-module.h"
+#include "ns3/epc-tft.h"
 #include "ns3/flow-monitor-module.h"
 #include "ns3/internet-apps-module.h"
 #include "ns3/internet-module.h"
@@ -188,7 +189,6 @@ main(int argc, char* argv[])
     // Simulation parameters. Please don't use double to indicate seconds; use
     // ns-3 Time values which use integers to avoid portability issues.
     Time simTime = MilliSeconds(1000);
-    Time udpAppStartTime = MilliSeconds(400);
 
     // NR parameters (Reference: 3GPP TR 38.901 V17.0.0 (Release 17)
     // Table 7.8-1 for the power and BW).
@@ -212,6 +212,8 @@ main(int argc, char* argv[])
     // Where we will store the output files.
     std::string simTag = "default";
     std::string outputDir = "./";
+
+    Time backgroundStart = Seconds(3.0);
 
     /*
      * From here, we instruct the ns3::CommandLine class of all the input parameters
@@ -263,10 +265,13 @@ main(int argc, char* argv[])
     cmd.AddValue("appRate", "the app target data rate", appRate);
     cmd.AddValue("frameRate", "the app frame rate [FPS]", frameRate);
     cmd.AddValue("vrAppName", "the app name", vrAppName);
-    cmd.AddValue("burstGeneratorType",
-                 "type of burst generator {\"model\", \"google\", \"fuzzy\", \"oran-util-udp-der\"}",
-                 burstGeneratorType);
-
+    cmd.AddValue(
+        "burstGeneratorType",
+        "type of burst generator {\"model\", \"google\", \"fuzzy\", \"oran-util-udp-der\"}",
+        burstGeneratorType);
+    cmd.AddValue("backgroundStart",
+                 "the time at which the background traffic starts",
+                 backgroundStart);
     cmd.AddValue("simTag",
                  "tag to be appended to output filenames to distinguish simulation campaigns",
                  simTag);
@@ -282,8 +287,7 @@ main(int argc, char* argv[])
     {
         ueNumPergNb = (requiredUes + gNbNum - 1) / gNbNum;
         NS_LOG_UNCOND("Adjusted ueNumPergNb to "
-                      << ueNumPergNb
-                      << " so VR traffic can use " << vrTrafficNodeCount
+                      << ueNumPergNb << " so VR traffic can use " << vrTrafficNodeCount
                       << " nodes and background traffic can use " << backgroundNodeCount
                       << " nodes");
     }
@@ -547,11 +551,15 @@ main(int argc, char* argv[])
     // gNb routing between Bearer and bandwidh part
     nrHelper->SetGnbBwpManagerAlgorithmAttribute("NGBR_LOW_LAT_EMBB",
                                                  UintegerValue(bwpIdForLowLat));
+    nrHelper->SetGnbBwpManagerAlgorithmAttribute("NGBR_VIDEO_TCP_OPERATOR",
+                                                 UintegerValue(bwpIdForLowLat));
     nrHelper->SetGnbBwpManagerAlgorithmAttribute("NGBR_VIDEO_TCP_DEFAULT",
                                                  UintegerValue(bwpIdForVoice));
 
     // Ue routing between Bearer and bandwidth part
     nrHelper->SetUeBwpManagerAlgorithmAttribute("NGBR_LOW_LAT_EMBB", UintegerValue(bwpIdForLowLat));
+    nrHelper->SetUeBwpManagerAlgorithmAttribute("NGBR_VIDEO_TCP_OPERATOR",
+                                                UintegerValue(bwpIdForLowLat));
     nrHelper->SetUeBwpManagerAlgorithmAttribute("NGBR_VIDEO_TCP_DEFAULT",
                                                 UintegerValue(bwpIdForVoice));
 
@@ -604,6 +612,8 @@ main(int argc, char* argv[])
 
     // From here, it is standard NS3. In the future, we will create helpers
     // for this part as well.
+
+    // Config::SetDefault("ns3::DropTailQueue<Packet>::MaxSize", StringValue("10000p"));
 
     auto [remoteHost, remoteHostIpv4Address] =
         nrEpcHelper->SetupRemoteHost("100Gb/s", 2500, Seconds(0.000));
@@ -811,8 +821,9 @@ main(int argc, char* argv[])
         Config::SetDefault("ns3::BurstyApplicationServer::adaptationAlgorithm",
                            StringValue("OranCellUtilizationUdpNoQueueAdaptationAlgorithm"));
         // Provide the collector instance so the algorithm can query cell utilization
-        Config::SetDefault("ns3::OranCellUtilizationUdpNoQueueAdaptationAlgorithm::OranLogicVrBitrate",
-                           PointerValue(Ptr<OranLogicVrBitrate>(oranLogicVrBitrate)));
+        Config::SetDefault(
+            "ns3::OranCellUtilizationUdpNoQueueAdaptationAlgorithm::OranLogicVrBitrate",
+            PointerValue(Ptr<OranLogicVrBitrate>(oranLogicVrBitrate)));
     }
     else
     {
@@ -820,22 +831,24 @@ main(int argc, char* argv[])
     }
 
     // The bearer that will carry low latency traffic
-    NrEpsBearer lowLatBearer(NrEpsBearer::NGBR_LOW_LAT_EMBB);
 
-    // The filter for the low-latency traffic
-    Ptr<NrEpcTft> lowLatTft = Create<NrEpcTft>();
-    NrEpcTft::PacketFilter dlpfLowLat;
-    dlpfLowLat.localPortStart = vrClientPortBase;
-    dlpfLowLat.localPortEnd = vrClientPortBase + vrTrafficNodeCount - 1;
-    lowLatTft->Add(dlpfLowLat);
-    // Also add uplink filter for same port
-    if (protocol != "ns3::TcpSocketFactory")
-    {
-        NrEpcTft::PacketFilter ulpfLowLat;
-        ulpfLowLat.remotePortStart = dlPortLowLat;
-        ulpfLowLat.remotePortEnd = dlPortLowLat;
-        lowLatTft->Add(ulpfLowLat);
-    }
+    NrEpsBearer dlDataBearer(NrEpsBearer::NGBR_VIDEO_TCP_OPERATOR);
+    Ptr<NrEpcTft> dlDataTft = Create<NrEpcTft>();
+    NrEpcTft::PacketFilter pfDl;
+    pfDl.remotePortStart = dlPortLowLat;
+    pfDl.remotePortEnd = dlPortLowLat;
+    pfDl.direction = NrEpcTft::DOWNLINK; // Restrict filter to Downlink only
+    dlDataTft->Add(pfDl);
+
+    // 2. Bearer for Uplink (TCP ACKs) - Higher Priority
+    NrEpsBearer ulAckBearer(NrEpsBearer::NGBR_LOW_LAT_EMBB);
+    Ptr<NrEpcTft> ulAckTft = Create<NrEpcTft>();
+    NrEpcTft::PacketFilter pfUl;
+    pfUl.remotePortStart = dlPortLowLat;
+    pfUl.remotePortEnd = dlPortLowLat;
+    pfUl.direction = NrEpcTft::UPLINK; // Restrict filter to Uplink only
+    ulAckTft->Add(pfUl);
+
     // Voice configuration and object creation:
     UdpClientHelper dlClientVoice;
     dlClientVoice.SetAttribute("MaxPackets", UintegerValue(0xFFFFFFFF));
@@ -864,23 +877,27 @@ main(int argc, char* argv[])
     for (uint32_t i = 0; i < ueLowLatContainer.GetN(); ++i)
     {
         Ptr<NetDevice> ueDevice = ueLowLatNetDev.Get(i);
-        uint8_t bearerId = nrHelper->ActivateDedicatedEpsBearer(ueDevice, lowLatBearer, lowLatTft);
 
-        // NR mapping in NrUeManager: LCID = BID + 2 for data radio bearers.
-        uint8_t detectedLcid = bearerId + 2;
+        // Activate the Downlink Bearer for TCP Data
+        uint8_t dlBearerId =
+            nrHelper->ActivateDedicatedEpsBearer(ueDevice, dlDataBearer, dlDataTft);
+
+        nrHelper->ActivateDedicatedEpsBearer(ueDevice, ulAckBearer, ulAckTft);
+
+        // NR mapping in NrUeManager
+        uint8_t detectedLcid = dlBearerId + 2;
         if (!vrLcidDetected)
         {
-            vrBearerId = bearerId;
+            vrBearerId = dlBearerId;
             vrLcid = detectedLcid;
             vrLcidDetected = true;
         }
-        else if (bearerId != vrBearerId)
+        else if (dlBearerId != vrBearerId)
         {
             NS_LOG_WARN("Inconsistent VR bearer IDs across UEs ("
-                        << static_cast<uint32_t>(vrBearerId)
-                        << " vs " << static_cast<uint32_t>(bearerId)
-                        << "), keeping first detected LCID="
-                        << static_cast<uint32_t>(vrLcid));
+                        << static_cast<uint32_t>(vrBearerId) << " vs "
+                        << static_cast<uint32_t>(dlBearerId)
+                        << "), keeping first detected LCID=" << static_cast<uint32_t>(vrLcid));
         }
     }
 
@@ -894,8 +911,8 @@ main(int argc, char* argv[])
     if (vrLcidDetected)
     {
         NS_LOG_UNCOND("Auto-detected VR LCID=" << static_cast<uint32_t>(vrLcid)
-                                                << " (from bearer ID "
-                                                << static_cast<uint32_t>(vrBearerId) << ")");
+                                               << " (from bearer ID "
+                                               << static_cast<uint32_t>(vrBearerId) << ")");
         Config::SetDefault("ns3::OranCellUtilizationUdpAdaptationAlgorithm::Lcid",
                            UintegerValue(vrLcid));
         Config::SetDefault("ns3::OranCellUtilizationUdpNoQueueAdaptationAlgorithm::Lcid",
@@ -923,16 +940,16 @@ main(int argc, char* argv[])
 
     ApplicationContainer serverApp = server.Install(remoteHost);
     serverApp.Start(Seconds(0.0));
-    serverApp.Stop(simTime + Seconds(3));
+    serverApp.Stop(simTime + backgroundStart + Seconds(2));
 
     BurstyApplicationClientHelper client(protocol,
                                          InetSocketAddress(remoteHostActualAddress, port));
     ApplicationContainer clientApps = client.Install(ueLowLatContainer);
     Ptr<UniformRandomVariable> randomStart =
         CreateObjectWithAttributes<UniformRandomVariable>("Min",
-                                                          DoubleValue(2.5),
+                                                          DoubleValue(backgroundStart.GetSeconds()),
                                                           "Max",
-                                                          DoubleValue(3));
+                                                          DoubleValue(backgroundStart.GetSeconds() + 1));
 
     // Setup traces
     AsciiTraceHelper ascii;
@@ -963,30 +980,29 @@ main(int argc, char* argv[])
         Ptr<BurstyApplicationClient> app = DynamicCast<BurstyApplicationClient>(clientApps.Get(i));
 
         app->SetStartTime(startTime);
-        app->SetAttribute("Local",
-                          AddressValue(InetSocketAddress(ueLowLatIpIface.GetAddress(i),
-                                                         vrClientLocalPort)));
+        app->SetAttribute(
+            "Local",
+            AddressValue(InetSocketAddress(ueLowLatIpIface.GetAddress(i), vrClientLocalPort)));
 
         app->TraceConnectWithoutContext("BurstRx", MakeBoundCallback(&BurstRx, burstTrace));
         app->TraceConnectWithoutContext("FragmentRx",
                                         MakeBoundCallback(&FragmentRx, fragmentTrace));
     }
 
-    clientApps.Stop(simTime + Seconds(3));
+    clientApps.Stop(simTime + backgroundStart + Seconds(2));
 
     // Install UDP servers on UEs to receive downlink traffic
     UdpServerHelper ulServer1(dlPortLowLat);
     ApplicationContainer ulServerApps1 = ulServer1.Install(ueLowLatContainer);
     ulServerApps1.Start(Seconds(0.0));
-    ulServerApps1.Stop(simTime + Seconds(3));
+    ulServerApps1.Stop(simTime + backgroundStart + Seconds(2));
 
     UdpServerHelper ulServer2(dlPortVoice);
     ApplicationContainer ulServerApps2 = ulServer2.Install(ueVoiceContainer);
     ulServerApps2.Start(Seconds(0.0));
-    ulServerApps2.Stop(simTime + Seconds(3));
+    ulServerApps2.Stop(simTime + backgroundStart + Seconds(2));
 
     // Background traffic: downlink sources with rapidly varying rates.
-    const Time backgroundStart = Seconds(3.0);
     const Time backgroundRateUpdatePeriod = MilliSeconds(100);
     const uint32_t backgroundMinRateKbps = 250;
     const uint32_t backgroundMaxRateKbps = 25000;
@@ -1014,7 +1030,7 @@ main(int argc, char* argv[])
 
         ApplicationContainer sourceApp = backgroundOnOff.Install(remoteHost);
         sourceApp.Start(backgroundStart);
-        sourceApp.Stop(simTime + Seconds(3));
+        sourceApp.Stop(backgroundStart + simTime);
         backgroundClientApps.Add(sourceApp);
 
         Ptr<OnOffApplication> onOff = DynamicCast<OnOffApplication>(sourceApp.Get(0));
@@ -1031,11 +1047,11 @@ main(int argc, char* argv[])
                             backgroundMinRateKbps,
                             backgroundMaxRateKbps,
                             backgroundRateUpdatePeriod,
-                            simTime + Seconds(3));
+                            backgroundStart + simTime);
     }
 
     backgroundSinkApps.Start(Seconds(0.0));
-    backgroundSinkApps.Stop(simTime + Seconds(3));
+    backgroundSinkApps.Stop(simTime + backgroundStart + Seconds(2));
 
     // Create downlink UDP clients to send traffic from remote host to UEs
     // ApplicationContainer dlClientAppsLowLat;
@@ -1215,8 +1231,7 @@ main(int argc, char* argv[])
 
     // Connect each gNB MAC BufferStatusReportTrace to the corresponding
     // OranReporterNrUeBitratePerLcid instance created by the terminator.
-    if (burstGeneratorType == "oran-util-udp" ||
-        burstGeneratorType == "oran-util-udp-der" ||
+    if (burstGeneratorType == "oran-util-udp" || burstGeneratorType == "oran-util-udp-der" ||
         burstGeneratorType == "oran-util-udp-no-queue")
     {
         for (uint32_t idx = 0; idx < gnbNetDev.GetN(); ++idx)
@@ -1321,7 +1336,7 @@ main(int argc, char* argv[])
     monitor->SetAttribute("JitterBinWidth", DoubleValue(0.001));
     monitor->SetAttribute("PacketSizeBinWidth", DoubleValue(20));
 
-    Simulator::Stop(simTime + Seconds(4));
+    Simulator::Stop(simTime + backgroundStart + Seconds(3));
     Simulator::Run();
 
     /*
@@ -1351,7 +1366,7 @@ main(int argc, char* argv[])
 
     outFile.setf(std::ios_base::fixed);
 
-    double flowDuration = (simTime - udpAppStartTime).GetSeconds();
+    double flowDuration = simTime.GetSeconds();
     for (auto i = stats.begin(); i != stats.end(); ++i)
     {
         Ipv4FlowClassifier::FiveTuple t = classifier->FindFlow(i->first);
