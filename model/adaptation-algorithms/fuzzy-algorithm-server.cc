@@ -35,7 +35,9 @@ FuzzyAlgorithmServer::adaptation_algorithm (double buffOcc, double diffBuffOcc, 
 
   double empty = 0, ok = 0, full = 0, falling = 0, steady = 0, rising = 0;
 
-  double targetBuffOcc = 2000; //bytes
+  // Scale target queue occupancy with sending rate so high-rate flows are not always classified as
+  // "full". Keep a small absolute minimum for very low rates.
+  double targetBuffOcc = std::max (2000.0, (lastRate.GetBitRate () / 8.0) * 0.05); // bytes (50 ms)
 
   if (buffOcc == 0)
     {
@@ -108,6 +110,13 @@ FuzzyAlgorithmServer::adaptation_algorithm (double buffOcc, double diffBuffOcc, 
                                           415000,   582000,   814000,  1140000, 1596000, 2234000,
                                           3128000,  3128000,  3254000, 3974000, 4496000, 6408000,
                                           10938000, 17156000, 35018000};
+
+  // Escape hatch: if we are at (or near) the floor and queue occupancy is decreasing, force a
+  // one-step probe up to allow recovery after transient congestion.
+  if (lastRate <= averageBitrate[1] && diffBuffOcc < 0)
+    {
+      return averageBitrate[2];
+    }
 
   if (output > 1.0)
     {
