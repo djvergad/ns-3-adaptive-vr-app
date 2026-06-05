@@ -354,12 +354,14 @@ main(int argc, char* argv[])
      */
     Config::SetDefault("ns3::NrRlcUm::MaxTxBufferSize", UintegerValue(9999999));
 
-    Config::SetDefault("ns3::TcpL4Protocol::SocketType",
-                       TypeIdValue(TypeId::LookupByName("ns3::TcpCubic")));
     Config::SetDefault("ns3::BurstyApplicationServer::appDuration", TimeValue(simTime));
 
-    Config::SetDefault("ns3::TcpSocket::SndBufSize", UintegerValue(1 << 23));
-    Config::SetDefault("ns3::TcpSocket::RcvBufSize", UintegerValue(1 << 23));
+    Config::SetDefault("ns3::TcpSocket::SndBufSize", UintegerValue(4194304));
+    Config::SetDefault("ns3::TcpSocket::RcvBufSize", UintegerValue(4194304));
+    Config::SetDefault("ns3::TcpL4Protocol::SocketType",
+                       TypeIdValue(TypeId::LookupByName("ns3::TcpCubic")));
+    Config::SetDefault("ns3::TcpSocketBase::Sack", BooleanValue(true));
+    Config::SetDefault("ns3::NrAmc::AmcModel", EnumValue(NrAmc::ErrorModel));
 
     /*
      * Create the scenario. In our examples, we heavily use helpers that setup
@@ -945,11 +947,11 @@ main(int argc, char* argv[])
     BurstyApplicationClientHelper client(protocol,
                                          InetSocketAddress(remoteHostActualAddress, port));
     ApplicationContainer clientApps = client.Install(ueLowLatContainer);
-    Ptr<UniformRandomVariable> randomStart =
-        CreateObjectWithAttributes<UniformRandomVariable>("Min",
-                                                          DoubleValue(backgroundStart.GetSeconds()),
-                                                          "Max",
-                                                          DoubleValue(backgroundStart.GetSeconds() + 1));
+    Ptr<UniformRandomVariable> randomStart = CreateObjectWithAttributes<UniformRandomVariable>(
+        "Min",
+        DoubleValue(backgroundStart.GetSeconds()),
+        "Max",
+        DoubleValue(backgroundStart.GetSeconds() + 1));
 
     // Setup traces
     AsciiTraceHelper ascii;
