@@ -229,9 +229,10 @@ main(int argc, char* argv[])
     cmd.AddValue("appRate", "the app target data rate", appRate);
     cmd.AddValue("frameRate", "the app frame rate [FPS]", frameRate);
     cmd.AddValue("vrAppName", "the app name", vrAppName);
-    cmd.AddValue("burstGeneratorType",
-                 "type of burst generator {\"model\", \"google\", \"fuzzy\", \"oran-util-udp-der\"}",
-                 burstGeneratorType);
+    cmd.AddValue(
+        "burstGeneratorType",
+        "type of burst generator {\"model\", \"google\", \"fuzzy\", \"oran-util-udp-der\"}",
+        burstGeneratorType);
 
     cmd.AddValue("simTag",
                  "tag to be appended to output filenames to distinguish simulation campaigns",
@@ -741,6 +742,8 @@ main(int argc, char* argv[])
                            StringValue("OranCellUtilizationUdpAdaptationAlgorithm"));
         Config::SetDefault("ns3::OranCellUtilizationUdpAdaptationAlgorithm::UseDerivativeBitrate",
                            BooleanValue(false));
+        Config::SetDefault("ns3::OranCellUtilizationUdpAdaptationAlgorithm::UseOptimizedBitrate",
+                           BooleanValue(false));
         // Provide the collector instance so the algorithm can query cell utilization
         Config::SetDefault("ns3::OranCellUtilizationUdpAdaptationAlgorithm::OranLogicVrBitrate",
                            PointerValue(Ptr<OranLogicVrBitrate>(oranLogicVrBitrate)));
@@ -752,6 +755,20 @@ main(int argc, char* argv[])
                            StringValue("OranCellUtilizationUdpAdaptationAlgorithm"));
         Config::SetDefault("ns3::OranCellUtilizationUdpAdaptationAlgorithm::UseDerivativeBitrate",
                            BooleanValue(true));
+        Config::SetDefault("ns3::OranCellUtilizationUdpAdaptationAlgorithm::UseOptimizedBitrate",
+                           BooleanValue(false));
+        Config::SetDefault("ns3::OranCellUtilizationUdpAdaptationAlgorithm::OranLogicVrBitrate",
+                           PointerValue(Ptr<OranLogicVrBitrate>(oranLogicVrBitrate)));
+    }
+    else if (burstGeneratorType == "oran-util-udp-opt")
+    {
+        protocol = "ns3::UdpSocketFactory";
+        Config::SetDefault("ns3::BurstyApplicationServer::adaptationAlgorithm",
+                           StringValue("OranCellUtilizationUdpAdaptationAlgorithm"));
+        Config::SetDefault("ns3::OranCellUtilizationUdpAdaptationAlgorithm::UseDerivativeBitrate",
+                           BooleanValue(false));
+        Config::SetDefault("ns3::OranCellUtilizationUdpAdaptationAlgorithm::UseOptimizedBitrate",
+                           BooleanValue(true));
         Config::SetDefault("ns3::OranCellUtilizationUdpAdaptationAlgorithm::OranLogicVrBitrate",
                            PointerValue(Ptr<OranLogicVrBitrate>(oranLogicVrBitrate)));
     }
@@ -762,8 +779,9 @@ main(int argc, char* argv[])
         Config::SetDefault("ns3::BurstyApplicationServer::adaptationAlgorithm",
                            StringValue("OranCellUtilizationUdpNoQueueAdaptationAlgorithm"));
         // Provide the collector instance so the algorithm can query cell utilization
-        Config::SetDefault("ns3::OranCellUtilizationUdpNoQueueAdaptationAlgorithm::OranLogicVrBitrate",
-                           PointerValue(Ptr<OranLogicVrBitrate>(oranLogicVrBitrate)));
+        Config::SetDefault(
+            "ns3::OranCellUtilizationUdpNoQueueAdaptationAlgorithm::OranLogicVrBitrate",
+            PointerValue(Ptr<OranLogicVrBitrate>(oranLogicVrBitrate)));
     }
     else
     {
@@ -1074,9 +1092,8 @@ main(int argc, char* argv[])
 
     // Connect each gNB MAC BufferStatusReportTrace to the corresponding
     // OranReporterNrUeBitratePerLcid instance created by the terminator.
-    if (burstGeneratorType == "oran-util-udp" ||
-        burstGeneratorType == "oran-util-udp-der" ||
-        burstGeneratorType == "oran-util-udp-no-queue")
+    if (burstGeneratorType == "oran-util-udp" || burstGeneratorType == "oran-util-udp-der" ||
+        burstGeneratorType == "oran-util-udp-opt" || burstGeneratorType == "oran-util-udp-no-queue")
     {
         for (uint32_t idx = 0; idx < gnbNetDev.GetN(); ++idx)
         {
@@ -1147,8 +1164,7 @@ main(int argc, char* argv[])
                         {
                             gnbMac->TraceConnectWithoutContext(
                                 "BufferStatusReportTrace",
-                                MakeCallback(&OranReporterNrUeStats::OnBufferStatusReport,
-                                             stats));
+                                MakeCallback(&OranReporterNrUeStats::OnBufferStatusReport, stats));
 
                             for (uint32_t q = 0; q < 2; ++q)
                             {
