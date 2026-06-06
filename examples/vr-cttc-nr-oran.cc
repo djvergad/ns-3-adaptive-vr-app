@@ -1057,6 +1057,9 @@ main(int argc, char* argv[])
     oranHelper->AddReporter("ns3::OranReporterNrUeTxQueueHolDelay",
                             "Trigger",
                             StringValue("ns3::OranReportTriggerPeriodic"));
+    oranHelper->AddReporter("ns3::OranReporterNrUeStats",
+                            "Trigger",
+                            StringValue("ns3::OranReportTriggerPeriodic"));
 
     std::cout << "Deploying ENB terminators and wiring reporters" << std::endl;
 
@@ -1136,6 +1139,27 @@ main(int argc, char* argv[])
                                 "BufferStatusReportTrace",
                                 MakeCallback(&OranReporterNrUeTxQueueHolDelay::OnBufferStatusReport,
                                              txq));
+                        }
+
+                        Ptr<OranReporterNrUeStats> stats =
+                            DynamicCast<OranReporterNrUeStats>(repObj);
+                        if (stats)
+                        {
+                            gnbMac->TraceConnectWithoutContext(
+                                "BufferStatusReportTrace",
+                                MakeCallback(&OranReporterNrUeStats::OnBufferStatusReport,
+                                             stats));
+
+                            for (uint32_t q = 0; q < 2; ++q)
+                            {
+                                Ptr<NrMacScheduler> sched = nrHelper->GetScheduler(dev, q);
+                                if (sched)
+                                {
+                                    sched->TraceConnectWithoutContext(
+                                        "SchedStats",
+                                        MakeCallback(&OranReporterNrUeStats::OnSchedStats, stats));
+                                }
+                            }
                         }
                     }
                     break; // found the terminator for this node
