@@ -362,6 +362,7 @@ main(int argc, char* argv[])
                        TypeIdValue(TypeId::LookupByName("ns3::TcpCubic")));
     Config::SetDefault("ns3::TcpSocketBase::Sack", BooleanValue(true));
     Config::SetDefault("ns3::NrAmc::AmcModel", EnumValue(NrAmc::ErrorModel));
+    Config::SetDefault("ns3::TcpSocket::TcpNoDelay", BooleanValue(true));
 
     /*
      * Create the scenario. In our examples, we heavily use helpers that setup
