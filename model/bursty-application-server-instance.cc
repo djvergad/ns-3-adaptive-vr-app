@@ -560,7 +560,7 @@ BurstyApplicationServerInstance::DataSend(Ptr<Socket> socket, uint32_t)
         Ptr<Packet> frame = m_queue.front();
         uint32_t init_size = frame->GetSize();
 
-        if (max_tx_size <= init_size)
+        if (max_tx_size < init_size)
         {
             // NS_ABORT_MSG ("Socket Send buffer is full");
             return;

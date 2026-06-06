@@ -111,10 +111,37 @@ FuzzyAlgorithmServer::adaptation_algorithm (double buffOcc, double diffBuffOcc, 
                                           3128000,  3128000,  3254000, 3974000, 4496000, 6408000,
                                           10938000, 17156000, 35018000};
 
+  const DataRate floorRate = averageBitrate[1];
+
+  if (lastRate <= floorRate)
+    {
+      m_lowRateStreak++;
+    }
+  else
+    {
+      m_lowRateStreak = 0;
+    }
+
+  if (m_probeCooldown > 0)
+    {
+      m_probeCooldown--;
+    }
+
   // Escape hatch: if we are at (or near) the floor and queue occupancy is decreasing, force a
   // one-step probe up to allow recovery after transient congestion.
-  if (lastRate <= averageBitrate[1] && diffBuffOcc < 0)
+  if (lastRate <= floorRate && diffBuffOcc < 0)
     {
+      m_probeCooldown = 6;
+      return averageBitrate[2];
+    }
+
+  // If a flow is pinned at the floor for a long time, periodically probe one step up even when
+  // derivative noise prevents diffBuffOcc from becoming negative.
+  if (lastRate <= floorRate && m_lowRateStreak >= 12 && m_probeCooldown == 0 &&
+      buffOcc < 1.5 * targetBuffOcc)
+    {
+      m_lowRateStreak = 0;
+      m_probeCooldown = 8;
       return averageBitrate[2];
     }
 

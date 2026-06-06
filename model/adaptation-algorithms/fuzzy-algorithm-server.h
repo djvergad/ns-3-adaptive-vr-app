@@ -18,6 +18,9 @@ public:
 
 private:
   DataRate adaptation_algorithm (double buffOcc, double diffBuffOcc, DataRate lastRate);
+
+  uint32_t m_lowRateStreak = 0;
+  uint32_t m_probeCooldown = 0;
 };
 
 } // namespace ns3
