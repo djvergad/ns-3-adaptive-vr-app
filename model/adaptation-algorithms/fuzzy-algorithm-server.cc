@@ -35,9 +35,7 @@ FuzzyAlgorithmServer::adaptation_algorithm (double buffOcc, double diffBuffOcc, 
 
   double empty = 0, ok = 0, full = 0, falling = 0, steady = 0, rising = 0;
 
-  // Scale target queue occupancy with sending rate so high-rate flows are not always classified as
-  // "full". Keep a small absolute minimum for very low rates.
-  double targetBuffOcc = std::max (2000.0, (lastRate.GetBitRate () / 8.0) * 0.05); // bytes (50 ms)
+  double targetBuffOcc = 2000; //bytes
 
   if (buffOcc == 0)
     {
@@ -102,69 +100,15 @@ FuzzyAlgorithmServer::adaptation_algorithm (double buffOcc, double diffBuffOcc, 
 
   DataRate result_non_quant = DataRate(output * lastRate.GetBitRate ());
 
-
-  result_non_quant = DataRate(std::max(uint64_t(100000), std::min(result_non_quant.GetBitRate(), uint64_t(50000000))));
-
-
   std::vector<DataRate> averageBitrate = {55000,    77000,    108000,  151000,  212000,  297000,
                                           415000,   582000,   814000,  1140000, 1596000, 2234000,
                                           3128000,  3128000,  3254000, 3974000, 4496000, 6408000,
                                           10938000, 17156000, 35018000};
-
-  const DataRate floorRate = averageBitrate[1];
-
-  if (lastRate <= floorRate)
-    {
-      m_lowRateStreak++;
+  for (uint32_t i = 1; i < averageBitrate.size(); i++) {
+    if (averageBitrate[i] > result_non_quant) {
+      return averageBitrate[i - 1];
     }
-  else
-    {
-      m_lowRateStreak = 0;
-    }
-
-  if (m_probeCooldown > 0)
-    {
-      m_probeCooldown--;
-    }
-
-  // Escape hatch: if we are at (or near) the floor and queue occupancy is decreasing, force a
-  // one-step probe up to allow recovery after transient congestion.
-  if (lastRate <= floorRate && diffBuffOcc < 0)
-    {
-      m_probeCooldown = 6;
-      return averageBitrate[2];
-    }
-
-  // If a flow is pinned at the floor for a long time, periodically probe one step up even when
-  // derivative noise prevents diffBuffOcc from becoming negative.
-  if (lastRate <= floorRate && m_lowRateStreak >= 12 && m_probeCooldown == 0 &&
-      buffOcc < 1.5 * targetBuffOcc)
-    {
-      m_lowRateStreak = 0;
-      m_probeCooldown = 8;
-      return averageBitrate[2];
-    }
-
-  if (output > 1.0)
-    {
-      for (const DataRate& bitrate : averageBitrate)
-        {
-          if (bitrate >= result_non_quant)
-            {
-              return bitrate;
-            }
-        }
-    }
-  else
-    {
-      for (uint32_t i = 1; i < averageBitrate.size(); i++)
-        {
-          if (averageBitrate[i] > result_non_quant)
-            {
-              return averageBitrate[i - 1];
-            }
-        }
-    }
+  }
 
   return averageBitrate[averageBitrate.size() - 1];
 }
