@@ -100,6 +100,33 @@ AddressToString(const Address& addr)
     return addressStr.str();
 }
 
+NodeContainer allUes;
+Vector gnbPos;
+
+float
+GetUeDistanceFromAddress(const Address ueAddress,
+                         const NodeContainer ueNodes,
+                         const Vector gnbPosition)
+{
+    for (size_t i = 0; i < ueNodes.GetN(); ++i)
+    {
+        Ptr<Node> ueNode = ueNodes.Get(i);
+        Ptr<MobilityModel> ueMobility = ueNodes.Get(i)->GetObject<MobilityModel>();
+
+        if (ueNode && ueMobility)
+        {
+            Address currentUeAddress = ueNode->GetObject<Ipv4>()->GetAddress(1, 0).GetLocal();
+            if (currentUeAddress == ueAddress)
+            {
+                Vector uePosition = ueMobility->GetPosition();
+                double distance = CalculateDistance(gnbPosition, uePosition);
+                return static_cast<float>(distance);
+            }
+        }
+    }
+    return -1.0f; // Return -1.0f if the UE address is not found
+}
+
 void
 BurstRx(Ptr<OutputStreamWrapper> traceFile,
         Ptr<const Packet> burst,
@@ -109,7 +136,8 @@ BurstRx(Ptr<OutputStreamWrapper> traceFile,
 {
     *traceFile->GetStream() << AddressToString(to) << "," << header.GetTs().GetNanoSeconds() << ","
                             << Simulator::Now().GetNanoSeconds() << "," << header.GetSeq() << ","
-                            << header.GetSize() << "\n";
+                            << header.GetSize() << ","
+                            << GetUeDistanceFromAddress(to, allUes, gnbPos) << "\n";
 }
 
 void
@@ -122,7 +150,8 @@ FragmentRx(Ptr<OutputStreamWrapper> traceFile,
     *traceFile->GetStream() << AddressToString(to) << "," << header.GetTs().GetNanoSeconds() << ","
                             << Simulator::Now().GetNanoSeconds() << "," << header.GetSeq() << ","
                             << header.GetFragSeq() << "," << header.GetFrags() << ","
-                            << fragment->GetSize() << "\n";
+                            << fragment->GetSize() << ","
+                            << GetUeDistanceFromAddress(to, allUes, gnbPos) << "\n";
 }
 
 void
@@ -152,9 +181,10 @@ main(int argc, char* argv[])
     uint16_t ueNumPergNb = 2;
     bool logging = false;
     bool doubleOperationalBand = true;
-    double farUeDistance = 50.0; // Distance in meters for far UEs from gNB
+    double mediumUeDistance = 30.0;      // Distance in meters for medium UEs from gNB
+    double farUeDistance = 50.0;         // Distance in meters for far UEs from gNB
     std::string channelScenario = "UMa"; // Channel scenario: UMi, UMa, RMa
-    bool enableShadowing = true; // Enable shadowing for realistic path loss
+    bool enableShadowing = true;         // Enable shadowing for realistic path loss
 
     // Traffic parameters (that we will use inside this script):
     uint32_t udpPacketSizeULL = 100;
@@ -207,9 +237,13 @@ main(int argc, char* argv[])
     cmd.AddValue("farUeDistance",
                  "Distance in meters of far UEs from gNB (near UEs are at ~1.5m)",
                  farUeDistance);
-    cmd.AddValue("channelScenario",
-                 "3GPP channel scenario: UMi (Urban Micro), UMa (Urban Macro), or RMa (Rural Macro)",
-                 channelScenario);
+    cmd.AddValue("mediumUeDistance",
+                 "Distance in meters of medium UEs from gNB (near UEs are at ~1.5m)",
+                 mediumUeDistance);
+    cmd.AddValue(
+        "channelScenario",
+        "3GPP channel scenario: UMi (Urban Micro), UMa (Urban Macro), or RMa (Rural Macro)",
+        channelScenario);
     cmd.AddValue("enableShadowing",
                  "Enable shadowing in the channel model for realistic fading",
                  enableShadowing);
@@ -261,14 +295,14 @@ main(int argc, char* argv[])
      */
     NS_ABORT_IF(centralFrequencyBand1 < 0.5e9 && centralFrequencyBand1 > 100e9);
     NS_ABORT_IF(centralFrequencyBand2 < 0.5e9 && centralFrequencyBand2 > 100e9);
-    
+
     // Validate channel scenario
     if (channelScenario != "UMi" && channelScenario != "UMa" && channelScenario != "RMa")
     {
-        NS_ABORT_MSG("Invalid channel scenario: " << channelScenario 
-                     << ". Valid options are: UMi, UMa, RMa");
+        NS_ABORT_MSG("Invalid channel scenario: " << channelScenario
+                                                  << ". Valid options are: UMi, UMa, RMa");
     }
-    
+
     // Validate farUeDistance
     NS_ABORT_IF(farUeDistance < 10.0);
     NS_LOG_INFO("Far UE distance configured to: " << farUeDistance << " meters");
@@ -340,7 +374,7 @@ main(int argc, char* argv[])
      * Create the scenario. In our examples, we heavily use helpers that setup
      * the gnbs and ue following a pre-defined pattern. Please have a look at the
      * GridScenarioHelper documentation to see how the nodes will be distributed.
-     * 
+     *
      * MODIFIED: Instead of using GridScenarioHelper's automatic UE placement,
      * we manually position UEs: half near the gNB and half at a specified distance
      * arranged in a circle.
@@ -358,7 +392,7 @@ main(int argc, char* argv[])
     gridScenario.SetSectorization(GridScenarioHelper::SINGLE);
     gridScenario.SetBsNumber(gNbNum);
     gridScenario.SetUtNumber(ueNumPergNb * gNbNum);
-    
+
     // Set a larger scenario size to accommodate far UEs
     double scenarioSize = std::max(farUeDistance * 2.5, 100.0);
     gridScenario.SetScenarioHeight(scenarioSize);
@@ -367,51 +401,71 @@ main(int argc, char* argv[])
     gridScenario.CreateScenario();
 
     // Manually reposition UEs: half near gNB, half at farUeDistance in a circle
-    NodeContainer allUes = gridScenario.GetUserTerminals();
+    allUes = gridScenario.GetUserTerminals();
     uint32_t totalUes = allUes.GetN();
-    uint32_t nearUes = totalUes / 2;
-    uint32_t farUes = totalUes - nearUes;
-    
+    uint32_t nearUes = totalUes / 3;
+    uint32_t mediumUes = totalUes / 3;
+    uint32_t farUes = totalUes - nearUes - mediumUes;
+
     // Get gNB position (assuming single gNB at index 0)
     Ptr<Node> gnbNode = gridScenario.GetBaseStations().Get(0);
     Ptr<MobilityModel> gnbMobility = gnbNode->GetObject<MobilityModel>();
-    Vector gnbPos = gnbMobility->GetPosition();
-    
+    gnbPos = gnbMobility->GetPosition();
+
     NS_LOG_INFO("gNB position: (" << gnbPos.x << ", " << gnbPos.y << ", " << gnbPos.z << ")");
-    NS_LOG_INFO("Placing " << nearUes << " UEs near gNB and " << farUes << " UEs at distance " 
-                << farUeDistance << "m");
-    
+    NS_LOG_INFO("Placing " << nearUes << " UEs near gNB and " << mediumUes << " UEs at distance "
+                           << mediumUeDistance << " and " << farUes << " UEs at distance "
+                           << farUeDistance << "m");
+
     // Position near UEs in a small circle around the gNB (radius ~2m)
     double nearRadius = 2.0;
     for (uint32_t i = 0; i < nearUes; ++i)
     {
         Ptr<Node> ueNode = allUes.Get(i);
         Ptr<MobilityModel> ueMobility = ueNode->GetObject<MobilityModel>();
-        
+
         double angle = (2.0 * M_PI * i) / nearUes;
         double x = gnbPos.x + nearRadius * cos(angle);
         double y = gnbPos.y + nearRadius * sin(angle);
         double z = 1.5; // UE height
-        
+
         Vector newPos(x, y, z);
         ueMobility->SetPosition(newPos);
         NS_LOG_INFO("Near UE " << i << " positioned at (" << x << ", " << y << ", " << z << ")");
     }
-    
-    // Position far UEs in a circle at farUeDistance from the gNB
-    for (uint32_t i = 0; i < farUes; ++i)
+
+    // Position medium UEs in a circle at mediumUeDistance from the gNB
+    for (uint32_t i = 0; i < mediumUes; ++i)
     {
         Ptr<Node> ueNode = allUes.Get(nearUes + i);
         Ptr<MobilityModel> ueMobility = ueNode->GetObject<MobilityModel>();
-        
+
+        double angle = (2.0 * M_PI * i) / mediumUes;
+        double x = gnbPos.x + mediumUeDistance * cos(angle);
+        double y = gnbPos.y + mediumUeDistance * sin(angle);
+        double z = 1.5; // UE height
+
+        Vector newPos(x, y, z);
+        ueMobility->SetPosition(newPos);
+        NS_LOG_INFO("Medium UE " << (nearUes + i) << " positioned at (" << x << ", " << y << ", "
+                                 << z << ")");
+    }
+
+    // Position far UEs in a circle at farUeDistance from the gNB
+    for (uint32_t i = 0; i < farUes; ++i)
+    {
+        Ptr<Node> ueNode = allUes.Get(nearUes + mediumUes + i);
+        Ptr<MobilityModel> ueMobility = ueNode->GetObject<MobilityModel>();
+
         double angle = (2.0 * M_PI * i) / farUes;
         double x = gnbPos.x + farUeDistance * cos(angle);
         double y = gnbPos.y + farUeDistance * sin(angle);
         double z = 1.5; // UE height
-        
+
         Vector newPos(x, y, z);
         ueMobility->SetPosition(newPos);
-        NS_LOG_INFO("Far UE " << (nearUes + i) << " positioned at (" << x << ", " << y << ", " << z << ")");
+        NS_LOG_INFO("Far UE " << (nearUes + mediumUes + i) << " positioned at (" << x << ", " << y
+                              << ", " << z << ")");
     }
 
     /*
@@ -508,7 +562,7 @@ main(int argc, char* argv[])
     /**
      * Use channelHelper API to define the attributes for the channel model (condition, pathloss and
      * spectrum)
-     * 
+     *
      * MODIFIED: Using configurable channel scenario and shadowing to create realistic
      * path loss differences between near and far UEs.
      * - UMa (Urban Macro): Higher path loss, suitable for larger cell sizes
@@ -517,10 +571,10 @@ main(int argc, char* argv[])
      */
     channelHelper->SetChannelConditionModelAttribute("UpdatePeriod", TimeValue(MilliSeconds(100)));
     channelHelper->SetPathlossAttribute("ShadowingEnabled", BooleanValue(enableShadowing));
-    
-    NS_LOG_INFO("Using channel scenario: " << channelScenario 
-                << ", Shadowing: " << (enableShadowing ? "Enabled" : "Disabled")
-                << ", TX Power: " << totalTxPower << " dBm");
+
+    NS_LOG_INFO("Using channel scenario: " << channelScenario << ", Shadowing: "
+                                           << (enableShadowing ? "Enabled" : "Disabled")
+                                           << ", TX Power: " << totalTxPower << " dBm");
     /*
      * if not single band simulation, initialize and setup power in the second band.
      * Install channel and pathloss, plus other things inside single or both bands.
@@ -839,8 +893,9 @@ main(int argc, char* argv[])
         Config::SetDefault("ns3::BurstyApplicationServer::adaptationAlgorithm",
                            StringValue("OranCellUtilizationUdpNoQueueAdaptationAlgorithm"));
         // Provide the collector instance so the algorithm can query cell utilization
-        Config::SetDefault("ns3::OranCellUtilizationUdpNoQueueAdaptationAlgorithm::OranLogicVrBitrate",
-                           PointerValue(Ptr<OranLogicVrBitrate>(oranLogicVrBitrate)));
+        Config::SetDefault(
+            "ns3::OranCellUtilizationUdpNoQueueAdaptationAlgorithm::OranLogicVrBitrate",
+            PointerValue(Ptr<OranLogicVrBitrate>(oranLogicVrBitrate)));
     }
     else
     {
@@ -1148,8 +1203,7 @@ main(int argc, char* argv[])
 
     // Connect each gNB MAC BufferStatusReportTrace to the corresponding
     // OranReporterNrUeBitratePerLcid instance created by the terminator.
-    if (burstGeneratorType == "oran-util-udp" ||
-        burstGeneratorType == "oran-util-udp-no-queue")
+    if (burstGeneratorType == "oran-util-udp" || burstGeneratorType == "oran-util-udp-no-queue")
     {
         for (uint32_t idx = 0; idx < gnbNetDev.GetN(); ++idx)
         {
