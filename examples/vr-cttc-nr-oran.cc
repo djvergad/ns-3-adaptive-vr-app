@@ -229,9 +229,10 @@ main(int argc, char* argv[])
     cmd.AddValue("appRate", "the app target data rate", appRate);
     cmd.AddValue("frameRate", "the app frame rate [FPS]", frameRate);
     cmd.AddValue("vrAppName", "the app name", vrAppName);
-    cmd.AddValue("burstGeneratorType",
-                 "type of burst generator {\"model\", \"google\", \"fuzzy\", \"oran-util-udp-der\"}",
-                 burstGeneratorType);
+    cmd.AddValue(
+        "burstGeneratorType",
+        "type of burst generator {\"model\", \"google\", \"fuzzy\", \"oran-util-udp-der\"}",
+        burstGeneratorType);
 
     cmd.AddValue("simTag",
                  "tag to be appended to output filenames to distinguish simulation campaigns",
@@ -667,6 +668,8 @@ main(int argc, char* argv[])
     if (!dbFileName.empty())
     {
         std::remove(dbFileName.c_str());
+        std::remove((dbFileName + "-wal").c_str());
+        std::remove((dbFileName + "-shm").c_str());
     }
 
     oranHelper->SetDataRepository("ns3::OranDataRepositorySqlite",
@@ -739,6 +742,10 @@ main(int argc, char* argv[])
                            StringValue("OranCellUtilizationUdpAdaptationAlgorithm"));
         Config::SetDefault("ns3::OranCellUtilizationUdpAdaptationAlgorithm::UseDerivativeBitrate",
                            BooleanValue(false));
+        Config::SetDefault("ns3::OranCellUtilizationUdpAdaptationAlgorithm::UseOptimizedBitrate",
+                           BooleanValue(false));
+        Config::SetDefault("ns3::OranCellUtilizationUdpAdaptationAlgorithm::UseDqnBitrate",
+                           BooleanValue(false));
         // Provide the collector instance so the algorithm can query cell utilization
         Config::SetDefault("ns3::OranCellUtilizationUdpAdaptationAlgorithm::OranLogicVrBitrate",
                            PointerValue(Ptr<OranLogicVrBitrate>(oranLogicVrBitrate)));
@@ -750,6 +757,39 @@ main(int argc, char* argv[])
                            StringValue("OranCellUtilizationUdpAdaptationAlgorithm"));
         Config::SetDefault("ns3::OranCellUtilizationUdpAdaptationAlgorithm::UseDerivativeBitrate",
                            BooleanValue(true));
+        Config::SetDefault("ns3::OranCellUtilizationUdpAdaptationAlgorithm::UseOptimizedBitrate",
+                           BooleanValue(false));
+        Config::SetDefault("ns3::OranCellUtilizationUdpAdaptationAlgorithm::UseDqnBitrate",
+                           BooleanValue(false));
+        Config::SetDefault("ns3::OranCellUtilizationUdpAdaptationAlgorithm::OranLogicVrBitrate",
+                           PointerValue(Ptr<OranLogicVrBitrate>(oranLogicVrBitrate)));
+    }
+    else if (burstGeneratorType == "oran-util-udp-opt")
+    {
+        protocol = "ns3::UdpSocketFactory";
+        Config::SetDefault("ns3::BurstyApplicationServer::adaptationAlgorithm",
+                           StringValue("OranCellUtilizationUdpAdaptationAlgorithm"));
+        Config::SetDefault("ns3::OranCellUtilizationUdpAdaptationAlgorithm::UseDerivativeBitrate",
+                           BooleanValue(false));
+        Config::SetDefault("ns3::OranCellUtilizationUdpAdaptationAlgorithm::UseOptimizedBitrate",
+                           BooleanValue(true));
+        Config::SetDefault("ns3::OranCellUtilizationUdpAdaptationAlgorithm::UseDqnBitrate",
+                           BooleanValue(false));
+
+                           Config::SetDefault("ns3::OranCellUtilizationUdpAdaptationAlgorithm::OranLogicVrBitrate",
+                           PointerValue(Ptr<OranLogicVrBitrate>(oranLogicVrBitrate)));
+    }
+    else if (burstGeneratorType == "oran-util-udp-dqn")
+    {
+        protocol = "ns3::UdpSocketFactory";
+        Config::SetDefault("ns3::BurstyApplicationServer::adaptationAlgorithm",
+                           StringValue("OranCellUtilizationUdpAdaptationAlgorithm"));
+        Config::SetDefault("ns3::OranCellUtilizationUdpAdaptationAlgorithm::UseDerivativeBitrate",
+                           BooleanValue(false));
+        Config::SetDefault("ns3::OranCellUtilizationUdpAdaptationAlgorithm::UseOptimizedBitrate",
+                           BooleanValue(false));
+        Config::SetDefault("ns3::OranCellUtilizationUdpAdaptationAlgorithm::UseDqnBitrate",
+                           BooleanValue(true));
         Config::SetDefault("ns3::OranCellUtilizationUdpAdaptationAlgorithm::OranLogicVrBitrate",
                            PointerValue(Ptr<OranLogicVrBitrate>(oranLogicVrBitrate)));
     }
@@ -760,8 +800,9 @@ main(int argc, char* argv[])
         Config::SetDefault("ns3::BurstyApplicationServer::adaptationAlgorithm",
                            StringValue("OranCellUtilizationUdpNoQueueAdaptationAlgorithm"));
         // Provide the collector instance so the algorithm can query cell utilization
-        Config::SetDefault("ns3::OranCellUtilizationUdpNoQueueAdaptationAlgorithm::OranLogicVrBitrate",
-                           PointerValue(Ptr<OranLogicVrBitrate>(oranLogicVrBitrate)));
+        Config::SetDefault(
+            "ns3::OranCellUtilizationUdpNoQueueAdaptationAlgorithm::OranLogicVrBitrate",
+            PointerValue(Ptr<OranLogicVrBitrate>(oranLogicVrBitrate)));
     }
     else
     {
@@ -1052,7 +1093,10 @@ main(int argc, char* argv[])
     oranHelper->AddReporter("ns3::OranReporterNrUeBitratePerLcid",
                             "Trigger",
                             StringValue("ns3::OranReportTriggerPeriodic"));
-    oranHelper->AddReporter("ns3::OranReporterNrUeTxQueueSize",
+    oranHelper->AddReporter("ns3::OranReporterNrUeTxQueueHolDelay",
+                            "Trigger",
+                            StringValue("ns3::OranReportTriggerPeriodic"));
+    oranHelper->AddReporter("ns3::OranReporterNrUeStats",
                             "Trigger",
                             StringValue("ns3::OranReportTriggerPeriodic"));
 
@@ -1069,9 +1113,8 @@ main(int argc, char* argv[])
 
     // Connect each gNB MAC BufferStatusReportTrace to the corresponding
     // OranReporterNrUeBitratePerLcid instance created by the terminator.
-    if (burstGeneratorType == "oran-util-udp" ||
-        burstGeneratorType == "oran-util-udp-der" ||
-        burstGeneratorType == "oran-util-udp-no-queue")
+    if (burstGeneratorType == "oran-util-udp" || burstGeneratorType == "oran-util-udp-der" ||
+        burstGeneratorType == "oran-util-udp-opt" || burstGeneratorType == "oran-util-udp-dqn" || burstGeneratorType == "oran-util-udp-no-queue")
     {
         for (uint32_t idx = 0; idx < gnbNetDev.GetN(); ++idx)
         {
@@ -1126,14 +1169,34 @@ main(int argc, char* argv[])
                                 }
                             }
                         }
-                        Ptr<OranReporterNrUeTxQueueSize> txq =
-                            DynamicCast<OranReporterNrUeTxQueueSize>(repObj);
+                        Ptr<OranReporterNrUeTxQueueHolDelay> txq =
+                            DynamicCast<OranReporterNrUeTxQueueHolDelay>(repObj);
                         if (txq)
                         {
                             gnbMac->TraceConnectWithoutContext(
                                 "BufferStatusReportTrace",
-                                MakeCallback(&OranReporterNrUeTxQueueSize::OnBufferStatusReport,
+                                MakeCallback(&OranReporterNrUeTxQueueHolDelay::OnBufferStatusReport,
                                              txq));
+                        }
+
+                        Ptr<OranReporterNrUeStats> stats =
+                            DynamicCast<OranReporterNrUeStats>(repObj);
+                        if (stats)
+                        {
+                            gnbMac->TraceConnectWithoutContext(
+                                "BufferStatusReportTrace",
+                                MakeCallback(&OranReporterNrUeStats::OnBufferStatusReport, stats));
+
+                            for (uint32_t q = 0; q < 2; ++q)
+                            {
+                                Ptr<NrMacScheduler> sched = nrHelper->GetScheduler(dev, q);
+                                if (sched)
+                                {
+                                    sched->TraceConnectWithoutContext(
+                                        "SchedStats",
+                                        MakeCallback(&OranReporterNrUeStats::OnSchedStats, stats));
+                                }
+                            }
                         }
                     }
                     break; // found the terminator for this node

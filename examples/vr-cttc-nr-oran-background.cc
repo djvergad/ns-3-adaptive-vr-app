@@ -1217,7 +1217,7 @@ main(int argc, char* argv[])
     oranHelper->AddReporter("ns3::OranReporterNrUeBitratePerLcid",
                             "Trigger",
                             StringValue("ns3::OranReportTriggerPeriodic"));
-    oranHelper->AddReporter("ns3::OranReporterNrUeTxQueueSize",
+    oranHelper->AddReporter("ns3::OranReporterNrUeTxQueueHolDelay",
                             "Trigger",
                             StringValue("ns3::OranReportTriggerPeriodic"));
 
@@ -1290,13 +1290,13 @@ main(int argc, char* argv[])
                                 }
                             }
                         }
-                        Ptr<OranReporterNrUeTxQueueSize> txq =
-                            DynamicCast<OranReporterNrUeTxQueueSize>(repObj);
+                        Ptr<OranReporterNrUeTxQueueHolDelay> txq =
+                            DynamicCast<OranReporterNrUeTxQueueHolDelay>(repObj);
                         if (txq)
                         {
                             gnbMac->TraceConnectWithoutContext(
                                 "BufferStatusReportTrace",
-                                MakeCallback(&OranReporterNrUeTxQueueSize::OnBufferStatusReport,
+                                MakeCallback(&OranReporterNrUeTxQueueHolDelay::OnBufferStatusReport,
                                              txq));
                         }
                     }

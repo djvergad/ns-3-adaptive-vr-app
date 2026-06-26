@@ -29,13 +29,24 @@ OranCellUtilizationUdpAdaptationAlgorithm::GetTypeId(void)
                 UintegerValue(5),
                 MakeUintegerAccessor(&OranCellUtilizationUdpAdaptationAlgorithm::m_lcid),
                 MakeUintegerChecker<uint8_t>(3, 32))
-            .AddAttribute(
-                "UseDerivativeBitrate",
-                "If true, query GetVrBitrateDer instead of GetVrBitrate.",
-                BooleanValue(false),
-                MakeBooleanAccessor(
-                    &OranCellUtilizationUdpAdaptationAlgorithm::m_useDerivativeBitrate),
-                MakeBooleanChecker());
+            .AddAttribute("UseDerivativeBitrate",
+                          "If true, query GetVrBitrateDer instead of GetVrBitrate.",
+                          BooleanValue(false),
+                          MakeBooleanAccessor(
+                              &OranCellUtilizationUdpAdaptationAlgorithm::m_useDerivativeBitrate),
+                          MakeBooleanChecker())
+            .AddAttribute("UseOptimizedBitrate",
+                          "If true, query GetVrBitrateOptimized instead of GetVrBitrate.",
+                          BooleanValue(false),
+                          MakeBooleanAccessor(
+                              &OranCellUtilizationUdpAdaptationAlgorithm::m_useOptimizedBitrate),
+                          MakeBooleanChecker())
+            .AddAttribute("UseDqnBitrate",
+                          "If true, query GetVrBitrateDQN instead of GetVrBitrate.",
+                          BooleanValue(false),
+                          MakeBooleanAccessor(
+                              &OranCellUtilizationUdpAdaptationAlgorithm::m_useDqnBitrate),
+                          MakeBooleanChecker());
     return tid;
 }
 
@@ -88,6 +99,14 @@ OranCellUtilizationUdpAdaptationAlgorithm::adaptation_algorithm(double buffOcc,
             {
                 result_non_quant = m_lm->GetVrBitrateDer(m_server_instance->m_peer, m_lcid);
             }
+            else if (m_useOptimizedBitrate)
+            {
+                result_non_quant = m_lm->GetVrBitrateOptimized(m_server_instance->m_peer, m_lcid);
+            }
+            else if (m_useDqnBitrate)
+            {
+                result_non_quant = m_lm->GetVrBitrateDQN(m_server_instance->m_peer, m_lcid);
+            }
             else
             {
                 result_non_quant = m_lm->GetVrBitrate(m_server_instance->m_peer, m_lcid);
@@ -117,7 +136,6 @@ OranCellUtilizationUdpAdaptationAlgorithm::adaptation_algorithm(double buffOcc,
                                                     << "(valid=" << isDataValid << ")");
 
     // return result_non_quant;
-
 
     std::vector<DataRate> averageBitrate = {55000,    77000,    108000,  151000,  212000,  297000,
                                             415000,   582000,   814000,  1140000, 1596000, 2234000,

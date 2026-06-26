@@ -22,7 +22,7 @@
 #include "ns3/lte-module.h"
 #include "ns3/oran-logic-vr-bitrate.h"
 #include "ns3/oran-module.h"
-#include "ns3/oran-reporter-lte-ue-tx-queue-size.h"
+#include "ns3/oran-reporter-lte-ue-tx-queue-hol-delay.h"
 #include "ns3/oran-reporter-lte-ue-bitrate-per-lcid.h"
 #include "ns3/point-to-point-module.h"
 #include "ns3/buildings-module.h"
@@ -638,7 +638,7 @@ main(int argc, char* argv[])
     for (uint32_t idx = 0; idx < enbNetDev.GetN(); ++idx)
     {
         Ptr<OranReporterLocation> locationReporter = CreateObject<OranReporterLocation>();
-        Ptr<OranReporterLteUeTxQueueSize> txQueueReporter = CreateObject<OranReporterLteUeTxQueueSize>();
+        Ptr<OranReporterLteUeTxQueueHolDelay> txQueueReporter = CreateObject<OranReporterLteUeTxQueueHolDelay>();
         Ptr<OranReporterLteUeBitratePerLcid> bitrateReporter = CreateObject<OranReporterLteUeBitratePerLcid>();
         Ptr<OranE2NodeTerminatorLteEnb> lteEnbTerminator = CreateObject<OranE2NodeTerminatorLteEnb>();
 
@@ -664,7 +664,7 @@ main(int argc, char* argv[])
             {
                 enbMac->TraceConnectWithoutContext(
                     "BufferStatusReportTrace",
-                    MakeCallback(&OranReporterLteUeTxQueueSize::OnBufferStatusReport,
+                    MakeCallback(&OranReporterLteUeTxQueueHolDelay::OnBufferStatusReport,
                                  txQueueReporter));
                 // Connect DL and UL scheduling traces to the bitrate reporter
                 enbMac->TraceConnectWithoutContext(
