@@ -61,7 +61,6 @@ private:
   // Selects Predictive-BRAM derivative-aware bitrate query.
   bool m_useDerivativeBitrate = false;
   bool m_useOptimizedBitrate = false;
-  bool m_useDqnBitrate = false;
 };
 
 } // namespace ns3

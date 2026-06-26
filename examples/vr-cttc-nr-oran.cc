@@ -744,8 +744,6 @@ main(int argc, char* argv[])
                            BooleanValue(false));
         Config::SetDefault("ns3::OranCellUtilizationUdpAdaptationAlgorithm::UseOptimizedBitrate",
                            BooleanValue(false));
-        Config::SetDefault("ns3::OranCellUtilizationUdpAdaptationAlgorithm::UseDqnBitrate",
-                           BooleanValue(false));
         // Provide the collector instance so the algorithm can query cell utilization
         Config::SetDefault("ns3::OranCellUtilizationUdpAdaptationAlgorithm::OranLogicVrBitrate",
                            PointerValue(Ptr<OranLogicVrBitrate>(oranLogicVrBitrate)));
@@ -759,8 +757,6 @@ main(int argc, char* argv[])
                            BooleanValue(true));
         Config::SetDefault("ns3::OranCellUtilizationUdpAdaptationAlgorithm::UseOptimizedBitrate",
                            BooleanValue(false));
-        Config::SetDefault("ns3::OranCellUtilizationUdpAdaptationAlgorithm::UseDqnBitrate",
-                           BooleanValue(false));
         Config::SetDefault("ns3::OranCellUtilizationUdpAdaptationAlgorithm::OranLogicVrBitrate",
                            PointerValue(Ptr<OranLogicVrBitrate>(oranLogicVrBitrate)));
     }
@@ -772,23 +768,6 @@ main(int argc, char* argv[])
         Config::SetDefault("ns3::OranCellUtilizationUdpAdaptationAlgorithm::UseDerivativeBitrate",
                            BooleanValue(false));
         Config::SetDefault("ns3::OranCellUtilizationUdpAdaptationAlgorithm::UseOptimizedBitrate",
-                           BooleanValue(true));
-        Config::SetDefault("ns3::OranCellUtilizationUdpAdaptationAlgorithm::UseDqnBitrate",
-                           BooleanValue(false));
-
-                           Config::SetDefault("ns3::OranCellUtilizationUdpAdaptationAlgorithm::OranLogicVrBitrate",
-                           PointerValue(Ptr<OranLogicVrBitrate>(oranLogicVrBitrate)));
-    }
-    else if (burstGeneratorType == "oran-util-udp-dqn")
-    {
-        protocol = "ns3::UdpSocketFactory";
-        Config::SetDefault("ns3::BurstyApplicationServer::adaptationAlgorithm",
-                           StringValue("OranCellUtilizationUdpAdaptationAlgorithm"));
-        Config::SetDefault("ns3::OranCellUtilizationUdpAdaptationAlgorithm::UseDerivativeBitrate",
-                           BooleanValue(false));
-        Config::SetDefault("ns3::OranCellUtilizationUdpAdaptationAlgorithm::UseOptimizedBitrate",
-                           BooleanValue(false));
-        Config::SetDefault("ns3::OranCellUtilizationUdpAdaptationAlgorithm::UseDqnBitrate",
                            BooleanValue(true));
         Config::SetDefault("ns3::OranCellUtilizationUdpAdaptationAlgorithm::OranLogicVrBitrate",
                            PointerValue(Ptr<OranLogicVrBitrate>(oranLogicVrBitrate)));
@@ -1114,7 +1093,7 @@ main(int argc, char* argv[])
     // Connect each gNB MAC BufferStatusReportTrace to the corresponding
     // OranReporterNrUeBitratePerLcid instance created by the terminator.
     if (burstGeneratorType == "oran-util-udp" || burstGeneratorType == "oran-util-udp-der" ||
-        burstGeneratorType == "oran-util-udp-opt" || burstGeneratorType == "oran-util-udp-dqn" || burstGeneratorType == "oran-util-udp-no-queue")
+        burstGeneratorType == "oran-util-udp-opt" || burstGeneratorType == "oran-util-udp-no-queue")
     {
         for (uint32_t idx = 0; idx < gnbNetDev.GetN(); ++idx)
         {
