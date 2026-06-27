@@ -232,20 +232,24 @@ BurstyApplicationServer::HandleRead(Ptr<Socket> socket)
 {
     NS_LOG_FUNCTION(this << socket);
 
-    // std::cout << m_tid << std::endl;
-
     if ((m_socket->GetSocketType() != Socket::NS3_SOCK_STREAM &&
          m_socket->GetSocketType() != Socket::NS3_SOCK_SEQPACKET))
     {
         Address peer;
-        ;
-
         Ptr<Packet> packet = socket->RecvFrom(peer);
 
-        CreateInstance(socket, peer);
+        // NEW: Check if an instance for this peer is already active to prevent duplicate flows
+        if (m_server_instances.find(peer) == m_server_instances.end())
+        {
+            CreateInstance(socket, peer);
+            NS_LOG_INFO("Created new server instance for peer.");
+        }
+        else
+        {
+            NS_LOG_INFO("Ignored duplicate UDP request from already registered peer.");
+        }
     }
 }
-
 void
 BurstyApplicationServer::HandlePeerClose(Ptr<Socket> socket)
 {

@@ -61,12 +61,16 @@ BurstyApplicationClient::GetTypeId(void)
                           AddressValue(),
                           MakeAddressAccessor(&BurstyApplicationClient::m_peer),
                           MakeAddressChecker())
-
             .AddAttribute("Protocol",
                           "The type id of the protocol to use for the rx socket.",
                           TypeIdValue(UdpSocketFactory::GetTypeId()),
                           MakeTypeIdAccessor(&BurstyApplicationClient::m_tid),
                           MakeTypeIdChecker())
+            .AddAttribute("RequestTimeout",
+                          "The time to wait before retransmitting the initial UDP request",
+                          TimeValue(Seconds(0.02)),
+                          MakeTimeAccessor(&BurstyApplicationClient::m_requestTimeout),
+                          MakeTimeChecker())
             .AddTraceSource("FragmentRx",
                             "A fragment has been received",
                             MakeTraceSourceAccessor(&BurstyApplicationClient::m_rxFragmentTrace),
@@ -177,9 +181,25 @@ BurstyApplicationClient::StartApplication() // Called at time specified by Start
         if (m_socket->GetSocketType() != Socket::NS3_SOCK_STREAM &&
             m_socket->GetSocketType() != Socket::NS3_SOCK_SEQPACKET)
         {
-            Ptr<Packet> dummy = Create<Packet>(100);
-            m_socket->Send(dummy);
+            SendUdpRequest();
         }
+    }
+}
+
+void
+BurstyApplicationClient::SendUdpRequest()
+{
+    NS_LOG_FUNCTION(this);
+    if (m_socket)
+    {
+        Ptr<Packet> dummy = Create<Packet>(100);
+        m_socket->Send(dummy);
+        NS_LOG_INFO("Sent UDP request, scheduling retransmission in "
+                    << m_requestTimeout.As(Time::S));
+
+        // Schedule the next retransmission attempt
+        m_requestEvent =
+            Simulator::Schedule(m_requestTimeout, &BurstyApplicationClient::SendUdpRequest, this);
     }
 }
 
@@ -187,6 +207,9 @@ void
 BurstyApplicationClient::StopApplication() // Called at time specified by Stop
 {
     NS_LOG_FUNCTION(this);
+
+    Simulator::Cancel(m_requestEvent);
+
     if (m_socket)
     {
         m_socket->Close();
@@ -198,6 +221,13 @@ void
 BurstyApplicationClient::HandleRead(Ptr<Socket> socket)
 {
     NS_LOG_FUNCTION(this << socket);
+
+    if (m_requestEvent.IsPending())
+    {
+        Simulator::Cancel(m_requestEvent);
+        NS_LOG_INFO("Server response received. Canceling UDP request retransmissions.");
+    }
+
     Ptr<Packet> fragment;
     Address from;
     Address localAddress;

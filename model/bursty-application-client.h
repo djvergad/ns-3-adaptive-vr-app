@@ -117,6 +117,9 @@ class BurstyApplicationClient : public Application
   protected:
     virtual void DoDispose(void);
 
+    // Helper to send the initial request and schedule retransmissions
+    void SendUdpRequest();
+
     // private:
     // inherited from Application base class.
     virtual void StartApplication(void); // Called at time specified by Start
@@ -237,6 +240,10 @@ class BurstyApplicationClient : public Application
         m_rxBurstTrace;
 
     std::map<Ptr<Socket>, Ptr<Packet>> m_incomplete_packets;
+
+    // Retransmission state variables
+    Time m_requestTimeout{Seconds(0.2)}; //!< Timeout before resending the UDP request
+    EventId m_requestEvent;              //!< Event for the scheduled UDP request retransmission
 };
 
 } // namespace ns3
