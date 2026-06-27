@@ -190,17 +190,20 @@ void
 BurstyApplicationClient::SendUdpRequest()
 {
     NS_LOG_FUNCTION(this);
-    if (m_socket)
-    {
-        Ptr<Packet> dummy = Create<Packet>(100);
-        m_socket->Send(dummy);
-        NS_LOG_INFO("Sent UDP request, scheduling retransmission in "
-                    << m_requestTimeout.As(Time::S));
 
-        // Schedule the next retransmission attempt
-        m_requestEvent =
-            Simulator::Schedule(m_requestTimeout, &BurstyApplicationClient::SendUdpRequest, this);
+    if (!m_socket || m_socket->GetTxAvailable() == 0)
+    {
+        NS_LOG_WARN("Socket not ready or Tx buffer unavailable. Postponing transmission.");
+        return;
     }
+
+    Ptr<Packet> dummy = Create<Packet>(100);
+    m_socket->Send(dummy);
+    NS_LOG_INFO("Sent UDP request, scheduling retransmission in " << m_requestTimeout.As(Time::S));
+
+    // Schedule the next retransmission attempt
+    m_requestEvent =
+        Simulator::Schedule(m_requestTimeout, &BurstyApplicationClient::SendUdpRequest, this);
 }
 
 void
@@ -231,75 +234,86 @@ BurstyApplicationClient::HandleRead(Ptr<Socket> socket)
     Ptr<Packet> fragment;
     Address from;
     Address localAddress;
+    bool isStream = (socket->GetSocketType() == Socket::NS3_SOCK_STREAM ||
+                     socket->GetSocketType() == Socket::NS3_SOCK_SEQPACKET);
 
     while ((fragment = socket->RecvFrom(from)))
     {
-        // std::cout << "Read from socket " << fragment->GetSize() << std::endl;
-
         if (fragment->GetSize() == 0)
-        { // EOF
-            break;
+        {
+            break; // EOF
         }
 
-        if (m_incomplete_packets.count(socket) == 1 && m_incomplete_packets[socket] != nullptr)
+        // --- PROTOCOL BRANCHING LAYER ---
+        if (isStream)
         {
-            m_incomplete_packets[socket]->AddAtEnd(fragment);
+            // TCP: Reassemble byte-stream
+            if (m_incomplete_packets.count(socket) == 1 && m_incomplete_packets[socket] != nullptr)
+            {
+                m_incomplete_packets[socket]->AddAtEnd(fragment);
+            }
+            else
+            {
+                m_incomplete_packets[socket] = fragment->Copy();
+            }
         }
         else
         {
+            // UDP: Every datagram is an independent unit. Do NOT append to previous states.
             m_incomplete_packets[socket] = fragment->Copy();
         }
-
-        // std::cout << "Buffer has " << m_incomplete_packets[socket]->GetSize() << std::endl;
 
         while (m_incomplete_packets[socket] && m_incomplete_packets[socket]->GetSize() > 0)
         {
             SeqTsSizeFragHeader header;
 
-            // std::cout << "m_incomplete_packet size " << m_incomplete_packets[socket]->GetSize()
-            // << " header size " << header.GetSerializedSize() << std::endl;
-
             if (m_incomplete_packets[socket]->GetSize() < header.GetSerializedSize())
             {
+                if (!isStream)
+                {
+                    m_incomplete_packets[socket] = nullptr; // Discard corrupted UDP
+                }
                 break;
             }
 
             m_incomplete_packets[socket]->PeekHeader(header);
 
-            // std::cout << "Before " << header.GetSeq() << " " << header.GetFragSeq() << " hsize "
-            // << header.GetFragBytes() << " psize " << m_incomplete_packets[socket]->GetSize() <<
-            // std::endl;
-
             if (header.GetFragBytes() == 0)
             {
-                // NS_FATAL_ERROR("wrong header size");
                 std::cout << "wrong header size " << std::endl;
                 m_incomplete_packets[socket] = nullptr;
                 break;
+            }
+
+            // --- CRITICAL SIZE VERIFICATION ---
+            if (m_incomplete_packets[socket]->GetSize() < header.GetFragBytes())
+            {
+                if (isStream)
+                {
+                    // TCP: More data is coming down the stream. Wait for it.
+                    break;
+                }
+                else
+                {
+                    // UDP: The datagram is truncated/corrupted. Discard it immediately.
+                    NS_LOG_WARN("Corrupted UDP packet received: size smaller than header claims. "
+                                "Discarding.");
+                    m_incomplete_packets[socket] = nullptr;
+                    break;
+                }
             }
 
             int64_t extra_bytes = m_incomplete_packets[socket]->GetSize() - header.GetFragBytes();
 
             if (extra_bytes > 0)
             {
-                // std::cout << " packet start " << 0 << " length  " << header.GetFragBytes() <<
-                // std::endl;
                 fragment = m_incomplete_packets[socket]->CreateFragment(0, header.GetFragBytes());
-
-                // std::cout << " incomplete start " << header.GetFragBytes() << " length  "
-                //           << extra_bytes << std::endl;
-
                 Ptr<Packet> frag2 =
                     m_incomplete_packets[socket]->CreateFragment(header.GetFragBytes(),
                                                                  extra_bytes);
                 m_incomplete_packets[socket] = frag2;
-                // m_incomplete_packets[socket]->CreateFragment(header.GetFragBytes(), extra_bytes);
-
-                // SeqTsSizeFragHeader seqTs2;
-                // m_incomplete_packets[socket]->PeekHeader(seqTs2);
-                // std::cout << " AAAAAAAA " << seqTs2.GetFragBytes() << std::endl;
             }
-            if (extra_bytes == 0)
+            else if (extra_bytes == 0)
             {
                 fragment = m_incomplete_packets[socket]->Copy();
                 m_incomplete_packets[socket] = nullptr;

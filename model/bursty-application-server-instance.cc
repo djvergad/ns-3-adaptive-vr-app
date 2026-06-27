@@ -545,8 +545,11 @@ BurstyApplicationServerInstance::DataSend(Ptr<Socket> socket, uint32_t)
 {
     NS_LOG_FUNCTION(this << socket);
 
-    // Ptr<Packet> dummy = Create<Packet> (0);
-    // socket->Send (dummy);
+    if (!socket || socket->GetTxAvailable() == 0)
+    {
+        NS_LOG_WARN("Socket not ready or Tx buffer unavailable. Postponing transmission.");
+        return;
+    }
 
     while (!m_queue.empty())
     {

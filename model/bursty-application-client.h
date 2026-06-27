@@ -242,7 +242,7 @@ class BurstyApplicationClient : public Application
     std::map<Ptr<Socket>, Ptr<Packet>> m_incomplete_packets;
 
     // Retransmission state variables
-    Time m_requestTimeout{Seconds(0.2)}; //!< Timeout before resending the UDP request
+    Time m_requestTimeout{Seconds(0.02)}; //!< Timeout before resending the UDP request
     EventId m_requestEvent;              //!< Event for the scheduled UDP request retransmission
 };
 
