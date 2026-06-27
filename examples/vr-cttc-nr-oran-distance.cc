@@ -55,6 +55,7 @@ $ ./ns3 run "cttc-nr-demo --PrintHelp"
 #include "ns3/config-store-module.h"
 #include "ns3/core-module.h"
 #include "ns3/flow-monitor-module.h"
+#include "ns3/flow-monitor.h"
 #include "ns3/internet-apps-module.h"
 #include "ns3/internet-module.h"
 #include "ns3/log.h"
@@ -96,7 +97,23 @@ std::string
 AddressToString(const Address& addr)
 {
     std::stringstream addressStr;
-    addressStr << InetSocketAddress::ConvertFrom(addr).GetIpv4();
+
+    if (InetSocketAddress::IsMatchingType(addr))
+    {
+        // It has an IP and a Port
+        addressStr << InetSocketAddress::ConvertFrom(addr).GetIpv4();
+    }
+    else if (Ipv4Address::IsMatchingType(addr))
+    {
+        // It is strictly an IP address
+        addressStr << Ipv4Address::ConvertFrom(addr);
+    }
+    else
+    {
+        // Fallback for MAC addresses or other types
+        addressStr << addr;
+    }
+
     return addressStr.str();
 }
 
@@ -115,8 +132,10 @@ GetUeDistanceFromAddress(const Address ueAddress,
 
         if (ueNode && ueMobility)
         {
-            Address currentUeAddress = ueNode->GetObject<Ipv4>()->GetAddress(1, 0).GetLocal();
-            if (currentUeAddress == ueAddress)
+            Ipv4Address currentUeAddress = ueNode->GetObject<Ipv4>()->GetAddress(1, 0).GetLocal();
+            // std::cout << "Current UE Address: " << AddressToString(currentUeAddress) << "
+            // ueAddress: " << AddressToString(ueAddress) << std::endl;
+            if (AddressToString(currentUeAddress) == AddressToString(ueAddress))
             {
                 Vector uePosition = ueMobility->GetPosition();
                 double distance = CalculateDistance(gnbPosition, uePosition);
@@ -168,6 +187,72 @@ QueryRcSink(std::string query, std::string args, int rc)
     std::cout << std::endl;
 }
 
+void
+printSortedStats(const ns3::FlowMonitor::FlowStatsContainer& container,
+                              ns3::Ptr<ns3::FlowClassifier> classifier,
+                              std::ofstream& outFile)
+{
+    // 1. Cast the generic FlowClassifier to an Ipv4FlowClassifier
+    ns3::Ptr<ns3::Ipv4FlowClassifier> ipv4Classifier =
+        ns3::DynamicCast<ns3::Ipv4FlowClassifier>(classifier);
+
+    // 2. Populate a vector with POINTERS to the elements of the map
+    std::vector<const ns3::FlowMonitor::FlowStatsContainer::value_type*> sorted_vector;
+    sorted_vector.reserve(container.size());
+    for (const auto& pair : container)
+    {
+        sorted_vector.push_back(&pair);
+    }
+
+    // 3. Sort by projecting the destination IP address to its underlying uint32_t numerical
+    // representation
+    std::ranges::sort(sorted_vector, {}, [ipv4Classifier](const auto* pair_ptr) {
+        ns3::Ipv4FlowClassifier::FiveTuple t = ipv4Classifier->FindFlow(pair_ptr->first);
+        return t.destinationAddress
+            .Get(); // Returns a standard uint32_t which C++ can sort natively
+    });
+
+    double averageFlowThroughput = 0.0;
+    double averageFlowDelay = 0.0;
+
+    // 4. Print out the sorted metrics using the pointers
+    for (const auto* pair_ptr : sorted_vector)
+    {
+        unsigned int id = pair_ptr->first;
+        const auto& stats = pair_ptr->second;
+
+        ns3::Ipv4FlowClassifier::FiveTuple t = ipv4Classifier->FindFlow(id);
+
+        outFile << "Flow " << id << " (" << t.sourceAddress << " -> " << t.destinationAddress
+                << ")\n"
+                << "  Tx Packets: " << stats.txPackets << "\n"
+                << "  Rx Packets: " << stats.rxPackets << "\n"
+                << "  Rx Bytes:   " << stats.rxBytes << "\n";
+
+        if (stats.rxPackets > 0)
+        {
+            double flowThroughput = stats.rxBytes * 8.0 /
+                                    (stats.timeLastRxPacket - stats.timeFirstTxPacket).GetSeconds() /
+                                    1000 / 1000; // Mbps
+            double flowDelay = 1000 * stats.delaySum.GetSeconds() / stats.rxPackets;
+            averageFlowThroughput += flowThroughput;
+            averageFlowDelay += flowDelay;
+            outFile << "  Throughput: " << flowThroughput << " Mbps\n";
+            outFile << "  Mean delay:  " << flowDelay << " ms\n";
+            outFile << "  Mean jitter:  " << 1000 * stats.jitterSum.GetSeconds() / stats.rxPackets
+                << " ms\n";
+
+        }
+
+    }
+
+    double meanFlowThroughput = averageFlowThroughput / sorted_vector.size();
+    double meanFlowDelay = averageFlowDelay / sorted_vector.size();
+
+    outFile << "\n\n  Mean flow throughput: " << meanFlowThroughput << "\n";
+    outFile << "  Mean flow delay: " << meanFlowDelay << "\n";
+}
+
 int
 main(int argc, char* argv[])
 {
@@ -183,7 +268,7 @@ main(int argc, char* argv[])
     bool doubleOperationalBand = true;
     double mediumUeDistance = 30.0;      // Distance in meters for medium UEs from gNB
     double farUeDistance = 50.0;         // Distance in meters for far UEs from gNB
-    std::string channelScenario = "UMa"; // Channel scenario: UMi, UMa, RMa
+    std::string channelScenario = "RMa"; // Channel scenario: UMi, UMa, RMa
     bool enableShadowing = true;         // Enable shadowing for realistic path loss
 
     // Traffic parameters (that we will use inside this script):
@@ -208,7 +293,7 @@ main(int argc, char* argv[])
     uint16_t numerologyBwp2 = 2;
     double centralFrequencyBand2 = 28.2e9;
     double bandwidthBand2 = 50e6;
-    double totalTxPower = 23; // Reduced from 35 to 23 dBm for better differentiation
+    double totalTxPower = 35;
 
     std::string appRate = "50Mbps";        // the app target data rate
     double frameRate = 60;                 // the app frame rate [FPS]
@@ -361,7 +446,10 @@ main(int argc, char* argv[])
      * an example: if you want to make the RLC buffer very large, you can pass a very large integer
      * here.
      */
+
     Config::SetDefault("ns3::NrRlcUm::MaxTxBufferSize", UintegerValue(9999999));
+    Config::SetDefault("ns3::NrRlcAm::MaxTxBufferSize", UintegerValue(9999999));
+    // Config::SetDefault("ns3::NrHelper::RlcAmEnabled", BooleanValue(true));
 
     Config::SetDefault("ns3::TcpL4Protocol::SocketType",
                        TypeIdValue(TypeId::LookupByName("ns3::TcpCubic")));
@@ -474,19 +562,11 @@ main(int argc, char* argv[])
      * while in ueVoice we will put the UEs that will receive the voice traffic.
      */
     NodeContainer ueLowLatContainer;
-    NodeContainer ueVoiceContainer;
 
     for (uint32_t j = 0; j < gridScenario.GetUserTerminals().GetN(); ++j)
     {
         Ptr<Node> ue = gridScenario.GetUserTerminals().Get(j);
-        if (j % 1 == 0)
-        {
-            ueLowLatContainer.Add(ue);
-        }
-        else
-        {
-            ueVoiceContainer.Add(ue);
-        }
+        ueLowLatContainer.Add(ue);
     }
 
     /*
@@ -512,7 +592,7 @@ main(int argc, char* argv[])
     nrHelper->SetBeamformingHelper(idealBeamformingHelper);
     nrHelper->SetEpcHelper(nrEpcHelper);
 
-    nrHelper->SetSchedulerTypeId(TypeId::LookupByName("ns3::NrMacSchedulerOfdmaPF"));
+    nrHelper->SetSchedulerTypeId(TypeId::LookupByName("ns3::NrMacSchedulerOfdmaRR"));
 
     /*
      * Spectrum division. We create two operational bands, each of them containing
@@ -635,22 +715,15 @@ main(int argc, char* argv[])
                                      PointerValue(CreateObject<IsotropicAntennaModel>()));
 
     uint32_t bwpIdForLowLat = 0;
-    uint32_t bwpIdForVoice = 0;
+
     if (doubleOperationalBand)
     {
-        bwpIdForVoice = 1;
         bwpIdForLowLat = 0;
     }
 
-    // gNb routing between Bearer and bandwidh part
-    nrHelper->SetGnbBwpManagerAlgorithmAttribute("NGBR_LOW_LAT_EMBB",
-                                                 UintegerValue(bwpIdForLowLat));
-    nrHelper->SetGnbBwpManagerAlgorithmAttribute("GBR_CONV_VOICE", UintegerValue(bwpIdForVoice));
+    nrHelper->SetGnbBwpManagerAlgorithmAttribute("GBR_CONV_VIDEO", UintegerValue(bwpIdForLowLat));
 
-    // Ue routing between Bearer and bandwidth part
-    nrHelper->SetUeBwpManagerAlgorithmAttribute("NGBR_LOW_LAT_EMBB", UintegerValue(bwpIdForLowLat));
-    nrHelper->SetUeBwpManagerAlgorithmAttribute("GBR_CONV_VOICE", UintegerValue(bwpIdForVoice));
-
+    nrHelper->SetUeBwpManagerAlgorithmAttribute("GBR_CONV_VIDEO", UintegerValue(bwpIdForLowLat));
     /*
      * We miss many other parameters. By default, not configuring them is equivalent
      * to use the default values. Please, have a look at the documentation to see
@@ -671,11 +744,9 @@ main(int argc, char* argv[])
     NetDeviceContainer gnbNetDev =
         nrHelper->InstallGnbDevice(gridScenario.GetBaseStations(), allBwps);
     NetDeviceContainer ueLowLatNetDev = nrHelper->InstallUeDevice(ueLowLatContainer, allBwps);
-    NetDeviceContainer ueVoiceNetDev = nrHelper->InstallUeDevice(ueVoiceContainer, allBwps);
 
     randomStream += nrHelper->AssignStreams(gnbNetDev, randomStream);
     randomStream += nrHelper->AssignStreams(ueLowLatNetDev, randomStream);
-    randomStream += nrHelper->AssignStreams(ueVoiceNetDev, randomStream);
     /*
      * Case (iii): Go node for node and change the attributes we have to setup
      * per-node.
@@ -731,8 +802,6 @@ main(int argc, char* argv[])
 
     Ipv4InterfaceContainer ueLowLatIpIface =
         nrEpcHelper->AssignUeIpv4Address(NetDeviceContainer(ueLowLatNetDev));
-    Ipv4InterfaceContainer ueVoiceIpIface =
-        nrEpcHelper->AssignUeIpv4Address(NetDeviceContainer(ueVoiceNetDev));
 
     Ipv4StaticRoutingHelper ipv4RoutingHelper;
 
@@ -747,28 +816,14 @@ main(int argc, char* argv[])
         }
     }
 
-    // Also add routes for voice UEs
-    for (uint32_t u = 0; u < ueVoiceContainer.GetN(); ++u)
-    {
-        Ptr<Node> ueNode = ueVoiceContainer.Get(u);
-        Ptr<Ipv4> ipv4 = ueNode->GetObject<Ipv4>();
-        if (ipv4)
-        {
-            Ptr<Ipv4StaticRouting> ueStaticRouting = ipv4RoutingHelper.GetStaticRouting(ipv4);
-            ueStaticRouting->SetDefaultRoute(nrEpcHelper->GetUeDefaultGatewayAddress(), 1);
-        }
-    }
-
     // attach UEs to the closest gNB
     nrHelper->AttachToClosestGnb(ueLowLatNetDev, gnbNetDev);
-    nrHelper->AttachToClosestGnb(ueVoiceNetDev, gnbNetDev);
 
     /*
      * Traffic part. Install two kind of traffic: low-latency and voice, each
      * identified by a particular source port.
      */
     uint16_t dlPortLowLat = 1234;
-    uint16_t dlPortVoice = 1235;
 
     /*
      * Configure attributes for the different generators, using user-provided
@@ -812,6 +867,8 @@ main(int argc, char* argv[])
     if (!dbFileName.empty())
     {
         std::remove(dbFileName.c_str());
+        std::remove((dbFileName + "-wal").c_str());
+        std::remove((dbFileName + "-shm").c_str());
     }
 
     oranHelper->SetDataRepository("ns3::OranDataRepositorySqlite",
@@ -882,7 +939,35 @@ main(int argc, char* argv[])
         // Use UDP-based ORAN utilization adaptation algorithm
         Config::SetDefault("ns3::BurstyApplicationServer::adaptationAlgorithm",
                            StringValue("OranCellUtilizationUdpAdaptationAlgorithm"));
+        Config::SetDefault("ns3::OranCellUtilizationUdpAdaptationAlgorithm::UseDerivativeBitrate",
+                           BooleanValue(false));
+        Config::SetDefault("ns3::OranCellUtilizationUdpAdaptationAlgorithm::UseOptimizedBitrate",
+                           BooleanValue(false));
         // Provide the collector instance so the algorithm can query cell utilization
+        Config::SetDefault("ns3::OranCellUtilizationUdpAdaptationAlgorithm::OranLogicVrBitrate",
+                           PointerValue(Ptr<OranLogicVrBitrate>(oranLogicVrBitrate)));
+    }
+    else if (burstGeneratorType == "oran-util-udp-der")
+    {
+        protocol = "ns3::UdpSocketFactory";
+        Config::SetDefault("ns3::BurstyApplicationServer::adaptationAlgorithm",
+                           StringValue("OranCellUtilizationUdpAdaptationAlgorithm"));
+        Config::SetDefault("ns3::OranCellUtilizationUdpAdaptationAlgorithm::UseDerivativeBitrate",
+                           BooleanValue(true));
+        Config::SetDefault("ns3::OranCellUtilizationUdpAdaptationAlgorithm::UseOptimizedBitrate",
+                           BooleanValue(false));
+        Config::SetDefault("ns3::OranCellUtilizationUdpAdaptationAlgorithm::OranLogicVrBitrate",
+                           PointerValue(Ptr<OranLogicVrBitrate>(oranLogicVrBitrate)));
+    }
+    else if (burstGeneratorType == "oran-util-udp-opt")
+    {
+        protocol = "ns3::UdpSocketFactory";
+        Config::SetDefault("ns3::BurstyApplicationServer::adaptationAlgorithm",
+                           StringValue("OranCellUtilizationUdpAdaptationAlgorithm"));
+        Config::SetDefault("ns3::OranCellUtilizationUdpAdaptationAlgorithm::UseDerivativeBitrate",
+                           BooleanValue(false));
+        Config::SetDefault("ns3::OranCellUtilizationUdpAdaptationAlgorithm::UseOptimizedBitrate",
+                           BooleanValue(true));
         Config::SetDefault("ns3::OranCellUtilizationUdpAdaptationAlgorithm::OranLogicVrBitrate",
                            PointerValue(Ptr<OranLogicVrBitrate>(oranLogicVrBitrate)));
     }
@@ -903,42 +988,23 @@ main(int argc, char* argv[])
     }
 
     // The bearer that will carry low latency traffic
-    NrEpsBearer lowLatBearer(NrEpsBearer::NGBR_LOW_LAT_EMBB);
+    NrEpsBearer lowLatBearer(NrEpsBearer::GBR_CONV_VIDEO);
 
-    // The filter for the low-latency traffic
+    // 2. Correct Low-Latency Downlink Filter
     Ptr<NrEpcTft> lowLatTft = Create<NrEpcTft>();
     NrEpcTft::PacketFilter dlpfLowLat;
-    dlpfLowLat.localPortStart = dlPortLowLat;
+    dlpfLowLat.localPortStart = dlPortLowLat; // Local port on UE side receiving downlink
     dlpfLowLat.localPortEnd = dlPortLowLat;
     lowLatTft->Add(dlpfLowLat);
-    // Also add uplink filter for same port
-    if (protocol != "ns3::TcpSocketFactory")
+
+    // (Optional) Add uplink filter if using a bidirectional protocol like TCP
+    if (protocol == "ns3::TcpSocketFactory")
     {
         NrEpcTft::PacketFilter ulpfLowLat;
         ulpfLowLat.remotePortStart = dlPortLowLat;
         ulpfLowLat.remotePortEnd = dlPortLowLat;
         lowLatTft->Add(ulpfLowLat);
     }
-    // Voice configuration and object creation:
-    UdpClientHelper dlClientVoice;
-    dlClientVoice.SetAttribute("MaxPackets", UintegerValue(0xFFFFFFFF));
-    dlClientVoice.SetAttribute("PacketSize", UintegerValue(udpPacketSizeBe));
-    dlClientVoice.SetAttribute("Interval", TimeValue(Seconds(1.0 / lambdaBe)));
-
-    // // The bearer that will carry voice traffic
-    NrEpsBearer voiceBearer(NrEpsBearer::GBR_CONV_VOICE);
-
-    // The filter for the voice traffic
-    Ptr<NrEpcTft> voiceTft = Create<NrEpcTft>();
-    // NrEpcTft::PacketFilter dlpfVoice;
-    // dlpfVoice.localPortStart = dlPortVoice;
-    // dlpfVoice.localPortEnd = dlPortVoice;
-    // voiceTft->Add(dlpfVoice);
-    // Also add uplink filter for same port
-    NrEpcTft::PacketFilter ulpfVoice;
-    ulpfVoice.remotePortStart = dlPortLowLat;
-    ulpfVoice.remotePortEnd = dlPortLowLat;
-    voiceTft->Add(ulpfVoice);
 
     /*OranReporterNrUeBitratePerLcid
      * Let's install the applications!
@@ -975,13 +1041,15 @@ main(int argc, char* argv[])
     *burstTrace->GetStream() << "SrcAddress,TxTime_ns,RxTime_ns,BurstSeq,BurstSize" << std::endl;
     Ptr<OutputStreamWrapper> fragmentTrace = ascii.CreateFileStream("fragmentTrace.csv");
     *fragmentTrace->GetStream()
-        << "SrcAddress,TxTime_ns,RxTime_ns,BurstSeq,FragSeq,TotFrags,FragSize" << std::endl;
+        << "SrcAddress,TxTime_ns,RxTime_ns,BurstSeq,FragSeq,TotFrags,FragSize,Distance"
+        << std::endl;
 
     // Also log server-side fragment transmissions to a separate CSV so we can
     // correlate which fragments were sent versus which were received.
     Ptr<OutputStreamWrapper> txFragmentTrace = ascii.CreateFileStream("txFragmentTrace.csv");
     *txFragmentTrace->GetStream()
-        << "DstAddress,EventTime_ns,TxTime_ns,BurstSeq,FragSeq,TotFrags,FragSize" << std::endl;
+        << "DstAddress,EventTime_ns,TxTime_ns,BurstSeq,FragSeq,TotFrags,FragSize,Distance"
+        << std::endl;
     if (serverApp.GetN() > 0)
     {
         serverApp.Get(0)->TraceConnectWithoutContext(
@@ -1010,20 +1078,8 @@ main(int argc, char* argv[])
     for (uint32_t i = 0; i < ueLowLatContainer.GetN(); ++i)
     {
         Ptr<NetDevice> ueDevice = ueLowLatNetDev.Get(i);
-        nrHelper->ActivateDedicatedEpsBearer(ueDevice, voiceBearer, voiceTft);
         nrHelper->ActivateDedicatedEpsBearer(ueDevice, lowLatBearer, lowLatTft);
     }
-
-    // Install UDP servers on UEs to receive downlink traffic
-    UdpServerHelper ulServer1(dlPortLowLat);
-    ApplicationContainer ulServerApps1 = ulServer1.Install(ueLowLatContainer);
-    ulServerApps1.Start(Seconds(0.0));
-    ulServerApps1.Stop(simTime + Seconds(3));
-
-    UdpServerHelper ulServer2(dlPortVoice);
-    ApplicationContainer ulServerApps2 = ulServer2.Install(ueVoiceContainer);
-    ulServerApps2.Start(Seconds(0.0));
-    ulServerApps2.Stop(simTime + Seconds(3));
 
     // Create downlink UDP clients to send traffic from remote host to UEs
     // ApplicationContainer dlClientAppsLowLat;
@@ -1189,6 +1245,9 @@ main(int argc, char* argv[])
     oranHelper->AddReporter("ns3::OranReporterNrUeTxQueueHolDelay",
                             "Trigger",
                             StringValue("ns3::OranReportTriggerPeriodic"));
+    oranHelper->AddReporter("ns3::OranReporterNrUeStats",
+                            "Trigger",
+                            StringValue("ns3::OranReportTriggerPeriodic"));
 
     std::cout << "Deploying ENB terminators and wiring reporters" << std::endl;
 
@@ -1203,7 +1262,8 @@ main(int argc, char* argv[])
 
     // Connect each gNB MAC BufferStatusReportTrace to the corresponding
     // OranReporterNrUeBitratePerLcid instance created by the terminator.
-    if (burstGeneratorType == "oran-util-udp" || burstGeneratorType == "oran-util-udp-no-queue")
+    if (burstGeneratorType == "oran-util-udp" || burstGeneratorType == "oran-util-udp-der" ||
+        burstGeneratorType == "oran-util-udp-opt" || burstGeneratorType == "oran-util-udp-no-queue")
     {
         for (uint32_t idx = 0; idx < gnbNetDev.GetN(); ++idx)
         {
@@ -1266,6 +1326,25 @@ main(int argc, char* argv[])
                                 "BufferStatusReportTrace",
                                 MakeCallback(&OranReporterNrUeTxQueueHolDelay::OnBufferStatusReport,
                                              txq));
+                        }
+                        Ptr<OranReporterNrUeStats> stats =
+                            DynamicCast<OranReporterNrUeStats>(repObj);
+                        if (stats)
+                        {
+                            gnbMac->TraceConnectWithoutContext(
+                                "BufferStatusReportTrace",
+                                MakeCallback(&OranReporterNrUeStats::OnBufferStatusReport, stats));
+
+                            for (uint32_t q = 0; q < 2; ++q)
+                            {
+                                Ptr<NrMacScheduler> sched = nrHelper->GetScheduler(dev, q);
+                                if (sched)
+                                {
+                                    sched->TraceConnectWithoutContext(
+                                        "SchedStats",
+                                        MakeCallback(&OranReporterNrUeStats::OnSchedStats, stats));
+                                }
+                            }
                         }
                     }
                     break; // found the terminator for this node
@@ -1337,57 +1416,8 @@ main(int argc, char* argv[])
 
     outFile.setf(std::ios_base::fixed);
 
-    double flowDuration = (simTime - udpAppStartTime).GetSeconds();
-    for (auto i = stats.begin(); i != stats.end(); ++i)
-    {
-        Ipv4FlowClassifier::FiveTuple t = classifier->FindFlow(i->first);
-        std::stringstream protoStream;
-        protoStream << (uint16_t)t.protocol;
-        if (t.protocol == 6)
-        {
-            protoStream.str("TCP");
-        }
-        if (t.protocol == 17)
-        {
-            protoStream.str("UDP");
-        }
-        outFile << "Flow " << i->first << " (" << t.sourceAddress << ":" << t.sourcePort << " -> "
-                << t.destinationAddress << ":" << t.destinationPort << ") proto "
-                << protoStream.str() << "\n";
-        outFile << "  Tx Packets: " << i->second.txPackets << "\n";
-        outFile << "  Tx Bytes:   " << i->second.txBytes << "\n";
-        outFile << "  TxOffered:  " << i->second.txBytes * 8.0 / flowDuration / 1000.0 / 1000.0
-                << " Mbps\n";
-        outFile << "  Rx Bytes:   " << i->second.rxBytes << "\n";
-        if (i->second.rxPackets > 0)
-        {
-            // Measure the duration of the flow from receiver's perspective
-            averageFlowThroughput += i->second.rxBytes * 8.0 / flowDuration / 1000 / 1000;
-            averageFlowDelay += 1000 * i->second.delaySum.GetSeconds() / i->second.rxPackets;
+    printSortedStats(stats, classifier, outFile);
 
-            outFile << "  Throughput: " << i->second.rxBytes * 8.0 / flowDuration / 1000 / 1000
-                    << " Mbps\n";
-            outFile << "  Mean delay:  "
-                    << 1000 * i->second.delaySum.GetSeconds() / i->second.rxPackets << " ms\n";
-            // outFile << "  Mean upt:  " << i->second.uptSum / i->second.rxPackets / 1000/1000 << "
-            // Mbps \n";
-            outFile << "  Mean jitter:  "
-                    << 1000 * i->second.jitterSum.GetSeconds() / i->second.rxPackets << " ms\n";
-        }
-        else
-        {
-            outFile << "  Throughput:  0 Mbps\n";
-            outFile << "  Mean delay:  0 ms\n";
-            outFile << "  Mean jitter: 0 ms\n";
-        }
-        outFile << "  Rx Packets: " << i->second.rxPackets << "\n";
-    }
-
-    double meanFlowThroughput = averageFlowThroughput / stats.size();
-    double meanFlowDelay = averageFlowDelay / stats.size();
-
-    outFile << "\n\n  Mean flow throughput: " << meanFlowThroughput << "\n";
-    outFile << "  Mean flow delay: " << meanFlowDelay << "\n";
 
     outFile.close();
 
@@ -1449,43 +1479,4 @@ main(int argc, char* argv[])
     *rxFragments->GetStream() << fragmentsReceived << std::endl;
 
     Simulator::Destroy();
-
-    if (argc == 0)
-    {
-        double toleranceMeanFlowThroughput = 0.0001 * 56.258560;
-        double toleranceMeanFlowDelay = 0.0001 * 0.553292;
-
-        if (meanFlowThroughput >= 56.258560 - toleranceMeanFlowThroughput &&
-            meanFlowThroughput <= 56.258560 + toleranceMeanFlowThroughput &&
-            meanFlowDelay >= 0.553292 - toleranceMeanFlowDelay &&
-            meanFlowDelay <= 0.553292 + toleranceMeanFlowDelay)
-        {
-            return EXIT_SUCCESS;
-        }
-        else
-        {
-            return EXIT_FAILURE;
-        }
-    }
-    else if (argc == 1 and ueNumPergNb == 9) // called from examples-to-run.py with these parameters
-    {
-        double toleranceMeanFlowThroughput = 0.0001 * 47.858536;
-        double toleranceMeanFlowDelay = 0.0001 * 10.504189;
-
-        if (meanFlowThroughput >= 47.858536 - toleranceMeanFlowThroughput &&
-            meanFlowThroughput <= 47.858536 + toleranceMeanFlowThroughput &&
-            meanFlowDelay >= 10.504189 - toleranceMeanFlowDelay &&
-            meanFlowDelay <= 10.504189 + toleranceMeanFlowDelay)
-        {
-            return EXIT_SUCCESS;
-        }
-        else
-        {
-            return EXIT_FAILURE;
-        }
-    }
-    else
-    {
-        return EXIT_SUCCESS; // we dont check other parameters configurations at the moment
-    }
 }
