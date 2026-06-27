@@ -721,9 +721,9 @@ main(int argc, char* argv[])
         bwpIdForLowLat = 0;
     }
 
-    nrHelper->SetGnbBwpManagerAlgorithmAttribute("GBR_CONV_VIDEO", UintegerValue(bwpIdForLowLat));
+    nrHelper->SetGnbBwpManagerAlgorithmAttribute("GBR_NON_CONV_VIDEO", UintegerValue(bwpIdForLowLat));
 
-    nrHelper->SetUeBwpManagerAlgorithmAttribute("GBR_CONV_VIDEO", UintegerValue(bwpIdForLowLat));
+    nrHelper->SetUeBwpManagerAlgorithmAttribute("GBR_NON_CONV_VIDEO", UintegerValue(bwpIdForLowLat));
     /*
      * We miss many other parameters. By default, not configuring them is equivalent
      * to use the default values. Please, have a look at the documentation to see
@@ -988,7 +988,7 @@ main(int argc, char* argv[])
     }
 
     // The bearer that will carry low latency traffic
-    NrEpsBearer lowLatBearer(NrEpsBearer::GBR_CONV_VIDEO);
+    NrEpsBearer lowLatBearer(NrEpsBearer::GBR_NON_CONV_VIDEO);
 
     // 2. Correct Low-Latency Downlink Filter
     Ptr<NrEpcTft> lowLatTft = Create<NrEpcTft>();
