@@ -391,7 +391,10 @@ BurstyApplicationClient::FragmentReceived(BurstHandler& burstHandler,
 
     SeqTsSizeFragHeader header;
     f->PeekHeader(header);
-    NS_ABORT_IF(header.GetSize() == 0);
+    if (header.GetSize() == 0) {
+        NS_LOG_UNCOND("Received fragment with header size 0. Discarding.");
+        return;
+    }
 
     m_totRxFragments++;
     m_rxFragmentTrace(f,
