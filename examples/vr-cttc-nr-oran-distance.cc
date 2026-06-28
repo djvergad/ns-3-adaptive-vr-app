@@ -189,8 +189,8 @@ QueryRcSink(std::string query, std::string args, int rc)
 
 void
 printSortedStats(const ns3::FlowMonitor::FlowStatsContainer& container,
-                              ns3::Ptr<ns3::FlowClassifier> classifier,
-                              std::ofstream& outFile)
+                 ns3::Ptr<ns3::FlowClassifier> classifier,
+                 std::ofstream& outFile)
 {
     // 1. Cast the generic FlowClassifier to an Ipv4FlowClassifier
     ns3::Ptr<ns3::Ipv4FlowClassifier> ipv4Classifier =
@@ -231,19 +231,18 @@ printSortedStats(const ns3::FlowMonitor::FlowStatsContainer& container,
 
         if (stats.rxPackets > 0)
         {
-            double flowThroughput = stats.rxBytes * 8.0 /
-                                    (stats.timeLastRxPacket - stats.timeFirstTxPacket).GetSeconds() /
-                                    1000 / 1000; // Mbps
+            double flowThroughput =
+                stats.rxBytes * 8.0 /
+                (stats.timeLastRxPacket - stats.timeFirstTxPacket).GetSeconds() / 1000 /
+                1000; // Mbps
             double flowDelay = 1000 * stats.delaySum.GetSeconds() / stats.rxPackets;
             averageFlowThroughput += flowThroughput;
             averageFlowDelay += flowDelay;
             outFile << "  Throughput: " << flowThroughput << " Mbps\n";
             outFile << "  Mean delay:  " << flowDelay << " ms\n";
             outFile << "  Mean jitter:  " << 1000 * stats.jitterSum.GetSeconds() / stats.rxPackets
-                << " ms\n";
-
+                    << " ms\n";
         }
-
     }
 
     double meanFlowThroughput = averageFlowThroughput / sorted_vector.size();
@@ -500,6 +499,11 @@ main(int argc, char* argv[])
     Ptr<MobilityModel> gnbMobility = gnbNode->GetObject<MobilityModel>();
     gnbPos = gnbMobility->GetPosition();
 
+    if (mediumUeDistance < 0.0)
+    {
+        mediumUeDistance = farUeDistance / 2.0; // Default to half of farUeDistance if not specified
+    }
+
     NS_LOG_INFO("gNB position: (" << gnbPos.x << ", " << gnbPos.y << ", " << gnbPos.z << ")");
     NS_LOG_INFO("Placing " << nearUes << " UEs near gNB and " << mediumUes << " UEs at distance "
                            << mediumUeDistance << " and " << farUes << " UEs at distance "
@@ -721,9 +725,11 @@ main(int argc, char* argv[])
         bwpIdForLowLat = 0;
     }
 
-    nrHelper->SetGnbBwpManagerAlgorithmAttribute("GBR_NON_CONV_VIDEO", UintegerValue(bwpIdForLowLat));
+    nrHelper->SetGnbBwpManagerAlgorithmAttribute("GBR_NON_CONV_VIDEO",
+                                                 UintegerValue(bwpIdForLowLat));
 
-    nrHelper->SetUeBwpManagerAlgorithmAttribute("GBR_NON_CONV_VIDEO", UintegerValue(bwpIdForLowLat));
+    nrHelper->SetUeBwpManagerAlgorithmAttribute("GBR_NON_CONV_VIDEO",
+                                                UintegerValue(bwpIdForLowLat));
     /*
      * We miss many other parameters. By default, not configuring them is equivalent
      * to use the default values. Please, have a look at the documentation to see
@@ -1417,7 +1423,6 @@ main(int argc, char* argv[])
     outFile.setf(std::ios_base::fixed);
 
     printSortedStats(stats, classifier, outFile);
-
 
     outFile.close();
 
