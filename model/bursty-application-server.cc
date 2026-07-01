@@ -21,19 +21,19 @@
 
 #include "ns3/address-utils.h"
 #include "ns3/address.h"
+#include "ns3/bola.h"
 #include "ns3/boolean.h"
 #include "ns3/double.h"
-#include "ns3/fuzzy-algorithm-server.h"
-#include "ns3/bola.h"
 #include "ns3/festive.h"
-#include "ns3/mpc.h"
+#include "ns3/fuzzy-algorithm-server.h"
 #include "ns3/google-algorithm-server.h"
-#include "ns3/oran-cell-utilization-udp-adaptation-algorithm.h"
-#include "ns3/oran-cell-utilization-udp-no-queue-adaptation-algorithm.h"
 #include "ns3/inet-socket-address.h"
 #include "ns3/inet6-socket-address.h"
 #include "ns3/log.h"
+#include "ns3/mpc.h"
 #include "ns3/node.h"
+#include "ns3/oran-cell-utilization-udp-adaptation-algorithm.h"
+#include "ns3/oran-cell-utilization-udp-no-queue-adaptation-algorithm.h"
 #include "ns3/packet.h"
 #include "ns3/simulator.h"
 #include "ns3/socket-factory.h"
@@ -43,7 +43,7 @@
 #include "ns3/udp-socket-factory.h"
 #include "ns3/udp-socket.h"
 #include "ns3/uinteger.h"
-
+#include "ns3/adaptation-algorithm-server.h"
 namespace ns3
 {
 
@@ -250,6 +250,7 @@ BurstyApplicationServer::HandleRead(Ptr<Socket> socket)
         }
     }
 }
+
 void
 BurstyApplicationServer::HandlePeerClose(Ptr<Socket> socket)
 {
@@ -325,21 +326,28 @@ BurstyApplicationServer::CreateInstance(Ptr<Socket> socket, Address peer)
     m_server_instances[peer].m_txFragmentTrace = m_txFragmentTrace;
     m_server_instances[peer].m_fragSize = m_fragSize;
 
-    if (m_adaptationAlgorithm == "FuzzyAlgorithmServer")
+    if (m_adaptationAlgorithm == "AdaptationAlgorithmServer")
+    {
+        m_server_instances[peer].m_adaptationAlgorithmServer =
+            CreateObject<AdaptationAlgorithmServer>();
+        m_server_instances[peer].m_adaptationAlgorithmServer->m_maxDataRate =
+            m_server_instances[peer].m_burstGenerator->GetTargetDataRate();
+    }
+    else if (m_adaptationAlgorithm == "FuzzyAlgorithmServer")
     {
         m_server_instances[peer].m_adaptationAlgorithmServer = CreateObject<FuzzyAlgorithmServer>();
     }
     else if (m_adaptationAlgorithm == "BolaAlgo")
     {
-        m_server_instances[peer].m_adaptationAlgorithmServer = CreateObject<BolaAlgo>(0,0);
+        m_server_instances[peer].m_adaptationAlgorithmServer = CreateObject<BolaAlgo>(0, 0);
     }
     else if (m_adaptationAlgorithm == "MPCAlgo")
     {
-        m_server_instances[peer].m_adaptationAlgorithmServer = CreateObject<MPCAlgo>(0,0);
+        m_server_instances[peer].m_adaptationAlgorithmServer = CreateObject<MPCAlgo>(0, 0);
     }
     else if (m_adaptationAlgorithm == "FestiveAlgorithm")
     {
-        m_server_instances[peer].m_adaptationAlgorithmServer = CreateObject<FestiveAlgorithm>(0,0);
+        m_server_instances[peer].m_adaptationAlgorithmServer = CreateObject<FestiveAlgorithm>(0, 0);
     }
     else if (m_adaptationAlgorithm == "GoogleAlgorithmServer")
     {
@@ -351,19 +359,20 @@ BurstyApplicationServer::CreateInstance(Ptr<Socket> socket, Address peer)
         Ptr<OranCellUtilizationUdpAdaptationAlgorithm> oranUdpAlgo =
             CreateObject<OranCellUtilizationUdpAdaptationAlgorithm>();
         m_server_instances[peer].m_adaptationAlgorithmServer = oranUdpAlgo;
-        oranUdpAlgo->m_server_instance = &m_server_instances[peer];
     }
     else if (m_adaptationAlgorithm == "OranCellUtilizationUdpNoQueueAdaptationAlgorithm")
     {
         Ptr<OranCellUtilizationUdpNoQueueAdaptationAlgorithm> oranUdpAlgo =
             CreateObject<OranCellUtilizationUdpNoQueueAdaptationAlgorithm>();
         m_server_instances[peer].m_adaptationAlgorithmServer = oranUdpAlgo;
-        oranUdpAlgo->m_server_instance = &m_server_instances[peer];
     }
     else if (m_adaptationAlgorithm != "")
     {
         NS_ABORT_MSG("Wrong Adaptation Algorithm type");
     }
+
+    m_server_instances[peer].m_adaptationAlgorithmServer->m_server_instance =
+        &m_server_instances[peer];
 
     Ptr<VrBurstGenerator> vrBurstGenerator =
         DynamicCast<VrBurstGenerator>(m_server_instances[peer].GetBurstGenerator());

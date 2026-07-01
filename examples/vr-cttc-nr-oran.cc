@@ -640,6 +640,15 @@ main(int argc, char* argv[])
     // Ptr<ns3::OranInMemoryDataRepository> repo = CreateObject<ns3::OranInMemoryDataRepository>();
     Ptr<ns3::OranLogicVrBitrate> oranLogicVrBitrate = CreateObject<ns3::OranLogicVrBitrate>();
 
+    Config::SetDefault("ns3::AdaptationAlgorithmServer::OranLogicVrBitrate",
+                       PointerValue(Ptr<OranLogicVrBitrate>(oranLogicVrBitrate)));
+
+    // Setup traces
+    AsciiTraceHelper ascii;
+    Ptr<OutputStreamWrapper> statsTraceFile = ascii.CreateFileStream("statsTraceFile.csv");
+
+    oranLogicVrBitrate->SetStatsTraceFile(statsTraceFile);
+
     // ORAN Models -- Initialize RIC BEFORE application setup
     // This ensures oranLogicVrBitrate is properly initialized with the data repository
     // before the adaptation algorithm instances are created
@@ -694,7 +703,7 @@ main(int argc, char* argv[])
     if (burstGeneratorType == "model")
     {
         protocol = "ns3::UdpSocketFactory";
-        Config::SetDefault("ns3::BurstyApplicationServer::adaptationAlgorithm", StringValue(""));
+        Config::SetDefault("ns3::BurstyApplicationServer::adaptationAlgorithm", StringValue("AdaptationAlgorithmServer"));
     }
     else if (burstGeneratorType == "google")
     {
@@ -747,8 +756,6 @@ main(int argc, char* argv[])
         Config::SetDefault("ns3::OranCellUtilizationUdpAdaptationAlgorithm::UseDqnBitrate",
                            BooleanValue(false));
         // Provide the collector instance so the algorithm can query cell utilization
-        Config::SetDefault("ns3::OranCellUtilizationUdpAdaptationAlgorithm::OranLogicVrBitrate",
-                           PointerValue(Ptr<OranLogicVrBitrate>(oranLogicVrBitrate)));
     }
     else if (burstGeneratorType == "oran-util-udp-der")
     {
@@ -761,8 +768,6 @@ main(int argc, char* argv[])
                            BooleanValue(false));
         Config::SetDefault("ns3::OranCellUtilizationUdpAdaptationAlgorithm::UseDqnBitrate",
                            BooleanValue(false));
-        Config::SetDefault("ns3::OranCellUtilizationUdpAdaptationAlgorithm::OranLogicVrBitrate",
-                           PointerValue(Ptr<OranLogicVrBitrate>(oranLogicVrBitrate)));
     }
     else if (burstGeneratorType == "oran-util-udp-opt")
     {
@@ -775,9 +780,6 @@ main(int argc, char* argv[])
                            BooleanValue(true));
         Config::SetDefault("ns3::OranCellUtilizationUdpAdaptationAlgorithm::UseDqnBitrate",
                            BooleanValue(false));
-
-                           Config::SetDefault("ns3::OranCellUtilizationUdpAdaptationAlgorithm::OranLogicVrBitrate",
-                           PointerValue(Ptr<OranLogicVrBitrate>(oranLogicVrBitrate)));
     }
     else if (burstGeneratorType == "oran-util-udp-dqn")
     {
@@ -790,8 +792,6 @@ main(int argc, char* argv[])
                            BooleanValue(false));
         Config::SetDefault("ns3::OranCellUtilizationUdpAdaptationAlgorithm::UseDqnBitrate",
                            BooleanValue(true));
-        Config::SetDefault("ns3::OranCellUtilizationUdpAdaptationAlgorithm::OranLogicVrBitrate",
-                           PointerValue(Ptr<OranLogicVrBitrate>(oranLogicVrBitrate)));
     }
     else if (burstGeneratorType == "oran-util-udp-no-queue")
     {
@@ -800,9 +800,6 @@ main(int argc, char* argv[])
         Config::SetDefault("ns3::BurstyApplicationServer::adaptationAlgorithm",
                            StringValue("OranCellUtilizationUdpNoQueueAdaptationAlgorithm"));
         // Provide the collector instance so the algorithm can query cell utilization
-        Config::SetDefault(
-            "ns3::OranCellUtilizationUdpNoQueueAdaptationAlgorithm::OranLogicVrBitrate",
-            PointerValue(Ptr<OranLogicVrBitrate>(oranLogicVrBitrate)));
     }
     else
     {
@@ -874,9 +871,6 @@ main(int argc, char* argv[])
                                                           DoubleValue(2.5),
                                                           "Max",
                                                           DoubleValue(3));
-
-    // Setup traces
-    AsciiTraceHelper ascii;
 
     Ptr<OutputStreamWrapper> burstTrace = ascii.CreateFileStream("burstTrace.csv");
     *burstTrace->GetStream() << "SrcAddress,TxTime_ns,RxTime_ns,BurstSeq,BurstSize" << std::endl;
@@ -1113,97 +1107,97 @@ main(int argc, char* argv[])
 
     // Connect each gNB MAC BufferStatusReportTrace to the corresponding
     // OranReporterNrUeBitratePerLcid instance created by the terminator.
-    if (burstGeneratorType == "oran-util-udp" || burstGeneratorType == "oran-util-udp-der" ||
-        burstGeneratorType == "oran-util-udp-opt" || burstGeneratorType == "oran-util-udp-dqn" || burstGeneratorType == "oran-util-udp-no-queue")
+    // if (burstGeneratorType == "oran-util-udp" || burstGeneratorType == "oran-util-udp-der" ||
+    //     burstGeneratorType == "oran-util-udp-opt" || burstGeneratorType == "oran-util-udp-dqn" ||
+    //     burstGeneratorType == "oran-util-udp-no-queue")
+    // {
+    for (uint32_t idx = 0; idx < gnbNetDev.GetN(); ++idx)
     {
-        for (uint32_t idx = 0; idx < gnbNetDev.GetN(); ++idx)
+        Ptr<NetDevice> dev = gnbNetDev.Get(idx);
+        Ptr<NrGnbNetDevice> gnbDevice = dev->GetObject<NrGnbNetDevice>();
+        if (!gnbDevice)
         {
-            Ptr<NetDevice> dev = gnbNetDev.Get(idx);
-            Ptr<NrGnbNetDevice> gnbDevice = dev->GetObject<NrGnbNetDevice>();
-            if (!gnbDevice)
-            {
-                continue;
-            }
-            Ptr<NrGnbMac> gnbMac = gnbDevice->GetMac(0);
-            if (!gnbMac)
-            {
-                continue;
-            }
+            continue;
+        }
+        Ptr<NrGnbMac> gnbMac = gnbDevice->GetMac(0);
+        if (!gnbMac)
+        {
+            continue;
+        }
 
-            // Find the terminator attached to this node
-            for (uint32_t t = 0; t < deployedEnbTerminators.GetN(); ++t)
+        // Find the terminator attached to this node
+        for (uint32_t t = 0; t < deployedEnbTerminators.GetN(); ++t)
+        {
+            Ptr<OranE2NodeTerminator> term = deployedEnbTerminators.Get(t);
+            if (term->GetNode() == dev->GetNode())
             {
-                Ptr<OranE2NodeTerminator> term = deployedEnbTerminators.Get(t);
-                if (term->GetNode() == dev->GetNode())
+                // Retrieve reporters attribute and connect any bitrate reporter
+                ObjectVectorValue reportersVal;
+                term->GetAttribute("Reporters", reportersVal);
+                for (std::size_t r = 0; r < reportersVal.GetN(); ++r)
                 {
-                    // Retrieve reporters attribute and connect any bitrate reporter
-                    ObjectVectorValue reportersVal;
-                    term->GetAttribute("Reporters", reportersVal);
-                    for (std::size_t r = 0; r < reportersVal.GetN(); ++r)
+                    Ptr<Object> repObj = reportersVal.Get(r);
+                    Ptr<OranReporterNrUeBitratePerLcid> br =
+                        DynamicCast<OranReporterNrUeBitratePerLcid>(repObj);
+                    if (br)
                     {
-                        Ptr<Object> repObj = reportersVal.Get(r);
-                        Ptr<OranReporterNrUeBitratePerLcid> br =
-                            DynamicCast<OranReporterNrUeBitratePerLcid>(repObj);
-                        if (br)
-                        {
-                            // gnbMac->TraceConnectWithoutContext(
-                            //     "BufferStatusReportTrace",
-                            //     MakeCallback(&OranReporterNrUeBitratePerLcid::OnBufferStatusReport,
-                            //     br));
-                            // Also attach to scheduler SchedStats trace (if available)
+                        // gnbMac->TraceConnectWithoutContext(
+                        //     "BufferStatusReportTrace",
+                        //     MakeCallback(&OranReporterNrUeBitratePerLcid::OnBufferStatusReport,
+                        //     br));
+                        // Also attach to scheduler SchedStats trace (if available)
 
-                            // std::cout << "Connecting SchedStats trace for bitrate reporter" << "
-                            // t= "
-                            // << t << std::endl;
-                            for (uint32_t q = 0; q < 2; ++q)
+                        // std::cout << "Connecting SchedStats trace for bitrate reporter" << "
+                        // t= "
+                        // << t << std::endl;
+                        for (uint32_t q = 0; q < 2; ++q)
+                        {
+                            std::cout << " Node devices[" << q << "]=" << std::endl;
+
+                            Ptr<NrMacScheduler> sched = nrHelper->GetScheduler(dev, q);
+                            if (sched)
                             {
-                                std::cout << " Node devices[" << q << "]=" << std::endl;
-
-                                Ptr<NrMacScheduler> sched = nrHelper->GetScheduler(dev, q);
-                                if (sched)
-                                {
-                                    sched->TraceConnectWithoutContext(
-                                        "SchedStats",
-                                        MakeCallback(&OranReporterNrUeBitratePerLcid::OnSchedStats,
-                                                     br));
-                                }
-                            }
-                        }
-                        Ptr<OranReporterNrUeTxQueueHolDelay> txq =
-                            DynamicCast<OranReporterNrUeTxQueueHolDelay>(repObj);
-                        if (txq)
-                        {
-                            gnbMac->TraceConnectWithoutContext(
-                                "BufferStatusReportTrace",
-                                MakeCallback(&OranReporterNrUeTxQueueHolDelay::OnBufferStatusReport,
-                                             txq));
-                        }
-
-                        Ptr<OranReporterNrUeStats> stats =
-                            DynamicCast<OranReporterNrUeStats>(repObj);
-                        if (stats)
-                        {
-                            gnbMac->TraceConnectWithoutContext(
-                                "BufferStatusReportTrace",
-                                MakeCallback(&OranReporterNrUeStats::OnBufferStatusReport, stats));
-
-                            for (uint32_t q = 0; q < 2; ++q)
-                            {
-                                Ptr<NrMacScheduler> sched = nrHelper->GetScheduler(dev, q);
-                                if (sched)
-                                {
-                                    sched->TraceConnectWithoutContext(
-                                        "SchedStats",
-                                        MakeCallback(&OranReporterNrUeStats::OnSchedStats, stats));
-                                }
+                                sched->TraceConnectWithoutContext(
+                                    "SchedStats",
+                                    MakeCallback(&OranReporterNrUeBitratePerLcid::OnSchedStats,
+                                                 br));
                             }
                         }
                     }
-                    break; // found the terminator for this node
+                    Ptr<OranReporterNrUeTxQueueHolDelay> txq =
+                        DynamicCast<OranReporterNrUeTxQueueHolDelay>(repObj);
+                    if (txq)
+                    {
+                        gnbMac->TraceConnectWithoutContext(
+                            "BufferStatusReportTrace",
+                            MakeCallback(&OranReporterNrUeTxQueueHolDelay::OnBufferStatusReport,
+                                         txq));
+                    }
+
+                    Ptr<OranReporterNrUeStats> stats = DynamicCast<OranReporterNrUeStats>(repObj);
+                    if (stats)
+                    {
+                        gnbMac->TraceConnectWithoutContext(
+                            "BufferStatusReportTrace",
+                            MakeCallback(&OranReporterNrUeStats::OnBufferStatusReport, stats));
+
+                        for (uint32_t q = 0; q < 2; ++q)
+                        {
+                            Ptr<NrMacScheduler> sched = nrHelper->GetScheduler(dev, q);
+                            if (sched)
+                            {
+                                sched->TraceConnectWithoutContext(
+                                    "SchedStats",
+                                    MakeCallback(&OranReporterNrUeStats::OnSchedStats, stats));
+                            }
+                        }
+                    }
                 }
+                break; // found the terminator for this node
             }
         }
     }
+    // }
 
     // DB logging to the terminal
     // if (dbLog)
@@ -1420,4 +1414,3 @@ main(int argc, char* argv[])
         return EXIT_SUCCESS; // we dont check other parameters configurations at the moment
     }
 }
-

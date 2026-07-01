@@ -19,12 +19,6 @@ OranCellUtilizationUdpNoQueueAdaptationAlgorithm::GetTypeId(void)
             .SetGroupName("Applications")
             .AddConstructor<OranCellUtilizationUdpNoQueueAdaptationAlgorithm>()
             .AddAttribute(
-                "OranLogicVrBitrate",
-                "The OranLogicVrBitrate used.",
-                PointerValue(0),
-                MakePointerAccessor(&OranCellUtilizationUdpNoQueueAdaptationAlgorithm::m_lm),
-                MakePointerChecker<OranLogicVrBitrate>())
-            .AddAttribute(
                 "Lcid",
                 "Logical Channel ID for VR traffic bearer (typically 4-10 for dedicated bearers)",
                 UintegerValue(5),

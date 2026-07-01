@@ -18,11 +18,6 @@ OranCellUtilizationUdpAdaptationAlgorithm::GetTypeId(void)
             .SetParent<AdaptationAlgorithmServer>()
             .SetGroupName("Applications")
             .AddConstructor<OranCellUtilizationUdpAdaptationAlgorithm>()
-            .AddAttribute("OranLogicVrBitrate",
-                          "The OranLogicVrBitrate used.",
-                          PointerValue(0),
-                          MakePointerAccessor(&OranCellUtilizationUdpAdaptationAlgorithm::m_lm),
-                          MakePointerChecker<OranLogicVrBitrate>())
             .AddAttribute(
                 "Lcid",
                 "Logical Channel ID for VR traffic bearer (typically 4-10 for dedicated bearers)",

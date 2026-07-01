@@ -2,10 +2,8 @@
 #define ORAN_CELL_UTILIZATION_UDP_ADAPTATION_ALGORITHM_H
 
 #include "adaptation-algorithm-server.h"
-#include "ns3/bursty-application-server-instance.h"
 #include "ns3/data-rate.h"
 #include "ns3/random-variable-stream.h"
-#include "ns3/oran-module.h"
 #include <memory>
 
 namespace ns3 {
@@ -19,14 +17,9 @@ public:
   OranCellUtilizationUdpAdaptationAlgorithm ();
   virtual ~OranCellUtilizationUdpAdaptationAlgorithm ();
 
-  // Set the collector instance
-  // void SetCellUtilizationCollector (Ptr<OranCellUtilizationCollector> collector);
-  Ptr<BurstyApplicationServerInstance> m_server_instance = nullptr;
-
 private:
   // Override the adaptation algorithm
   virtual DataRate adaptation_algorithm (double buffOcc, double diffBuffOcc, DataRate lastRate);
-  Ptr<OranLogicVrBitrate> m_lm;
   double m_utilizationThreshold = 100000;
   DataRate m_minRate = DataRate ("1.5Mbps");
   DataRate m_maxRate = DataRate ("50Mbps");

@@ -28,8 +28,6 @@
 #include "ns3/traced-callback.h"
 #include "ns3/seq-ts-size-frag-header.h"
 #include "vr-burst-generator.h"
-#include "ns3/fuzzy-algorithm-server.h"
-#include "ns3/adaptation-algorithm-server.h"
 
 #include <queue>
 
@@ -40,6 +38,7 @@ class RandomVariableStream;
 class Socket;
 class BurstGenerator;
 class Packet;
+class AdaptationAlgorithmServer;
 
 class BurstyApplicationServerInstance : public Object
 {
@@ -134,7 +133,7 @@ protected:
   Ptr<Socket> m_socket; //!< Associated socket
   Address m_local; //!< Local address to bind to
   bool m_connected; //!< True if connected
-  Ptr<BurstGenerator> m_burstGenerator =
+  Ptr<VrBurstGenerator> m_burstGenerator =
       CreateObject<VrBurstGenerator> (); //!< Burst generator class
   uint32_t m_fragSize = 1200; //!< Size of fragments including SeqTsSizeFragHeader
   EventId m_nextBurstEvent; //!< Event id for the next packet burst

@@ -38,6 +38,8 @@
 #include "ns3/trace-source-accessor.h"
 #include "ns3/udp-socket-factory.h"
 #include "ns3/uinteger.h"
+#include "ns3/adaptation-algorithm-server.h"
+#include "ns3/tcp-socket-base.h"
 
 namespace ns3
 {

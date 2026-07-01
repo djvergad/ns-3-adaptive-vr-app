@@ -398,12 +398,14 @@ main(int argc, char* argv[])
     dlClientLowLat.SetAttribute("Interval", TimeValue(Seconds(1.0 / lambdaULL)));
 
     Ptr<ns3::OranLogicVrBitrate> oranLogicVrBitrate = CreateObject<ns3::OranLogicVrBitrate>();
+    Config::SetDefault("ns3::AdaptationAlgorithmServer::OranLogicVrBitrate", PointerValue(Ptr<OranLogicVrBitrate>(oranLogicVrBitrate)));
+
 
     std::string protocol;
     if (burstGeneratorType == "model")
     {
         protocol = "ns3::UdpSocketFactory";
-        Config::SetDefault("ns3::BurstyApplicationServer::adaptationAlgorithm", StringValue(""));
+        Config::SetDefault("ns3::BurstyApplicationServer::adaptationAlgorithm", StringValue("AdaptationAlgorithmServer"));
     }
     else if (burstGeneratorType == "google")
     {
@@ -447,13 +449,11 @@ main(int argc, char* argv[])
         protocol = "ns3::UdpSocketFactory";
         Config::SetDefault("ns3::BurstyApplicationServer::adaptationAlgorithm", StringValue("OranCellUtilizationUdpAdaptationAlgorithm"));
         Config::SetDefault("ns3::OranCellUtilizationUdpAdaptationAlgorithm::UseDerivativeBitrate", BooleanValue(true));
-        Config::SetDefault("ns3::OranCellUtilizationUdpAdaptationAlgorithm::OranLogicVrBitrate", PointerValue(Ptr<OranLogicVrBitrate>(oranLogicVrBitrate)));
     }
     else if (burstGeneratorType == "oran-util-udp-no-queue")
     {
         protocol = "ns3::UdpSocketFactory";
         Config::SetDefault("ns3::BurstyApplicationServer::adaptationAlgorithm", StringValue("OranCellUtilizationUdpNoQueueAdaptationAlgorithm"));
-        Config::SetDefault("ns3::OranCellUtilizationUdpNoQueueAdaptationAlgorithm::OranLogicVrBitrate", PointerValue(Ptr<OranLogicVrBitrate>(oranLogicVrBitrate)));
     }
     else
     {
