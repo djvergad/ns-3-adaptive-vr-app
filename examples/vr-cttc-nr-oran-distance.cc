@@ -1044,7 +1044,7 @@ main(int argc, char* argv[])
     AsciiTraceHelper ascii;
 
     Ptr<OutputStreamWrapper> burstTrace = ascii.CreateFileStream("burstTrace.csv");
-    *burstTrace->GetStream() << "SrcAddress,TxTime_ns,RxTime_ns,BurstSeq,BurstSize" << std::endl;
+    *burstTrace->GetStream() << "SrcAddress,TxTime_ns,RxTime_ns,BurstSeq,BurstSize,Distance" << std::endl;
     Ptr<OutputStreamWrapper> fragmentTrace = ascii.CreateFileStream("fragmentTrace.csv");
     *fragmentTrace->GetStream()
         << "SrcAddress,TxTime_ns,RxTime_ns,BurstSeq,FragSeq,TotFrags,FragSize,Distance"
