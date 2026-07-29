@@ -185,6 +185,8 @@ main(int argc, char* argv[])
     std::string simTag = "default";
     std::string outputDir = "./";
 
+    bool produceStatTrace = false;
+
     /*
      * From here, we instruct the ns3::CommandLine class of all the input parameters
      * that we may accept as input, as well as their description, and the storage
@@ -238,6 +240,7 @@ main(int argc, char* argv[])
                  "tag to be appended to output filenames to distinguish simulation campaigns",
                  simTag);
     cmd.AddValue("outputDir", "directory where to store simulation results", outputDir);
+    cmd.AddValue("produceStatTrace", "whether to produce statistics trace files", produceStatTrace);
 
     // Parse the command line
     cmd.Parse(argc, argv);
@@ -645,10 +648,12 @@ main(int argc, char* argv[])
 
     // Setup traces
     AsciiTraceHelper ascii;
-    Ptr<OutputStreamWrapper> statsTraceFile = ascii.CreateFileStream("statsTraceFile.csv");
 
-    oranLogicVrBitrate->SetStatsTraceFile(statsTraceFile);
-
+    if (produceStatTrace)
+    {
+        Ptr<OutputStreamWrapper> statsTraceFile = ascii.CreateFileStream("statsTraceFile.csv");
+        oranLogicVrBitrate->SetStatsTraceFile(statsTraceFile);
+    }
     // ORAN Models -- Initialize RIC BEFORE application setup
     // This ensures oranLogicVrBitrate is properly initialized with the data repository
     // before the adaptation algorithm instances are created
@@ -703,7 +708,8 @@ main(int argc, char* argv[])
     if (burstGeneratorType == "model")
     {
         protocol = "ns3::UdpSocketFactory";
-        Config::SetDefault("ns3::BurstyApplicationServer::adaptationAlgorithm", StringValue("AdaptationAlgorithmServer"));
+        Config::SetDefault("ns3::BurstyApplicationServer::adaptationAlgorithm",
+                           StringValue("AdaptationAlgorithmServer"));
     }
     else if (burstGeneratorType == "google")
     {
