@@ -36,11 +36,11 @@ OranCellUtilizationUdpAdaptationAlgorithm::GetTypeId(void)
                           MakeBooleanAccessor(
                               &OranCellUtilizationUdpAdaptationAlgorithm::m_useOptimizedBitrate),
                           MakeBooleanChecker())
-            .AddAttribute("UseDqnBitrate",
-                          "If true, query GetVrBitrateDQN instead of GetVrBitrate.",
+            .AddAttribute("UseGnnBitrate",
+                          "If true, query GetVrBitrateGNN instead of GetVrBitrate.",
                           BooleanValue(false),
                           MakeBooleanAccessor(
-                              &OranCellUtilizationUdpAdaptationAlgorithm::m_useDqnBitrate),
+                              &OranCellUtilizationUdpAdaptationAlgorithm::m_useGnnBitrate),
                           MakeBooleanChecker());
     return tid;
 }
@@ -98,9 +98,9 @@ OranCellUtilizationUdpAdaptationAlgorithm::adaptation_algorithm(double buffOcc,
             {
                 result_non_quant = m_lm->GetVrBitrateOptimized(m_server_instance->m_peer, m_lcid);
             }
-            else if (m_useDqnBitrate)
+            else if (m_useGnnBitrate)
             {
-                result_non_quant = m_lm->GetVrBitrateDQN(m_server_instance->m_peer, m_lcid);
+                result_non_quant = m_lm->GetVrBitrateGNN(m_server_instance->m_peer, m_lcid);
             }
             else
             {

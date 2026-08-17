@@ -842,8 +842,8 @@ main(int argc, char* argv[])
     dlClientLowLat.SetAttribute("PacketSize", UintegerValue(udpPacketSizeULL));
     dlClientLowLat.SetAttribute("Interval", TimeValue(Seconds(1.0 / lambdaULL)));
 
-    // Ptr<ns3::OranInMemoryDataRepository> repo = CreateObject<ns3::OranInMemoryDataRepository>();
     Ptr<ns3::OranLogicVrBitrate> oranLogicVrBitrate = CreateObject<ns3::OranLogicVrBitrate>();
+    Config::SetDefault("ns3::AdaptationAlgorithmServer::OranLogicVrBitrate", PointerValue(Ptr<OranLogicVrBitrate>(oranLogicVrBitrate)));
 
     // ORAN Models -- Initialize RIC BEFORE application setup
     // This ensures oranLogicVrBitrate is properly initialized with the data repository
@@ -942,28 +942,14 @@ main(int argc, char* argv[])
     else if (burstGeneratorType == "oran-util-udp")
     {
         protocol = "ns3::UdpSocketFactory";
-        // Use UDP-based ORAN utilization adaptation algorithm
-        Config::SetDefault("ns3::BurstyApplicationServer::adaptationAlgorithm",
-                           StringValue("OranCellUtilizationUdpAdaptationAlgorithm"));
-        Config::SetDefault("ns3::OranCellUtilizationUdpAdaptationAlgorithm::UseDerivativeBitrate",
-                           BooleanValue(false));
-        Config::SetDefault("ns3::OranCellUtilizationUdpAdaptationAlgorithm::UseOptimizedBitrate",
-                           BooleanValue(false));
-        // Provide the collector instance so the algorithm can query cell utilization
-        Config::SetDefault("ns3::OranCellUtilizationUdpAdaptationAlgorithm::OranLogicVrBitrate",
-                           PointerValue(Ptr<OranLogicVrBitrate>(oranLogicVrBitrate)));
+        Config::SetDefault("ns3::BurstyApplicationServer::adaptationAlgorithm", StringValue("OranCellUtilizationUdpAdaptationAlgorithm"));
+        Config::SetDefault("ns3::OranCellUtilizationUdpAdaptationAlgorithm::UseDerivativeBitrate", BooleanValue(false));
     }
     else if (burstGeneratorType == "oran-util-udp-der")
     {
         protocol = "ns3::UdpSocketFactory";
-        Config::SetDefault("ns3::BurstyApplicationServer::adaptationAlgorithm",
-                           StringValue("OranCellUtilizationUdpAdaptationAlgorithm"));
-        Config::SetDefault("ns3::OranCellUtilizationUdpAdaptationAlgorithm::UseDerivativeBitrate",
-                           BooleanValue(true));
-        Config::SetDefault("ns3::OranCellUtilizationUdpAdaptationAlgorithm::UseOptimizedBitrate",
-                           BooleanValue(false));
-        Config::SetDefault("ns3::OranCellUtilizationUdpAdaptationAlgorithm::OranLogicVrBitrate",
-                           PointerValue(Ptr<OranLogicVrBitrate>(oranLogicVrBitrate)));
+        Config::SetDefault("ns3::BurstyApplicationServer::adaptationAlgorithm", StringValue("OranCellUtilizationUdpAdaptationAlgorithm"));
+        Config::SetDefault("ns3::OranCellUtilizationUdpAdaptationAlgorithm::UseDerivativeBitrate", BooleanValue(true));
     }
     else if (burstGeneratorType == "oran-util-udp-opt")
     {
@@ -974,19 +960,11 @@ main(int argc, char* argv[])
                            BooleanValue(false));
         Config::SetDefault("ns3::OranCellUtilizationUdpAdaptationAlgorithm::UseOptimizedBitrate",
                            BooleanValue(true));
-        Config::SetDefault("ns3::OranCellUtilizationUdpAdaptationAlgorithm::OranLogicVrBitrate",
-                           PointerValue(Ptr<OranLogicVrBitrate>(oranLogicVrBitrate)));
     }
     else if (burstGeneratorType == "oran-util-udp-no-queue")
     {
         protocol = "ns3::UdpSocketFactory";
-        // Use UDP-based ORAN utilization adaptation algorithm
-        Config::SetDefault("ns3::BurstyApplicationServer::adaptationAlgorithm",
-                           StringValue("OranCellUtilizationUdpNoQueueAdaptationAlgorithm"));
-        // Provide the collector instance so the algorithm can query cell utilization
-        Config::SetDefault(
-            "ns3::OranCellUtilizationUdpNoQueueAdaptationAlgorithm::OranLogicVrBitrate",
-            PointerValue(Ptr<OranLogicVrBitrate>(oranLogicVrBitrate)));
+        Config::SetDefault("ns3::BurstyApplicationServer::adaptationAlgorithm", StringValue("OranCellUtilizationUdpNoQueueAdaptationAlgorithm"));
     }
     else
     {

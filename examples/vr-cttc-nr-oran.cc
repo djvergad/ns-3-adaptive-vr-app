@@ -759,7 +759,7 @@ main(int argc, char* argv[])
                            BooleanValue(false));
         Config::SetDefault("ns3::OranCellUtilizationUdpAdaptationAlgorithm::UseOptimizedBitrate",
                            BooleanValue(false));
-        Config::SetDefault("ns3::OranCellUtilizationUdpAdaptationAlgorithm::UseDqnBitrate",
+        Config::SetDefault("ns3::OranCellUtilizationUdpAdaptationAlgorithm::UseGnnBitrate",
                            BooleanValue(false));
         // Provide the collector instance so the algorithm can query cell utilization
     }
@@ -772,7 +772,7 @@ main(int argc, char* argv[])
                            BooleanValue(true));
         Config::SetDefault("ns3::OranCellUtilizationUdpAdaptationAlgorithm::UseOptimizedBitrate",
                            BooleanValue(false));
-        Config::SetDefault("ns3::OranCellUtilizationUdpAdaptationAlgorithm::UseDqnBitrate",
+        Config::SetDefault("ns3::OranCellUtilizationUdpAdaptationAlgorithm::UseGnnBitrate",
                            BooleanValue(false));
     }
     else if (burstGeneratorType == "oran-util-udp-opt")
@@ -784,10 +784,10 @@ main(int argc, char* argv[])
                            BooleanValue(false));
         Config::SetDefault("ns3::OranCellUtilizationUdpAdaptationAlgorithm::UseOptimizedBitrate",
                            BooleanValue(true));
-        Config::SetDefault("ns3::OranCellUtilizationUdpAdaptationAlgorithm::UseDqnBitrate",
+        Config::SetDefault("ns3::OranCellUtilizationUdpAdaptationAlgorithm::UseGnnBitrate",
                            BooleanValue(false));
     }
-    else if (burstGeneratorType == "oran-util-udp-dqn")
+    else if (burstGeneratorType == "oran-util-udp-gnn")
     {
         protocol = "ns3::UdpSocketFactory";
         Config::SetDefault("ns3::BurstyApplicationServer::adaptationAlgorithm",
@@ -796,7 +796,7 @@ main(int argc, char* argv[])
                            BooleanValue(false));
         Config::SetDefault("ns3::OranCellUtilizationUdpAdaptationAlgorithm::UseOptimizedBitrate",
                            BooleanValue(false));
-        Config::SetDefault("ns3::OranCellUtilizationUdpAdaptationAlgorithm::UseDqnBitrate",
+        Config::SetDefault("ns3::OranCellUtilizationUdpAdaptationAlgorithm::UseGnnBitrate",
                            BooleanValue(true));
     }
     else if (burstGeneratorType == "oran-util-udp-no-queue")
