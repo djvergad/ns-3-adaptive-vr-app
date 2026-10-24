@@ -740,35 +740,7 @@ main(int argc, char* argv[])
         // Use UDP-based ORAN utilization adaptation algorithm
         Config::SetDefault("ns3::BurstyApplicationServer::adaptationAlgorithm",
                            StringValue("OranCellUtilizationUdpAdaptationAlgorithm"));
-        Config::SetDefault("ns3::OranCellUtilizationUdpAdaptationAlgorithm::UseDerivativeBitrate",
-                           BooleanValue(false));
-        Config::SetDefault("ns3::OranCellUtilizationUdpAdaptationAlgorithm::UseOptimizedBitrate",
-                           BooleanValue(false));
         // Provide the collector instance so the algorithm can query cell utilization
-        Config::SetDefault("ns3::OranCellUtilizationUdpAdaptationAlgorithm::OranLogicVrBitrate",
-                           PointerValue(Ptr<OranLogicVrBitrate>(oranLogicVrBitrate)));
-    }
-    else if (burstGeneratorType == "oran-util-udp-der")
-    {
-        protocol = "ns3::UdpSocketFactory";
-        Config::SetDefault("ns3::BurstyApplicationServer::adaptationAlgorithm",
-                           StringValue("OranCellUtilizationUdpAdaptationAlgorithm"));
-        Config::SetDefault("ns3::OranCellUtilizationUdpAdaptationAlgorithm::UseDerivativeBitrate",
-                           BooleanValue(true));
-        Config::SetDefault("ns3::OranCellUtilizationUdpAdaptationAlgorithm::UseOptimizedBitrate",
-                           BooleanValue(false));
-        Config::SetDefault("ns3::OranCellUtilizationUdpAdaptationAlgorithm::OranLogicVrBitrate",
-                           PointerValue(Ptr<OranLogicVrBitrate>(oranLogicVrBitrate)));
-    }
-    else if (burstGeneratorType == "oran-util-udp-opt")
-    {
-        protocol = "ns3::UdpSocketFactory";
-        Config::SetDefault("ns3::BurstyApplicationServer::adaptationAlgorithm",
-                           StringValue("OranCellUtilizationUdpAdaptationAlgorithm"));
-        Config::SetDefault("ns3::OranCellUtilizationUdpAdaptationAlgorithm::UseDerivativeBitrate",
-                           BooleanValue(false));
-        Config::SetDefault("ns3::OranCellUtilizationUdpAdaptationAlgorithm::UseOptimizedBitrate",
-                           BooleanValue(true));
         Config::SetDefault("ns3::OranCellUtilizationUdpAdaptationAlgorithm::OranLogicVrBitrate",
                            PointerValue(Ptr<OranLogicVrBitrate>(oranLogicVrBitrate)));
     }
@@ -789,18 +761,18 @@ main(int argc, char* argv[])
     }
 
     // The bearer that will carry low latency traffic
-    NrEpsBearer lowLatBearer(NrEpsBearer::NGBR_LOW_LAT_EMBB);
+    NrQosFlow lowLatBearer(NrQosFlow::NGBR_LOW_LAT_EMBB);
 
     // The filter for the low-latency traffic
-    Ptr<NrEpcTft> lowLatTft = Create<NrEpcTft>();
-    NrEpcTft::PacketFilter dlpfLowLat;
+    Ptr<NrQosRule> lowLatTft = Create<NrQosRule>();
+    NrQosRule::PacketFilter dlpfLowLat;
     dlpfLowLat.localPortStart = dlPortLowLat;
     dlpfLowLat.localPortEnd = dlPortLowLat;
     lowLatTft->Add(dlpfLowLat);
     // Also add uplink filter for same port
     if (protocol != "ns3::TcpSocketFactory")
     {
-        NrEpcTft::PacketFilter ulpfLowLat;
+        NrQosRule::PacketFilter ulpfLowLat;
         ulpfLowLat.remotePortStart = dlPortLowLat;
         ulpfLowLat.remotePortEnd = dlPortLowLat;
         lowLatTft->Add(ulpfLowLat);
@@ -812,16 +784,16 @@ main(int argc, char* argv[])
     dlClientVoice.SetAttribute("Interval", TimeValue(Seconds(1.0 / lambdaBe)));
 
     // // The bearer that will carry voice traffic
-    NrEpsBearer voiceBearer(NrEpsBearer::GBR_CONV_VOICE);
+    NrQosFlow voiceBearer(NrQosFlow::GBR_CONV_VOICE);
 
     // The filter for the voice traffic
-    Ptr<NrEpcTft> voiceTft = Create<NrEpcTft>();
-    // NrEpcTft::PacketFilter dlpfVoice;
+    Ptr<NrQosRule> voiceTft = Create<NrQosRule>();
+    // NrQosRule::PacketFilter dlpfVoice;
     // dlpfVoice.localPortStart = dlPortVoice;
     // dlpfVoice.localPortEnd = dlPortVoice;
     // voiceTft->Add(dlpfVoice);
     // Also add uplink filter for same port
-    NrEpcTft::PacketFilter ulpfVoice;
+    NrQosRule::PacketFilter ulpfVoice;
     ulpfVoice.remotePortStart = dlPortLowLat;
     ulpfVoice.remotePortEnd = dlPortLowLat;
     voiceTft->Add(ulpfVoice);
@@ -896,8 +868,8 @@ main(int argc, char* argv[])
     for (uint32_t i = 0; i < ueLowLatContainer.GetN(); ++i)
     {
         Ptr<NetDevice> ueDevice = ueLowLatNetDev.Get(i);
-        nrHelper->ActivateDedicatedEpsBearer(ueDevice, voiceBearer, voiceTft);
-        nrHelper->ActivateDedicatedEpsBearer(ueDevice, lowLatBearer, lowLatTft);
+        nrHelper->ActivateDedicatedQosFlow(ueDevice, voiceBearer, voiceTft);
+        nrHelper->ActivateDedicatedQosFlow(ueDevice, lowLatBearer, lowLatTft);
     }
 
     // Install UDP servers on UEs to receive downlink traffic
@@ -976,7 +948,7 @@ main(int argc, char* argv[])
     //     clientApps.Add(dlClientLowLat.Install(remoteHost));
 
     //     // Activate a dedicated bearer for the traffic type
-    //     nrHelper->ActivateDedicatedEpsBearer(ueDevice, lowLatBearer, lowLatTft);
+    //     nrHelper->ActivateDedicatedQosFlow(ueDevice, lowLatBearer, lowLatTft);
     // }
 
     // for (uint32_t i = 0; i < ueVoiceContainer.GetN(); ++i)
@@ -993,7 +965,7 @@ main(int argc, char* argv[])
     //     clientApps.Add(dlClientVoice.Install(remoteHost));
 
     //     // Activate a dedicated bearer for the traffic type
-    //     nrHelper->ActivateDedicatedEpsBearer(ueDevice, voiceBearer, voiceTft);
+    //     nrHelper->ActivateDedicatedQosFlow(ueDevice, voiceBearer, voiceTft);
     // }
 
     // // start UDP server and client apps
@@ -1069,12 +1041,6 @@ main(int argc, char* argv[])
                             StringValue("ns3::OranReportTriggerPeriodic"));
     // Register a bitrate reporter factory with the helper so DeployTerminators will
     // create one per deployed ENB terminator.
-    oranHelper->AddReporter("ns3::OranReporterNrUeBitratePerLcid",
-                            "Trigger",
-                            StringValue("ns3::OranReportTriggerPeriodic"));
-    oranHelper->AddReporter("ns3::OranReporterNrUeTxQueueHolDelay",
-                            "Trigger",
-                            StringValue("ns3::OranReportTriggerPeriodic"));
     oranHelper->AddReporter("ns3::OranReporterNrUeStats",
                             "Trigger",
                             StringValue("ns3::OranReportTriggerPeriodic"));
@@ -1091,9 +1057,7 @@ main(int argc, char* argv[])
     e2NodeTerminatorsEnbs.Add(deployedEnbTerminators);
 
     // Connect each gNB MAC BufferStatusReportTrace to the corresponding
-    // OranReporterNrUeBitratePerLcid instance created by the terminator.
-    if (burstGeneratorType == "oran-util-udp" || burstGeneratorType == "oran-util-udp-der" ||
-        burstGeneratorType == "oran-util-udp-opt" || burstGeneratorType == "oran-util-udp-no-queue")
+    if (burstGeneratorType == "oran-util-udp" || burstGeneratorType == "oran-util-udp-no-queue")
     {
         for (uint32_t idx = 0; idx < gnbNetDev.GetN(); ++idx)
         {
@@ -1121,50 +1085,17 @@ main(int argc, char* argv[])
                     for (std::size_t r = 0; r < reportersVal.GetN(); ++r)
                     {
                         Ptr<Object> repObj = reportersVal.Get(r);
-                        Ptr<OranReporterNrUeBitratePerLcid> br =
-                            DynamicCast<OranReporterNrUeBitratePerLcid>(repObj);
-                        if (br)
-                        {
-                            // gnbMac->TraceConnectWithoutContext(
-                            //     "BufferStatusReportTrace",
-                            //     MakeCallback(&OranReporterNrUeBitratePerLcid::OnBufferStatusReport,
-                            //     br));
-                            // Also attach to scheduler SchedStats trace (if available)
-
-                            // std::cout << "Connecting SchedStats trace for bitrate reporter" << "
-                            // t= "
-                            // << t << std::endl;
-                            for (uint32_t q = 0; q < 2; ++q)
-                            {
-                                std::cout << " Node devices[" << q << "]=" << std::endl;
-
-                                Ptr<NrMacScheduler> sched = nrHelper->GetScheduler(dev, q);
-                                if (sched)
-                                {
-                                    sched->TraceConnectWithoutContext(
-                                        "SchedStats",
-                                        MakeCallback(&OranReporterNrUeBitratePerLcid::OnSchedStats,
-                                                     br));
-                                }
-                            }
-                        }
-                        Ptr<OranReporterNrUeTxQueueHolDelay> txq =
-                            DynamicCast<OranReporterNrUeTxQueueHolDelay>(repObj);
-                        if (txq)
-                        {
-                            gnbMac->TraceConnectWithoutContext(
-                                "BufferStatusReportTrace",
-                                MakeCallback(&OranReporterNrUeTxQueueHolDelay::OnBufferStatusReport,
-                                             txq));
-                        }
-
                         Ptr<OranReporterNrUeStats> stats =
                             DynamicCast<OranReporterNrUeStats>(repObj);
                         if (stats)
                         {
-                            gnbMac->TraceConnectWithoutContext(
-                                "BufferStatusReportTrace",
-                                MakeCallback(&OranReporterNrUeStats::OnBufferStatusReport, stats));
+                            for (uint32_t m = 0; m < gnbDevice->GetCcMapSize(); ++m)
+                            {
+                                gnbDevice->GetMac(m)->TraceConnectWithoutContext(
+                                    "BufferStatusReportTrace",
+                                    MakeCallback(&OranReporterNrUeStats::OnBufferStatusReport,
+                                                 stats));
+                            }
 
                             for (uint32_t q = 0; q < 2; ++q)
                             {

@@ -436,8 +436,6 @@ main(int argc, char* argv[])
 
     // LogComponentEnable("NrGnbRrc", LOG_LEVEL_ALL);
 
-    // LogComponentEnable("OranReportNrUeBitratePerLcid", LOG_LEVEL_ALL);
-    // LogComponentEnable("OranReporterNrUeBitratePerLcid", LOG_LEVEL_ALL);
 
     /*
      * In general, attributes for the NR module are typically configured in NrHelper.  However, some
@@ -994,11 +992,11 @@ main(int argc, char* argv[])
     }
 
     // The bearer that will carry low latency traffic
-    NrEpsBearer lowLatBearer(NrEpsBearer::GBR_NON_CONV_VIDEO);
+    NrQosFlow lowLatBearer(NrQosFlow::GBR_NON_CONV_VIDEO);
 
     // 2. Correct Low-Latency Downlink Filter
-    Ptr<NrEpcTft> lowLatTft = Create<NrEpcTft>();
-    NrEpcTft::PacketFilter dlpfLowLat;
+    Ptr<NrQosRule> lowLatTft = Create<NrQosRule>();
+    NrQosRule::PacketFilter dlpfLowLat;
     dlpfLowLat.localPortStart = dlPortLowLat; // Local port on UE side receiving downlink
     dlpfLowLat.localPortEnd = dlPortLowLat;
     lowLatTft->Add(dlpfLowLat);
@@ -1006,13 +1004,13 @@ main(int argc, char* argv[])
     // (Optional) Add uplink filter if using a bidirectional protocol like TCP
     if (protocol == "ns3::TcpSocketFactory")
     {
-        NrEpcTft::PacketFilter ulpfLowLat;
+        NrQosRule::PacketFilter ulpfLowLat;
         ulpfLowLat.remotePortStart = dlPortLowLat;
         ulpfLowLat.remotePortEnd = dlPortLowLat;
         lowLatTft->Add(ulpfLowLat);
     }
 
-    /*OranReporterNrUeBitratePerLcid
+    /*
      * Let's install the applications!
      */
 
@@ -1084,7 +1082,7 @@ main(int argc, char* argv[])
     for (uint32_t i = 0; i < ueLowLatContainer.GetN(); ++i)
     {
         Ptr<NetDevice> ueDevice = ueLowLatNetDev.Get(i);
-        nrHelper->ActivateDedicatedEpsBearer(ueDevice, lowLatBearer, lowLatTft);
+        nrHelper->ActivateDedicatedQosFlow(ueDevice, lowLatBearer, lowLatTft);
     }
 
     // Create downlink UDP clients to send traffic from remote host to UEs
@@ -1152,7 +1150,7 @@ main(int argc, char* argv[])
     //     clientApps.Add(dlClientLowLat.Install(remoteHost));
 
     //     // Activate a dedicated bearer for the traffic type
-    //     nrHelper->ActivateDedicatedEpsBearer(ueDevice, lowLatBearer, lowLatTft);
+    //     nrHelper->ActivateDedicatedQosFlow(ueDevice, lowLatBearer, lowLatTft);
     // }
 
     // for (uint32_t i = 0; i < ueVoiceContainer.GetN(); ++i)
@@ -1169,7 +1167,7 @@ main(int argc, char* argv[])
     //     clientApps.Add(dlClientVoice.Install(remoteHost));
 
     //     // Activate a dedicated bearer for the traffic type
-    //     nrHelper->ActivateDedicatedEpsBearer(ueDevice, voiceBearer, voiceTft);
+    //     nrHelper->ActivateDedicatedQosFlow(ueDevice, voiceBearer, voiceTft);
     // }
 
     // // start UDP server and client apps
@@ -1245,12 +1243,6 @@ main(int argc, char* argv[])
                             StringValue("ns3::OranReportTriggerPeriodic"));
     // Register a bitrate reporter factory with the helper so DeployTerminators will
     // create one per deployed ENB terminator.
-    oranHelper->AddReporter("ns3::OranReporterNrUeBitratePerLcid",
-                            "Trigger",
-                            StringValue("ns3::OranReportTriggerPeriodic"));
-    oranHelper->AddReporter("ns3::OranReporterNrUeTxQueueHolDelay",
-                            "Trigger",
-                            StringValue("ns3::OranReportTriggerPeriodic"));
     oranHelper->AddReporter("ns3::OranReporterNrUeStats",
                             "Trigger",
                             StringValue("ns3::OranReportTriggerPeriodic"));
@@ -1267,9 +1259,7 @@ main(int argc, char* argv[])
     e2NodeTerminatorsEnbs.Add(deployedEnbTerminators);
 
     // Connect each gNB MAC BufferStatusReportTrace to the corresponding
-    // OranReporterNrUeBitratePerLcid instance created by the terminator.
-    if (burstGeneratorType == "oran-util-udp" || burstGeneratorType == "oran-util-udp-der" ||
-        burstGeneratorType == "oran-util-udp-opt" || burstGeneratorType == "oran-util-udp-no-queue")
+    if (burstGeneratorType == "oran-util-udp" || burstGeneratorType == "oran-util-udp-no-queue")
     {
         for (uint32_t idx = 0; idx < gnbNetDev.GetN(); ++idx)
         {
@@ -1297,49 +1287,17 @@ main(int argc, char* argv[])
                     for (std::size_t r = 0; r < reportersVal.GetN(); ++r)
                     {
                         Ptr<Object> repObj = reportersVal.Get(r);
-                        Ptr<OranReporterNrUeBitratePerLcid> br =
-                            DynamicCast<OranReporterNrUeBitratePerLcid>(repObj);
-                        if (br)
-                        {
-                            // gnbMac->TraceConnectWithoutContext(
-                            //     "BufferStatusReportTrace",
-                            //     MakeCallback(&OranReporterNrUeBitratePerLcid::OnBufferStatusReport,
-                            //     br));
-                            // Also attach to scheduler SchedStats trace (if available)
-
-                            // std::cout << "Connecting SchedStats trace for bitrate reporter" << "
-                            // t= "
-                            // << t << std::endl;
-                            for (uint32_t q = 0; q < 2; ++q)
-                            {
-                                std::cout << " Node devices[" << q << "]=" << std::endl;
-
-                                Ptr<NrMacScheduler> sched = nrHelper->GetScheduler(dev, q);
-                                if (sched)
-                                {
-                                    sched->TraceConnectWithoutContext(
-                                        "SchedStats",
-                                        MakeCallback(&OranReporterNrUeBitratePerLcid::OnSchedStats,
-                                                     br));
-                                }
-                            }
-                        }
-                        Ptr<OranReporterNrUeTxQueueHolDelay> txq =
-                            DynamicCast<OranReporterNrUeTxQueueHolDelay>(repObj);
-                        if (txq)
-                        {
-                            gnbMac->TraceConnectWithoutContext(
-                                "BufferStatusReportTrace",
-                                MakeCallback(&OranReporterNrUeTxQueueHolDelay::OnBufferStatusReport,
-                                             txq));
-                        }
                         Ptr<OranReporterNrUeStats> stats =
                             DynamicCast<OranReporterNrUeStats>(repObj);
                         if (stats)
                         {
-                            gnbMac->TraceConnectWithoutContext(
-                                "BufferStatusReportTrace",
-                                MakeCallback(&OranReporterNrUeStats::OnBufferStatusReport, stats));
+                            for (uint32_t m = 0; m < gnbDevice->GetCcMapSize(); ++m)
+                            {
+                                gnbDevice->GetMac(m)->TraceConnectWithoutContext(
+                                    "BufferStatusReportTrace",
+                                    MakeCallback(&OranReporterNrUeStats::OnBufferStatusReport,
+                                                 stats));
+                            }
 
                             for (uint32_t q = 0; q < 2; ++q)
                             {
