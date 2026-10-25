@@ -271,10 +271,15 @@ main(int argc, char* argv[])
     std::string appRate = "20Mbps";
     double frameRate = 60;
     std::string vrAppName = "VirusPopper";
-    std::string burstGeneratorType = "model"; // {"model", "oran-util-udp", "oran-util-udp-no-queue"}
+    std::string burstGeneratorType = "model"; // {"model", "fuzzy", "oran-util-udp", "oran-util-udp-no-queue"}
 
     // O-RAN
-    Time lmQueryInterval = Seconds(1);
+    Time lmQueryInterval = MilliSeconds(200);
+    Time reportPeriod = MilliSeconds(100);
+    Time sendInterval = MilliSeconds(50);
+    Time holDelayTrigger = MilliSeconds(20);
+    double hysteresisDb = 2.0;
+    Time timeToTrigger = MilliSeconds(200);
     std::string dbFileName = "oran-vr-handover.db";
 
     CommandLine cmd(__FILE__);
@@ -283,6 +288,7 @@ main(int argc, char* argv[])
     cmd.AddValue("gnbSpacing", "Distance between neighbouring gNBs [m]", gnbSpacing);
     cmd.AddValue("speed", "UE speed [m/s]", speed);
     cmd.AddValue("ueOffsetY", "Lateral distance of the UE path from the gNB row [m]", ueOffsetY);
+    cmd.AddValue("dbFile", "SQLite database file of the Near-RT RIC", dbFileName);
     cmd.AddValue("outPrefix", "Prefix of the output files", g_prefix);
     cmd.AddValue("simTime", "Simulation time", simTime);
     cmd.AddValue("frequency", "Central frequency [Hz]", centralFrequency);
@@ -292,16 +298,26 @@ main(int argc, char* argv[])
     cmd.AddValue("appRate", "VR application target data rate", appRate);
     cmd.AddValue("frameRate", "VR application frame rate [FPS]", frameRate);
     cmd.AddValue("burstGeneratorType",
-                 "VR burst generator {\"model\", \"oran-util-udp\", \"oran-util-udp-no-queue\"}",
+                 "VR burst generator {\"model\", \"fuzzy\", \"oran-util-udp\", \"oran-util-udp-no-queue\"}",
                  burstGeneratorType);
     cmd.AddValue("vrAppName", "VR application name", vrAppName);
     cmd.AddValue("lmQueryInterval", "Interval at which the RIC queries the LM", lmQueryInterval);
+    cmd.AddValue("reportPeriod", "Period of the periodic E2 reports", reportPeriod);
+    cmd.AddValue("sendInterval", "Interval at which E2 terminators send reports", sendInterval);
+    cmd.AddValue("holDelayTrigger",
+                 "HOL delay that triggers an immediate UE stats report (0 disables)",
+                 holDelayTrigger);
+    cmd.AddValue("hysteresisDb", "Handover RSRP hysteresis [dB]", hysteresisDb);
+    cmd.AddValue("timeToTrigger", "Handover time-to-trigger", timeToTrigger);
     cmd.AddValue("reportInterval", "Interval of the summary output", g_interval);
     cmd.Parse(argc, argv);
     g_stopReporting = simTime;
 
     NS_ABORT_MSG_IF(numGnbs < 2, "At least two gNBs are needed");
 
+    Config::SetDefault("ns3::OranReportTriggerPeriodic::IntervalRv",
+                       StringValue("ns3::ConstantRandomVariable[Constant=" +
+                                   std::to_string(reportPeriod.GetSeconds()) + "]"));
     Config::SetDefault("ns3::NrRlcUm::MaxTxBufferSize", UintegerValue(9999999));
     Config::SetDefault("ns3::BurstyApplicationServer::appDuration", TimeValue(simTime));
     Config::SetDefault("ns3::BurstyApplicationServer::FragmentSize", UintegerValue(1200));
@@ -408,15 +424,27 @@ main(int argc, char* argv[])
 
     // Downlink VR traffic: server on the remote host, client on the UE
     const uint16_t port = 1234;
-    const std::string protocol = "ns3::UdpSocketFactory";
+    std::string protocol = "ns3::UdpSocketFactory";
     const bool oranUtil =
         (burstGeneratorType == "oran-util-udp" || burstGeneratorType == "oran-util-udp-no-queue");
-    NS_ABORT_MSG_IF(!oranUtil && burstGeneratorType != "model",
+    NS_ABORT_MSG_IF(!oranUtil && burstGeneratorType != "model" && burstGeneratorType != "fuzzy",
                     "Wrong burstGeneratorType: " << burstGeneratorType);
     Ptr<OranLogicVrBitrate> vrBitrateLm = CreateObject<OranLogicVrBitrate>();
     if (burstGeneratorType == "model")
     {
         Config::SetDefault("ns3::BurstyApplicationServer::adaptationAlgorithm", StringValue(""));
+    }
+    else if (burstGeneratorType == "fuzzy")
+    {
+        // The fuzzy algorithm is TCP-based; packet loss is hidden by retransmissions,
+        // so the loss columns stay zero and congestion shows up as delay.
+        protocol = "ns3::TcpSocketFactory";
+        Config::SetDefault("ns3::TcpL4Protocol::SocketType",
+                           TypeIdValue(TypeId::LookupByName("ns3::TcpCubic")));
+        Config::SetDefault("ns3::TcpSocket::SndBufSize", UintegerValue(1 << 23));
+        Config::SetDefault("ns3::TcpSocket::RcvBufSize", UintegerValue(1 << 23));
+        Config::SetDefault("ns3::BurstyApplicationServer::adaptationAlgorithm",
+                           StringValue("FuzzyAlgorithmServer"));
     }
     else if (burstGeneratorType == "oran-util-udp")
     {
@@ -466,6 +494,10 @@ main(int argc, char* argv[])
     if (handover)
     {
         oranHelper->SetDefaultLogicModule("ns3::OranLmNr2NrRsrpHandover",
+                                          "HysteresisDb",
+                                          DoubleValue(hysteresisDb),
+                                          "TimeToTrigger",
+                                          TimeValue(timeToTrigger),
                                           "ProcessingDelayRv",
                                           StringValue("ns3::ConstantRandomVariable[Constant=0.005]"));
     }
@@ -492,7 +524,8 @@ main(int argc, char* argv[])
     ueTerminator->SetAttribute("RegistrationIntervalRv",
                                StringValue("ns3::ConstantRandomVariable[Constant=0.5]"));
     ueTerminator->SetAttribute("SendIntervalRv",
-                               StringValue("ns3::ConstantRandomVariable[Constant=0.2]"));
+                               StringValue("ns3::ConstantRandomVariable[Constant=" +
+                                           std::to_string(sendInterval.GetSeconds()) + "]"));
     ueTerminator->AddReporter(locationReporter);
     ueTerminator->AddReporter(cellInfoReporter);
     ueTerminator->AddReporter(rsrpReporter);
@@ -502,6 +535,8 @@ main(int argc, char* argv[])
     if (oranUtil)
     {
         oranHelper->AddReporter("ns3::OranReporterNrUeStats",
+                                "HolDelayTrigger",
+                                TimeValue(holDelayTrigger),
                                 "Trigger",
                                 StringValue("ns3::OranReportTriggerPeriodic"));
     }
@@ -509,7 +544,8 @@ main(int argc, char* argv[])
                                     "RegistrationIntervalRv",
                                     StringValue("ns3::ConstantRandomVariable[Constant=0.5]"),
                                     "SendIntervalRv",
-                                    StringValue("ns3::ConstantRandomVariable[Constant=0.2]"));
+                                    StringValue("ns3::ConstantRandomVariable[Constant=" +
+                                           std::to_string(sendInterval.GetSeconds()) + "]"));
     oranHelper->AddReporter("ns3::OranReporterLocation",
                             "Trigger",
                             StringValue("ns3::OranReportTriggerPeriodic"));
