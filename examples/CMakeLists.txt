@@ -43,6 +43,7 @@ endforeach()
 set(nr_examples
   vr-cttc-nr-oran
   vr-nr-oran-handover
+  vr-nr-oran-handover-bg
 )
 foreach(
   example
