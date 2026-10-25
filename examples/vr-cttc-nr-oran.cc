@@ -231,7 +231,7 @@ main(int argc, char* argv[])
     cmd.AddValue("vrAppName", "the app name", vrAppName);
     cmd.AddValue(
         "burstGeneratorType",
-        "type of burst generator {\"model\", \"google\", \"fuzzy\", \"oran-util-udp-der\"}",
+        "type of burst generator {\"model\", \"google\", \"fuzzy\", \"oran-util-udp\"}",
         burstGeneratorType);
 
     cmd.AddValue("simTag",
