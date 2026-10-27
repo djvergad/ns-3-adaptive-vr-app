@@ -35,6 +35,7 @@
 #include "ns3/oran-logic-vr-bitrate.h"
 #include "ns3/oran-module.h"
 #include "ns3/oran-reporter-nr-ue-stats.h"
+#include "ns3/oran-vr-bitrate-service.h"
 #include "ns3/point-to-point-module.h"
 
 #include <cstdio>
@@ -292,6 +293,7 @@ main(int argc, char* argv[])
     std::string appRate = "20Mbps";
     double frameRate = 60;
     std::string vrAppName = "VirusPopper";
+    bool ricNetwork = true; // query the RIC over the network instead of a direct call
     std::string burstGeneratorType = "model"; // {"model", "fuzzy", "oran-util-udp", "oran-util-udp-no-queue"}
 
     // O-RAN
@@ -326,6 +328,9 @@ main(int argc, char* argv[])
     cmd.AddValue("burstGeneratorType",
                  "VR burst generator {\"model\", \"fuzzy\", \"oran-util-udp\", \"oran-util-udp-no-queue\"}",
                  burstGeneratorType);
+    cmd.AddValue("ricNetwork",
+                 "Request the VR bitrate from the RIC xApp over the network",
+                 ricNetwork);
     cmd.AddValue("vrAppName", "VR application name", vrAppName);
     cmd.AddValue("lmQueryInterval", "Interval at which the RIC queries the LM", lmQueryInterval);
     cmd.AddValue("reportPeriod", "Period of the periodic E2 reports", reportPeriod);
@@ -515,6 +520,40 @@ main(int argc, char* argv[])
         Config::SetDefault(
             "ns3::OranCellUtilizationUdpNoQueueAdaptationAlgorithm::OranLogicVrBitrate",
             PointerValue(vrBitrateLm));
+    }
+    if (oranUtil && ricNetwork)
+    {
+        // The RIC xApp host is a separate node behind the PGW and serves bitrate requests
+        NodeContainer ricHostContainer;
+        ricHostContainer.Create(1);
+        Ptr<Node> ricHost = ricHostContainer.Get(0);
+        internet.Install(ricHostContainer);
+
+        PointToPointHelper ricP2p;
+        ricP2p.SetDeviceAttribute("DataRate", DataRateValue(DataRate("1Gb/s")));
+        ricP2p.SetChannelAttribute("Delay", TimeValue(MilliSeconds(1)));
+        NetDeviceContainer ricDevices = ricP2p.Install(pgw, ricHost);
+        Ipv4AddressHelper ricIpv4;
+        ricIpv4.SetBase("2.0.0.0", "255.0.0.0");
+        Ipv4InterfaceContainer ricIfaces = ricIpv4.Assign(ricDevices);
+        ipv4RoutingHelper.GetStaticRouting(ricHost->GetObject<Ipv4>())
+            ->SetDefaultRoute(ricIfaces.GetAddress(0), 1);
+        remoteHostStaticRouting->AddNetworkRouteTo(Ipv4Address("2.0.0.0"),
+                                                   Ipv4Mask("255.0.0.0"),
+                                                   1);
+
+        const uint16_t ricPort = 9000;
+        Ptr<OranVrBitrateServer> ricServer = CreateObject<OranVrBitrateServer>();
+        ricServer->SetAttribute("OranLogicVrBitrate", PointerValue(vrBitrateLm));
+        ricServer->SetAttribute("Port", UintegerValue(ricPort));
+        ricHost->AddApplication(ricServer);
+        ricServer->SetStartTime(Seconds(0));
+        ricServer->SetStopTime(simTime + Seconds(1));
+
+        const AddressValue ricAddr(InetSocketAddress(ricIfaces.GetAddress(1), ricPort));
+        Config::SetDefault("ns3::OranCellUtilizationUdpAdaptationAlgorithm::RicServer", ricAddr);
+        Config::SetDefault("ns3::OranCellUtilizationUdpNoQueueAdaptationAlgorithm::RicServer",
+                           ricAddr);
     }
     BurstyApplicationServerHelper serverHelper(protocol,
                                                InetSocketAddress(Ipv4Address::GetAny(), port));

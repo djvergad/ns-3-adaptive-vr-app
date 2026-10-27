@@ -6,6 +6,7 @@
 #include "ns3/data-rate.h"
 #include "ns3/random-variable-stream.h"
 #include "ns3/oran-module.h"
+#include "ns3/oran-vr-bitrate-service.h"
 #include <memory>
 
 namespace ns3 {
@@ -25,6 +26,10 @@ private:
   // Override the adaptation algorithm
   virtual DataRate adaptation_algorithm (double buffOcc, double diffBuffOcc, DataRate lastRate);
   Ptr<OranLogicVrBitrate> m_lm;
+  // If set, the bitrate is requested over the network from an OranVrBitrateServer
+  // instead of calling m_lm directly
+  Address m_ricServer;
+  Ptr<OranVrBitrateClient> m_ricClient;
   // Logical Channel ID for VR traffic bearer (configurable).
   uint8_t m_lcid = 5;
 };

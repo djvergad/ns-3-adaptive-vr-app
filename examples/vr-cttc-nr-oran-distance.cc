@@ -63,6 +63,7 @@ $ ./ns3 run "cttc-nr-demo --PrintHelp"
 #include "ns3/nr-module.h"
 #include "ns3/oran-logic-vr-bitrate.h"
 #include "ns3/oran-module.h"
+#include "ns3/oran-vr-bitrate-service.h"
 #include "ns3/point-to-point-module.h"
 
 #include <cmath>
@@ -297,6 +298,7 @@ main(int argc, char* argv[])
     std::string appRate = "50Mbps";        // the app target data rate
     double frameRate = 60;                 // the app frame rate [FPS]
     std::string vrAppName = "VirusPopper"; // the app name
+    bool ricNetwork = true; // query the RIC over the network instead of a direct call
     std::string burstGeneratorType =
         "model"; // type of burst generator {"model", "trace", "deterministic"}
 
@@ -360,6 +362,9 @@ main(int argc, char* argv[])
                  totalTxPower);
     cmd.AddValue("appRate", "the app target data rate", appRate);
     cmd.AddValue("frameRate", "the app frame rate [FPS]", frameRate);
+    cmd.AddValue("ricNetwork",
+                 "Request the VR bitrate from the RIC xApp over the network",
+                 ricNetwork);
     cmd.AddValue("vrAppName", "the app name", vrAppName);
     cmd.AddValue("burstGeneratorType",
                  "type of burst generator {\"model\", \"google\", \"fuzzy\"}",
@@ -892,6 +897,42 @@ main(int argc, char* argv[])
     {
         oranLogicVrBitrate->SetDataRepository(nearRtRic->Data());
         // nearRtRic->AddLogicModule(oranLogicVrBitrate);
+    }
+
+    if (ricNetwork &&
+        (burstGeneratorType == "oran-util-udp" || burstGeneratorType == "oran-util-udp-no-queue"))
+    {
+        // The RIC xApp host is a separate node behind the PGW and serves bitrate requests
+        NodeContainer ricHostContainer;
+        ricHostContainer.Create(1);
+        Ptr<Node> ricHost = ricHostContainer.Get(0);
+        internet.Install(ricHostContainer);
+
+        PointToPointHelper ricP2p;
+        ricP2p.SetDeviceAttribute("DataRate", DataRateValue(DataRate("1Gb/s")));
+        ricP2p.SetChannelAttribute("Delay", TimeValue(MilliSeconds(1)));
+        NetDeviceContainer ricDevices = ricP2p.Install(nrEpcHelper->GetPgwNode(), ricHost);
+        Ipv4AddressHelper ricIpv4;
+        ricIpv4.SetBase("2.0.0.0", "255.0.0.0");
+        Ipv4InterfaceContainer ricIfaces = ricIpv4.Assign(ricDevices);
+        ipv4RoutingHelper.GetStaticRouting(ricHost->GetObject<Ipv4>())
+            ->SetDefaultRoute(ricIfaces.GetAddress(0), 1);
+        ipv4RoutingHelper.GetStaticRouting(remoteHost->GetObject<Ipv4>())
+            ->AddNetworkRouteTo(Ipv4Address("2.0.0.0"), Ipv4Mask("255.0.0.0"), 1);
+
+        const uint16_t ricPort = 9000;
+        Ptr<OranVrBitrateServer> ricServer = CreateObject<OranVrBitrateServer>();
+        ricServer->SetAttribute("OranLogicVrBitrate",
+                                PointerValue(Ptr<OranLogicVrBitrate>(oranLogicVrBitrate)));
+        ricServer->SetAttribute("Port", UintegerValue(ricPort));
+        ricHost->AddApplication(ricServer);
+        ricServer->SetStartTime(Seconds(0));
+        ricServer->SetStopTime(simTime + Seconds(4));
+
+        const AddressValue ricAddr(InetSocketAddress(ricIfaces.GetAddress(1), ricPort));
+        Config::SetDefault("ns3::OranCellUtilizationUdpAdaptationAlgorithm::RicServer", ricAddr);
+        Config::SetDefault("ns3::OranCellUtilizationUdpNoQueueAdaptationAlgorithm::RicServer",
+                           ricAddr);
     }
 
     std::string protocol;
