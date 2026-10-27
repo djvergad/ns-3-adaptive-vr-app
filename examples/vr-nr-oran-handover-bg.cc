@@ -282,6 +282,9 @@ main(int argc, char* argv[])
     // Radio parameters
     double centralFrequency = 3.5e9;
     double bandwidth = 40e6;
+    // LOS/NLOS state of every gNB-UE pair; "Default" draws it randomly per RngRun, which can make a
+    // distant gNB the strongest one and send the moving UE to the wrong cell
+    std::string channelCondition = "LOS";
     uint16_t numerology = 1;
     double txPower = 20; // gNB total TX power [dBm]
 
@@ -332,6 +335,9 @@ main(int argc, char* argv[])
                  holDelayTrigger);
     cmd.AddValue("hysteresisDb", "Handover RSRP hysteresis [dB]", hysteresisDb);
     cmd.AddValue("timeToTrigger", "Handover time-to-trigger", timeToTrigger);
+    cmd.AddValue("channelCondition",
+                 "Channel condition {\"LOS\", \"NLOS\", \"Default\" (random 3GPP UMi)}",
+                 channelCondition);
     cmd.AddValue("reportInterval", "Interval of the summary output", g_interval);
     cmd.Parse(argc, argv);
     g_stopReporting = simTime;
@@ -420,8 +426,12 @@ main(int argc, char* argv[])
     OperationBandInfo band = ccBwpCreator.CreateOperationBandContiguousCc(bandConf);
 
     Ptr<NrChannelHelper> channelHelper = CreateObject<NrChannelHelper>();
-    channelHelper->ConfigureFactories("UMi", "Default", "ThreeGpp");
-    channelHelper->SetChannelConditionModelAttribute("UpdatePeriod", TimeValue(MilliSeconds(0)));
+    channelHelper->ConfigureFactories("UMi", channelCondition, "ThreeGpp");
+    if (channelCondition == "Default")
+    {
+        channelHelper->SetChannelConditionModelAttribute("UpdatePeriod",
+                                                         TimeValue(MilliSeconds(0)));
+    }
     channelHelper->SetPathlossAttribute("ShadowingEnabled", BooleanValue(false));
     channelHelper->AssignChannelsToBands({band});
     BandwidthPartInfoPtrVector allBwps = CcBwpCreator::GetAllBwps({band});
@@ -485,9 +495,9 @@ main(int argc, char* argv[])
         // so the loss columns stay zero and congestion shows up as delay.
         protocol = "ns3::TcpSocketFactory";
         Config::SetDefault("ns3::TcpL4Protocol::SocketType",
-                           TypeIdValue(TypeId::LookupByName("ns3::TcpCubic")));
-        Config::SetDefault("ns3::TcpSocket::SndBufSize", UintegerValue(1 << 23));
-        Config::SetDefault("ns3::TcpSocket::RcvBufSize", UintegerValue(1 << 23));
+                           TypeIdValue(TypeId::LookupByName("ns3::TcpBbr")));
+        // Config::SetDefault("ns3::TcpSocket::SndBufSize", UintegerValue(1 << 23));
+        // Config::SetDefault("ns3::TcpSocket::RcvBufSize", UintegerValue(1 << 23));
         Config::SetDefault("ns3::BurstyApplicationServer::adaptationAlgorithm",
                            StringValue("FuzzyAlgorithmServer"));
     }

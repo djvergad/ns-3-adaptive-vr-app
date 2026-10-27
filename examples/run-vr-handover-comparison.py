@@ -157,10 +157,22 @@ def plot(runs, summary, out_dir):
             ax.grid(True, alpha=0.3)
             ax.legend(fontsize=7)
         for r, (col, _) in enumerate(metrics[:3]):
-            lo = min(axs[r][k].get_ylim()[0] for k in range(len(algs)))
+            ys = [
+                y
+                for k in range(len(algs))
+                for line in axs[r][k].get_lines()
+                for y in line.get_ydata()
+                if y == y
+            ]
+            if not ys:
+                continue
+            lo, hi = min(ys), max(ys)
             if col == "MeanDelay_ms":
-                lo = max(lo, 0.1)
-            hi = max(axs[r][k].get_ylim()[1] for k in range(len(algs)))
+                lo = max(lo / 1.5, 0.1)
+                hi = hi * 1.5
+            else:
+                pad = 0.05 * (hi - lo if hi > lo else 1.0)
+                lo, hi = (0 if lo >= 0 and lo - pad < 0 else lo - pad), hi + pad
             for k in range(len(algs)):
                 axs[r][k].set_ylim(lo, hi)
     fig.suptitle("Moving UE")
@@ -186,6 +198,18 @@ def plot(runs, summary, out_dir):
             if col == "MeanDelay_ms":
                 axs[r][c].set_yscale("log")
         axs[0][c].set_title(alg)
+    for r, (col, _) in enumerate(metrics[:2]):
+        ys = [y for k in range(len(algs)) for line in axs[r][k].get_lines() for y in line.get_ydata() if y == y]
+        if not ys:
+            continue
+        lo, hi = min(ys), max(ys)
+        if col == "MeanDelay_ms":
+            lo, hi = max(lo / 1.5, 1), hi * 1.5
+        else:
+            pad = 0.05 * (hi - lo if hi > lo else 1.0)
+            lo, hi = (0 if lo >= 0 and lo - pad < 0 else lo - pad), hi + pad
+        for k in range(len(algs)):
+            axs[r][k].set_ylim(lo, hi)
     fig.suptitle("Static background UEs (handover enabled)")
     fig.tight_layout()
     fig.savefig(os.path.join(out_dir, "comparison-static-ues.png"), dpi=110)

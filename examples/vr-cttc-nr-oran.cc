@@ -305,11 +305,11 @@ main(int argc, char* argv[])
     Config::SetDefault("ns3::NrRlcUm::MaxTxBufferSize", UintegerValue(9999999));
 
     Config::SetDefault("ns3::TcpL4Protocol::SocketType",
-                       TypeIdValue(TypeId::LookupByName("ns3::TcpCubic")));
+                       TypeIdValue(TypeId::LookupByName("ns3::TcpBbr")));
     Config::SetDefault("ns3::BurstyApplicationServer::appDuration", TimeValue(simTime));
 
-    Config::SetDefault("ns3::TcpSocket::SndBufSize", UintegerValue(1 << 23));
-    Config::SetDefault("ns3::TcpSocket::RcvBufSize", UintegerValue(1 << 23));
+    // Config::SetDefault("ns3::TcpSocket::SndBufSize", UintegerValue(1 << 23));
+    // Config::SetDefault("ns3::TcpSocket::RcvBufSize", UintegerValue(1 << 23));
 
     /*
      * Create the scenario. In our examples, we heavily use helpers that setup
