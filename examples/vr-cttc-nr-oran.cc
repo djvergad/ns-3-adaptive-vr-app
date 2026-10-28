@@ -62,6 +62,7 @@ $ ./ns3 run "cttc-nr-demo --PrintHelp"
 #include "ns3/nr-module.h"
 #include "ns3/oran-logic-vr-bitrate.h"
 #include "ns3/oran-module.h"
+#include "ns3/oran-e2-network-transport.h"
 #include "ns3/oran-vr-bitrate-service.h"
 #include "ns3/point-to-point-module.h"
 
@@ -179,6 +180,7 @@ main(int argc, char* argv[])
     std::string appRate = "50Mbps";        // the app target data rate
     double frameRate = 60;                 // the app frame rate [FPS]
     std::string vrAppName = "VirusPopper"; // the app name
+    bool e2Network = true; // carry the E2 interface (UE/gNB <-> RIC) over the network
     bool ricNetwork = true; // query the RIC over the network instead of a direct call
     std::string burstGeneratorType =
         "model"; // type of burst generator {"model", "trace", "deterministic"}
@@ -230,6 +232,9 @@ main(int argc, char* argv[])
                  totalTxPower);
     cmd.AddValue("appRate", "the app target data rate", appRate);
     cmd.AddValue("frameRate", "the app frame rate [FPS]", frameRate);
+    cmd.AddValue("e2Network",
+                 "Carry the E2 messages between the UEs/gNBs and the RIC over the network",
+                 e2Network);
     cmd.AddValue("ricNetwork",
                  "Request the VR bitrate from the RIC xApp over the network",
                  ricNetwork);
@@ -695,10 +700,13 @@ main(int argc, char* argv[])
         // nearRtRic->AddLogicModule(oranLogicVrBitrate);
     }
 
-    if (ricNetwork &&
-        (burstGeneratorType == "oran-util-udp" || burstGeneratorType == "oran-util-udp-no-queue"))
+    const bool ricBitrateOverNetwork =
+        ricNetwork &&
+        (burstGeneratorType == "oran-util-udp" || burstGeneratorType == "oran-util-udp-no-queue");
+    if (ricBitrateOverNetwork || e2Network)
     {
-        // The RIC xApp host is a separate node behind the PGW and serves bitrate requests
+        // The RIC host is a separate node behind the PGW. It serves bitrate requests and/or
+        // terminates the E2 interface
         NodeContainer ricHostContainer;
         ricHostContainer.Create(1);
         Ptr<Node> ricHost = ricHostContainer.Get(0);
@@ -716,19 +724,32 @@ main(int argc, char* argv[])
         ipv4RoutingHelper.GetStaticRouting(remoteHost->GetObject<Ipv4>())
             ->AddNetworkRouteTo(Ipv4Address("2.0.0.0"), Ipv4Mask("255.0.0.0"), 1);
 
-        const uint16_t ricPort = 9000;
-        Ptr<OranVrBitrateServer> ricServer = CreateObject<OranVrBitrateServer>();
-        ricServer->SetAttribute("OranLogicVrBitrate",
-                                PointerValue(Ptr<OranLogicVrBitrate>(oranLogicVrBitrate)));
-        ricServer->SetAttribute("Port", UintegerValue(ricPort));
-        ricHost->AddApplication(ricServer);
-        ricServer->SetStartTime(Seconds(0));
-        ricServer->SetStopTime(simTime + Seconds(4));
+        if (ricBitrateOverNetwork)
+        {
+            const uint16_t ricPort = 9000;
+            Ptr<OranVrBitrateServer> ricServer = CreateObject<OranVrBitrateServer>();
+            ricServer->SetAttribute("OranLogicVrBitrate",
+                                    PointerValue(Ptr<OranLogicVrBitrate>(oranLogicVrBitrate)));
+            ricServer->SetAttribute("Port", UintegerValue(ricPort));
+            ricHost->AddApplication(ricServer);
+            ricServer->SetStartTime(Seconds(0));
+            ricServer->SetStopTime(simTime + Seconds(4));
 
-        const AddressValue ricAddr(InetSocketAddress(ricIfaces.GetAddress(1), ricPort));
-        Config::SetDefault("ns3::OranCellUtilizationUdpAdaptationAlgorithm::RicServer", ricAddr);
-        Config::SetDefault("ns3::OranCellUtilizationUdpNoQueueAdaptationAlgorithm::RicServer",
-                           ricAddr);
+            const AddressValue ricAddr(InetSocketAddress(ricIfaces.GetAddress(1), ricPort));
+            Config::SetDefault("ns3::OranCellUtilizationUdpAdaptationAlgorithm::RicServer", ricAddr);
+            Config::SetDefault("ns3::OranCellUtilizationUdpNoQueueAdaptationAlgorithm::RicServer",
+                               ricAddr);
+        }
+
+        if (e2Network)
+        {
+            // E2 registrations, reports and commands between UEs/gNBs and the RIC now cross
+            // the simulated network (radio uplink for UEs, S1-U/core for gNBs)
+            Ptr<OranE2NetworkTransport> e2Transport = CreateObject<OranE2NetworkTransport>();
+            e2Transport->SetAttribute("RicNode", PointerValue(ricHost));
+            nearRtRic->GetE2Terminator()->SetAttribute("NetworkTransport",
+                                                       PointerValue(e2Transport));
+        }
     }
 
     std::string protocol;

@@ -36,6 +36,7 @@
 #include "ns3/oran-logic-vr-bitrate.h"
 #include "ns3/oran-module.h"
 #include "ns3/oran-reporter-nr-ue-stats.h"
+#include "ns3/oran-e2-network-transport.h"
 #include "ns3/oran-vr-bitrate-service.h"
 #include "ns3/point-to-point-module.h"
 
@@ -272,11 +273,13 @@ main(int argc, char* argv[])
     double bandwidth = 40e6;
     uint16_t numerology = 1;
     double txPower = 20; // gNB total TX power [dBm]
+    double ueTxPower = 23; // UE TX power [dBm]
 
     // VR traffic
     std::string appRate = "20Mbps";
     double frameRate = 60;
     std::string vrAppName = "VirusPopper";
+    bool e2Network = true; // carry the E2 interface (UE/gNB <-> RIC) over the network
     bool ricNetwork = true; // query the RIC over the network instead of a direct call
     std::string burstGeneratorType = "model"; // {"model", "fuzzy", "oran-util-udp", "oran-util-udp-no-queue"}
 
@@ -302,11 +305,15 @@ main(int argc, char* argv[])
     cmd.AddValue("bandwidth", "Bandwidth [Hz]", bandwidth);
     cmd.AddValue("numerology", "NR numerology", numerology);
     cmd.AddValue("txPower", "gNB total TX power [dBm]", txPower);
+    cmd.AddValue("ueTxPower", "UE TX power [dBm]", ueTxPower);
     cmd.AddValue("appRate", "VR application target data rate", appRate);
     cmd.AddValue("frameRate", "VR application frame rate [FPS]", frameRate);
     cmd.AddValue("burstGeneratorType",
                  "VR burst generator {\"model\", \"fuzzy\", \"oran-util-udp\", \"oran-util-udp-no-queue\"}",
                  burstGeneratorType);
+    cmd.AddValue("e2Network",
+                 "Carry the E2 messages between the UEs/gNBs and the RIC over the network",
+                 e2Network);
     cmd.AddValue("ricNetwork",
                  "Request the VR bitrate from the RIC xApp over the network",
                  ricNetwork);
@@ -413,6 +420,11 @@ main(int argc, char* argv[])
         NrHelper::GetGnbPhy(gnbDevs.Get(i), 0)->SetAttribute("TxPower", DoubleValue(txPower));
     }
 
+    for (uint32_t i = 0; i < ueDevs.GetN(); ++i)
+    {
+        NrHelper::GetUePhy(ueDevs.Get(i), 0)->SetAttribute("TxPower", DoubleValue(ueTxPower));
+    }
+
     // IP configuration of the UE
     internet.Install(ueNodes);
     Ipv4InterfaceContainer ueIpIface = epcHelper->AssignUeIpv4Address(NetDeviceContainer(ueDevs));
@@ -471,6 +483,7 @@ main(int argc, char* argv[])
             "ns3::OranCellUtilizationUdpNoQueueAdaptationAlgorithm::OranLogicVrBitrate",
             PointerValue(vrBitrateLm));
     }
+    Ptr<Node> e2RicHost; // set when a RIC host node exists
     if (oranUtil && ricNetwork)
     {
         // The RIC xApp host is a separate node behind the PGW and serves bitrate requests
@@ -504,6 +517,7 @@ main(int argc, char* argv[])
         Config::SetDefault("ns3::OranCellUtilizationUdpAdaptationAlgorithm::RicServer", ricAddr);
         Config::SetDefault("ns3::OranCellUtilizationUdpNoQueueAdaptationAlgorithm::RicServer",
                            ricAddr);
+        e2RicHost = ricHost;
     }
     BurstyApplicationServerHelper serverHelper(protocol,
                                                InetSocketAddress(Ipv4Address::GetAny(), port));
@@ -551,6 +565,14 @@ main(int argc, char* argv[])
     }
     oranHelper->SetConflictMitigationModule("ns3::OranCmmNoop");
     Ptr<OranNearRtRic> nearRtRic = oranHelper->CreateNearRtRic();
+    if (e2Network && e2RicHost)
+    {
+        // E2 registrations, reports and commands between UEs/gNBs and the RIC now cross
+        // the simulated network (radio uplink for UEs, S1-U/core for gNBs)
+        Ptr<OranE2NetworkTransport> e2Transport = CreateObject<OranE2NetworkTransport>();
+        e2Transport->SetAttribute("RicNode", PointerValue(e2RicHost));
+        nearRtRic->GetE2Terminator()->SetAttribute("NetworkTransport", PointerValue(e2Transport));
+    }
 
     Ptr<OranReporterLocation> locationReporter = CreateObject<OranReporterLocation>();
     Ptr<OranReporterNrUeCellInfo> cellInfoReporter = CreateObject<OranReporterNrUeCellInfo>();

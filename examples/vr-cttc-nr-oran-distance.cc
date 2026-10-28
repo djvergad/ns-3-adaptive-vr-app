@@ -63,6 +63,7 @@ $ ./ns3 run "cttc-nr-demo --PrintHelp"
 #include "ns3/nr-module.h"
 #include "ns3/oran-logic-vr-bitrate.h"
 #include "ns3/oran-module.h"
+#include "ns3/oran-e2-network-transport.h"
 #include "ns3/oran-vr-bitrate-service.h"
 #include "ns3/point-to-point-module.h"
 
@@ -253,6 +254,70 @@ printSortedStats(const ns3::FlowMonitor::FlowStatsContainer& container,
     outFile << "  Mean flow delay: " << meanFlowDelay << "\n";
 }
 
+namespace
+{
+
+struct E2NodeStats
+{
+    uint32_t txMsgs{0};
+    uint64_t txBytes{0};
+    uint32_t rxMsgs{0};
+    uint64_t rxBytes{0};
+    double delaySumMs{0};
+    double delayMaxMs{0};
+};
+
+std::map<uint32_t, E2NodeStats> g_e2Stats; ///< E2 transport statistics by node id
+bool g_e2TracePrint = false;               ///< Print every E2 message
+uint32_t g_e2RicNodeId = 0;                ///< Node id of the RIC host
+
+void
+E2Tx(uint64_t id, Ptr<const Node> node, Ipv4Address dest, uint32_t size)
+{
+    auto& st = g_e2Stats[node->GetId()];
+    st.txMsgs++;
+    st.txBytes += size;
+    if (g_e2TracePrint)
+    {
+        std::cout << Simulator::Now().As(Time::S) << " E2 TX msg " << id << " node "
+                  << node->GetId() << " -> " << dest << " " << size << " B" << std::endl;
+    }
+}
+
+void
+E2Rx(uint64_t id, Ptr<const Node> node, Time delay, uint32_t size)
+{
+    auto& st = g_e2Stats[node->GetId()];
+    st.rxMsgs++;
+    st.rxBytes += size;
+    st.delaySumMs += delay.GetSeconds() * 1e3;
+    st.delayMaxMs = std::max(st.delayMaxMs, delay.GetSeconds() * 1e3);
+    if (g_e2TracePrint)
+    {
+        std::cout << Simulator::Now().As(Time::S) << " E2 RX msg " << id << " node "
+                  << node->GetId() << " " << size << " B, delay " << delay.GetMilliSeconds()
+                  << " ms" << std::endl;
+    }
+}
+
+void
+PrintE2Stats(uint32_t ricNodeId)
+{
+    std::cout << "\nE2 transport statistics (node, role, tx msgs, rx msgs, mean/max delay ms):\n";
+    for (const auto& [id, st] : g_e2Stats)
+    {
+        std::cout << "  node " << id << (id == ricNodeId ? " (RIC)" : "") << ": tx " << st.txMsgs
+                  << " (" << st.txBytes << " B), rx " << st.rxMsgs << " (" << st.rxBytes << " B)";
+        if (st.rxMsgs)
+        {
+            std::cout << ", delay " << st.delaySumMs / st.rxMsgs << " / " << st.delayMaxMs;
+        }
+        std::cout << "\n";
+    }
+}
+
+} // namespace
+
 int
 main(int argc, char* argv[])
 {
@@ -298,6 +363,7 @@ main(int argc, char* argv[])
     std::string appRate = "50Mbps";        // the app target data rate
     double frameRate = 60;                 // the app frame rate [FPS]
     std::string vrAppName = "VirusPopper"; // the app name
+    bool e2Network = true; // carry the E2 interface (UE/gNB <-> RIC) over the network
     bool ricNetwork = true; // query the RIC over the network instead of a direct call
     std::string burstGeneratorType =
         "model"; // type of burst generator {"model", "trace", "deterministic"}
@@ -362,6 +428,10 @@ main(int argc, char* argv[])
                  totalTxPower);
     cmd.AddValue("appRate", "the app target data rate", appRate);
     cmd.AddValue("frameRate", "the app frame rate [FPS]", frameRate);
+    cmd.AddValue("e2Trace", "Print every E2 message sent/received over the network", g_e2TracePrint);
+    cmd.AddValue("e2Network",
+                 "Carry the E2 messages between the UEs/gNBs and the RIC over the network",
+                 e2Network);
     cmd.AddValue("ricNetwork",
                  "Request the VR bitrate from the RIC xApp over the network",
                  ricNetwork);
@@ -899,10 +969,13 @@ main(int argc, char* argv[])
         // nearRtRic->AddLogicModule(oranLogicVrBitrate);
     }
 
-    if (ricNetwork &&
-        (burstGeneratorType == "oran-util-udp" || burstGeneratorType == "oran-util-udp-no-queue"))
+    const bool ricBitrateOverNetwork =
+        ricNetwork &&
+        (burstGeneratorType == "oran-util-udp" || burstGeneratorType == "oran-util-udp-no-queue");
+    if (ricBitrateOverNetwork || e2Network)
     {
-        // The RIC xApp host is a separate node behind the PGW and serves bitrate requests
+        // The RIC host is a separate node behind the PGW. It serves bitrate requests and/or
+        // terminates the E2 interface
         NodeContainer ricHostContainer;
         ricHostContainer.Create(1);
         Ptr<Node> ricHost = ricHostContainer.Get(0);
@@ -920,19 +993,35 @@ main(int argc, char* argv[])
         ipv4RoutingHelper.GetStaticRouting(remoteHost->GetObject<Ipv4>())
             ->AddNetworkRouteTo(Ipv4Address("2.0.0.0"), Ipv4Mask("255.0.0.0"), 1);
 
-        const uint16_t ricPort = 9000;
-        Ptr<OranVrBitrateServer> ricServer = CreateObject<OranVrBitrateServer>();
-        ricServer->SetAttribute("OranLogicVrBitrate",
-                                PointerValue(Ptr<OranLogicVrBitrate>(oranLogicVrBitrate)));
-        ricServer->SetAttribute("Port", UintegerValue(ricPort));
-        ricHost->AddApplication(ricServer);
-        ricServer->SetStartTime(Seconds(0));
-        ricServer->SetStopTime(simTime + Seconds(4));
+        if (ricBitrateOverNetwork)
+        {
+            const uint16_t ricPort = 9000;
+            Ptr<OranVrBitrateServer> ricServer = CreateObject<OranVrBitrateServer>();
+            ricServer->SetAttribute("OranLogicVrBitrate",
+                                    PointerValue(Ptr<OranLogicVrBitrate>(oranLogicVrBitrate)));
+            ricServer->SetAttribute("Port", UintegerValue(ricPort));
+            ricHost->AddApplication(ricServer);
+            ricServer->SetStartTime(Seconds(0));
+            ricServer->SetStopTime(simTime + Seconds(4));
 
-        const AddressValue ricAddr(InetSocketAddress(ricIfaces.GetAddress(1), ricPort));
-        Config::SetDefault("ns3::OranCellUtilizationUdpAdaptationAlgorithm::RicServer", ricAddr);
-        Config::SetDefault("ns3::OranCellUtilizationUdpNoQueueAdaptationAlgorithm::RicServer",
-                           ricAddr);
+            const AddressValue ricAddr(InetSocketAddress(ricIfaces.GetAddress(1), ricPort));
+            Config::SetDefault("ns3::OranCellUtilizationUdpAdaptationAlgorithm::RicServer", ricAddr);
+            Config::SetDefault("ns3::OranCellUtilizationUdpNoQueueAdaptationAlgorithm::RicServer",
+                               ricAddr);
+        }
+
+        if (e2Network)
+        {
+            // E2 registrations, reports and commands between UEs/gNBs and the RIC now cross
+            // the simulated network (radio uplink for UEs, S1-U/core for gNBs)
+            Ptr<OranE2NetworkTransport> e2Transport = CreateObject<OranE2NetworkTransport>();
+            e2Transport->SetAttribute("RicNode", PointerValue(ricHost));
+            nearRtRic->GetE2Terminator()->SetAttribute("NetworkTransport",
+                                                       PointerValue(e2Transport));
+            e2Transport->TraceConnectWithoutContext("E2Tx", MakeCallback(&E2Tx));
+            e2Transport->TraceConnectWithoutContext("E2Rx", MakeCallback(&E2Rx));
+            g_e2RicNodeId = ricHost->GetId();
+        }
     }
 
     std::string protocol;
@@ -1455,5 +1544,6 @@ main(int argc, char* argv[])
               << double(fragmentsReceived) / totFragmentSent * 100 << "%)" << std::endl;
     *rxFragments->GetStream() << fragmentsReceived << std::endl;
 
+    PrintE2Stats(g_e2RicNodeId);
     Simulator::Destroy();
 }
