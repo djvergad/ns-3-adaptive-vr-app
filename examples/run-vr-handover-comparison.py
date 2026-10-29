@@ -8,18 +8,27 @@ executed in parallel.
 
 Usage (from the ns-3 root directory):
     contrib/ns-3-adaptive-vr-app/examples/run-vr-handover-comparison.py --seed 1 --jobs 3
+    contrib/ns-3-adaptive-vr-app/examples/run-vr-handover-comparison.py --seeds 0 1 ... 19 --jobs 6
     ... --plot-only          # re-plot existing results without running the simulations
     ... -- --simTime=22      # arguments after "--" are passed to the simulation
+
+For --seeds, outputs are saved under <out-dir>/seed-XX, with one summary
+comparison (mean and 95% confidence intervals) in <out-dir>. Each seed folder
+retains the raw CSV data and its moving-UE, static-UE and summary plots.
 
 Outputs in <out-dir> (default vr-comparison-seed<seed>):
     <algorithm>-ho-{on,off}/run-*.csv   raw per-run CSV files
     comparison-moving-ue.png            moving UE: bitrate, delay, loss, serving cell
+    comparison-moving-ue.eps             vector export
     comparison-static-ues.png           static UEs (with handover on): bitrate, delay
+    comparison-static-ues.eps            vector export
     comparison-summary.png              bar chart of the summary statistics
+    comparison-summary.eps               vector export
     summary.csv                         summary statistics of every run
 """
 import argparse
 import concurrent.futures
+import copy
 import csv
 import os
 import statistics
@@ -29,6 +38,21 @@ import sys
 ALGORITHMS = ["oran-util-udp", "oran-util-udp-no-queue", "fuzzy"]
 HANDOVER = [("on", "true"), ("off", "false")]
 COLORS = {"on": "tab:blue", "off": "tab:red"}
+SUMMARY_METRICS = (
+    "mov_mean_mbps",
+    "mov_mean_delay_ms",
+    "mov_max_delay_ms",
+    "mov_loss_pct",
+    "mov_lost_pkts",
+    "static_mean_mbps",
+    "static_mean_delay_ms",
+    "handovers",
+)
+
+
+def save_figure(fig, out_dir, stem):
+    fig.savefig(os.path.join(out_dir, f"{stem}.png"), dpi=110)
+    fig.savefig(os.path.join(out_dir, f"{stem}.eps"), format="eps")
 
 
 def run_dir(out_dir, alg, ho):
@@ -117,6 +141,109 @@ def summarize(runs, out_dir):
     return summary
 
 
+def aggregate_summaries(seed_dirs, out_dir):
+    """Aggregate per-seed summaries and write the cross-seed summary plot."""
+    observations = {}
+    for seed_dir in seed_dirs:
+        path = os.path.join(seed_dir, "summary.csv")
+        if not os.path.isfile(path):
+            raise RuntimeError(f"missing per-seed summary: {path}")
+        for row in read(path):
+            key = (row["algorithm"], row["handover"])
+            observations.setdefault(key, {metric: [] for metric in SUMMARY_METRICS})
+            for metric in SUMMARY_METRICS:
+                observations[key][metric].append(float(row[metric]))
+
+    expected = len(seed_dirs)
+    if not expected:
+        raise RuntimeError("no seed directories were provided")
+    summary = {}
+    confidence = {}
+    for key, metrics in observations.items():
+        counts = {len(values) for values in metrics.values()}
+        if counts != {expected}:
+            raise RuntimeError(
+                f"incomplete seed results for {key}: expected {expected} observations, "
+                f"found {sorted(counts)}"
+            )
+        summary[key] = {}
+        confidence[key] = {}
+        for metric, values in metrics.items():
+            mean = statistics.mean(values)
+            half_width = 1.96 * statistics.stdev(values) / (expected**0.5) if expected > 1 else 0
+            summary[key][metric] = mean
+            confidence[key][metric] = half_width
+
+    expected_keys = {(alg, ho) for alg in ALGORITHMS for ho, _ in HANDOVER}
+    missing = expected_keys - summary.keys()
+    if missing:
+        raise RuntimeError(f"missing configurations from aggregate results: {sorted(missing)}")
+
+    os.makedirs(out_dir, exist_ok=True)
+    columns = ["algorithm", "handover", "n"]
+    for metric in SUMMARY_METRICS:
+        columns.extend((metric, f"{metric}_ci95"))
+    with open(os.path.join(out_dir, "summary-across-seeds.csv"), "w", newline="") as f:
+        writer = csv.writer(f)
+        writer.writerow(columns)
+        for key in sorted(summary):
+            row = [key[0], key[1], expected]
+            for metric in SUMMARY_METRICS:
+                row.extend((f"{summary[key][metric]:.6f}", f"{confidence[key][metric]:.6f}"))
+            writer.writerow(row)
+
+    plot_summary(summary, out_dir, confidence)
+    print(f"wrote {expected}-seed aggregate to {out_dir}", flush=True)
+
+
+def plot_summary(summary, out_dir, confidence=None):
+    import matplotlib
+
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+
+    algs = [a for a in ALGORITHMS if any((a, h) in summary for h, _ in HANDOVER)]
+    bars = [
+        ("mov_mean_mbps", "Moving UE mean bitrate [Mbps]"),
+        ("mov_mean_delay_ms", "Moving UE mean delay [ms]"),
+        ("mov_max_delay_ms", "Moving UE max delay [ms]"),
+        ("mov_loss_pct", "Moving UE packet loss [%]"),
+    ]
+    fig, axs = plt.subplots(1, len(bars), figsize=(4.5 * len(bars), 4))
+    width = 0.38
+    for ax, (key, title) in zip(axs, bars):
+        for i, (ho, _) in enumerate(HANDOVER):
+            vals = [summary.get((a, ho), {}).get(key, 0) for a in algs]
+            errors = [
+                (confidence or {}).get((a, ho), {}).get(key, 0)
+                for a in algs
+            ]
+            lower = errors[:]
+            if "delay" in key:
+                lower = [min(error, max(value - 0.1, 0)) for value, error in zip(vals, errors)]
+            ax.bar(
+                [x + (i - 0.5) * width for x in range(len(algs))],
+                vals,
+                width,
+                color=COLORS[ho],
+                label=f"handover {ho}",
+                yerr=[lower, errors],
+                capsize=3 if confidence else 0,
+            )
+        ax.set_xticks(range(len(algs)))
+        ax.set_xticklabels([a.replace("oran-util-udp", "util-udp") for a in algs], rotation=15)
+        ax.set_title(title, fontsize=10)
+        if "delay" in key:
+            ax.set_yscale("log")
+        ax.grid(True, axis="y", alpha=0.3)
+    axs[0].legend(fontsize=8)
+    if confidence:
+        fig.suptitle("Mean across RNG seeds (error bars: 95% confidence interval)")
+    fig.tight_layout()
+    save_figure(fig, out_dir, "comparison-summary")
+    plt.close(fig)
+
+
 def plot(runs, summary, out_dir):
     import matplotlib
 
@@ -177,7 +304,7 @@ def plot(runs, summary, out_dir):
                 axs[r][k].set_ylim(lo, hi)
     fig.suptitle("Moving UE")
     fig.tight_layout()
-    fig.savefig(os.path.join(out_dir, "comparison-moving-ue.png"), dpi=110)
+    save_figure(fig, out_dir, "comparison-moving-ue")
     plt.close(fig)
 
     # Static UEs, with handover on
@@ -212,32 +339,10 @@ def plot(runs, summary, out_dir):
             axs[r][k].set_ylim(lo, hi)
     fig.suptitle("Static background UEs (handover enabled)")
     fig.tight_layout()
-    fig.savefig(os.path.join(out_dir, "comparison-static-ues.png"), dpi=110)
+    save_figure(fig, out_dir, "comparison-static-ues")
     plt.close(fig)
 
-    # Summary bars
-    bars = [
-        ("mov_mean_mbps", "Moving UE mean bitrate [Mbps]"),
-        ("mov_mean_delay_ms", "Moving UE mean delay [ms]"),
-        ("mov_max_delay_ms", "Moving UE max delay [ms]"),
-        ("mov_loss_pct", "Moving UE packet loss [%]"),
-    ]
-    fig, axs = plt.subplots(1, len(bars), figsize=(4.5 * len(bars), 4))
-    width = 0.38
-    for ax, (key, title) in zip(axs, bars):
-        for i, (ho, _) in enumerate(HANDOVER):
-            vals = [summary.get((a, ho), {}).get(key, 0) for a in algs]
-            ax.bar([x + (i - 0.5) * width for x in range(len(algs))], vals, width, color=COLORS[ho], label=f"handover {ho}")
-        ax.set_xticks(range(len(algs)))
-        ax.set_xticklabels([a.replace("oran-util-udp", "util-udp") for a in algs], rotation=15)
-        ax.set_title(title, fontsize=10)
-        if "delay" in key:
-            ax.set_yscale("log")
-        ax.grid(True, axis="y", alpha=0.3)
-    axs[0].legend(fontsize=8)
-    fig.tight_layout()
-    fig.savefig(os.path.join(out_dir, "comparison-summary.png"), dpi=110)
-    plt.close(fig)
+    plot_summary(summary, out_dir)
     print("wrote plots to", out_dir)
 
 
@@ -246,6 +351,12 @@ def main():
     default_ns3 = os.path.abspath(os.path.join(here, "..", "..", ".."))
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--seed", type=int, default=1, help="RNG run number used by every simulation")
+    ap.add_argument(
+        "--seeds",
+        nargs="+",
+        type=int,
+        help="run and aggregate multiple RNG seeds, writing individual outputs under seed-XX",
+    )
     ap.add_argument("--jobs", type=int, default=3, help="number of simulations to run in parallel")
     ap.add_argument("--out-dir", default=None, help="output directory (default vr-comparison-seed<seed>)")
     ap.add_argument("--example", default="vr-nr-oran-handover-bg", help="ns-3 example to run")
@@ -261,20 +372,41 @@ def main():
 
     if not args.plot_only:
         subprocess.check_call([os.path.join(args.ns3_dir, "ns3"), "build", args.example], cwd=args.ns3_dir)
-        with concurrent.futures.ThreadPoolExecutor(max_workers=args.jobs) as pool:
-            futs = [
-                pool.submit(run_one, args, alg, ho, flag, extra)
-                for alg in ALGORITHMS
-                for ho, flag in HANDOVER
-            ]
-            if any(f.result() != 0 for f in futs):
-                print("some simulations failed", file=sys.stderr)
 
-    runs = load(args.out_dir)
-    if not runs:
-        sys.exit("no results found")
-    summary = summarize(runs, args.out_dir)
-    plot(runs, summary, args.out_dir)
+    seeds = args.seeds if args.seeds is not None else [args.seed]
+    seed_dirs = []
+    for seed in seeds:
+        seed_args = copy.copy(args)
+        seed_args.seed = seed
+        seed_args.out_dir = (
+            os.path.join(args.out_dir, f"seed-{seed:02d}")
+            if args.seeds is not None
+            else args.out_dir
+        )
+        os.makedirs(seed_args.out_dir, exist_ok=True)
+        seed_dirs.append(seed_args.out_dir)
+
+        if not args.plot_only:
+            with concurrent.futures.ThreadPoolExecutor(max_workers=args.jobs) as pool:
+                futs = [
+                    pool.submit(run_one, seed_args, alg, ho, flag, extra)
+                    for alg in ALGORITHMS
+                    for ho, flag in HANDOVER
+                ]
+                failed = [f.result() for f in futs if f.result() != 0]
+            if failed:
+                raise SystemExit(f"{len(failed)} simulation(s) failed for seed {seed}")
+
+        runs = load(seed_args.out_dir)
+        expected = {(alg, ho) for alg in ALGORITHMS for ho, _ in HANDOVER}
+        missing = expected - runs.keys()
+        if missing:
+            raise SystemExit(f"missing simulation results for seed {seed}: {sorted(missing)}")
+        summary = summarize(runs, seed_args.out_dir)
+        plot(runs, summary, seed_args.out_dir)
+
+    if args.seeds is not None:
+        aggregate_summaries(seed_dirs, args.out_dir)
 
 
 if __name__ == "__main__":
