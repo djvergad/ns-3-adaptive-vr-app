@@ -396,6 +396,13 @@ BurstyApplicationClient::FragmentReceived(BurstHandler& burstHandler,
         return;
     }
 
+    if (header.GetFrags() == 0 || header.GetFragSeq() >= header.GetFrags())
+    {
+        NS_LOG_WARN("Received fragment with inconsistent header (fragSeq="
+                    << header.GetFragSeq() << ", frags=" << header.GetFrags() << "). Discarding.");
+        return;
+    }
+
     m_totRxFragments++;
     m_rxFragmentTrace(f,
                       m_peer,
