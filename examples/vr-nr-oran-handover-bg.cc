@@ -376,7 +376,7 @@ main(int argc, char* argv[])
     nrHelper->SetBeamformingHelper(beamformingHelper);
     nrHelper->SetEpcHelper(epcHelper);
 
-    nrHelper->SetSchedulerTypeId(TypeId::LookupByName("ns3::NrMacSchedulerOfdmaPF"));
+    nrHelper->SetSchedulerTypeId(TypeId::LookupByName("ns3::NrMacSchedulerOfdmaRR"));
 
     Ptr<Node> pgw = epcHelper->GetPgwNode();
     NodeContainer remoteHostContainer;
