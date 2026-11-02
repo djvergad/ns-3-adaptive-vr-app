@@ -296,7 +296,7 @@ main(int argc, char* argv[])
     std::string vrAppName = "VirusPopper";
     bool e2Network = true; // carry the E2 interface (UE/gNB <-> RIC) over the network
     bool ricNetwork = true; // query the RIC over the network instead of a direct call
-    std::string burstGeneratorType = "model"; // {"model", "fuzzy", "oran-util-udp", "oran-util-udp-no-queue"}
+    std::string burstGeneratorType = "model"; // {"model", "fuzzy", "gcc", "nada", "oran-util-udp", "oran-util-udp-no-queue"}
 
     // O-RAN
     Time lmQueryInterval = MilliSeconds(200);
@@ -328,7 +328,7 @@ main(int argc, char* argv[])
     cmd.AddValue("appRate", "VR application target data rate", appRate);
     cmd.AddValue("frameRate", "VR application frame rate [FPS]", frameRate);
     cmd.AddValue("burstGeneratorType",
-                 "VR burst generator {\"model\", \"fuzzy\", \"oran-util-udp\", \"oran-util-udp-no-queue\"}",
+                 "VR burst generator {\"model\", \"fuzzy\", \"gcc\", \"nada\", \"oran-util-udp\", \"oran-util-udp-no-queue\"}",
                  burstGeneratorType);
     cmd.AddValue("e2Network",
                  "Carry the E2 messages between the UEs/gNBs and the RIC over the network",
@@ -494,7 +494,8 @@ main(int argc, char* argv[])
     std::string protocol = "ns3::UdpSocketFactory";
     const bool oranUtil =
         (burstGeneratorType == "oran-util-udp" || burstGeneratorType == "oran-util-udp-no-queue");
-    NS_ABORT_MSG_IF(!oranUtil && burstGeneratorType != "model" && burstGeneratorType != "fuzzy",
+    NS_ABORT_MSG_IF(!oranUtil && burstGeneratorType != "model" && burstGeneratorType != "fuzzy" &&
+                        burstGeneratorType != "gcc" && burstGeneratorType != "nada",
                     "Wrong burstGeneratorType: " << burstGeneratorType);
     Ptr<OranLogicVrBitrate> vrBitrateLm = CreateObject<OranLogicVrBitrate>();
     if (burstGeneratorType == "model")
@@ -512,6 +513,18 @@ main(int argc, char* argv[])
         // Config::SetDefault("ns3::TcpSocket::RcvBufSize", UintegerValue(1 << 23));
         Config::SetDefault("ns3::BurstyApplicationServer::adaptationAlgorithm",
                            StringValue("FuzzyAlgorithmServer"));
+    }
+    else if (burstGeneratorType == "gcc")
+    {
+        // Delay/loss-based controllers driven by UDP receiver feedback.
+        Config::SetDefault("ns3::BurstyApplicationServer::adaptationAlgorithm",
+                           StringValue("GccAlgorithmServer"));
+    }
+    else if (burstGeneratorType == "nada")
+    {
+        // Delay/loss-based controllers driven by UDP receiver feedback.
+        Config::SetDefault("ns3::BurstyApplicationServer::adaptationAlgorithm",
+                           StringValue("NadaAlgorithmServer"));
     }
     else if (burstGeneratorType == "oran-util-udp")
     {
