@@ -504,7 +504,7 @@ main(int argc, char* argv[])
     // LogComponentEnable("OranCellUtilizationCollector", LOG_LEVEL_ALL);
     // LogComponentEnable("OranCellUtilizationAdaptationAlgorithm", LOG_LEVEL_ALL);
     // LogComponentEnable("OranCellUtilizationUdpAdaptationAlgorithm", LOG_LEVEL_ALL);
-    LogComponentEnable("OranLogicVrBitrate", LOG_LEVEL_ALL);
+    // LogComponentEnable("OranLogicVrBitrate", LOG_LEVEL_ALL);
     // LogComponentEnable("OranDataRepositorySqlite", LOG_LEVEL_ALL);
     // LogComponentEnable("NrRlc", LOG_LEVEL_ALL);
     // LogComponentEnable("NrRlcUm", LOG_LEVEL_ALL);

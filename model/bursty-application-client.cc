@@ -72,6 +72,11 @@ BurstyApplicationClient::GetTypeId(void)
                           TimeValue(Seconds(0.02)),
                           MakeTimeAccessor(&BurstyApplicationClient::m_requestTimeout),
                           MakeTimeChecker())
+            .AddAttribute("SendCongestionFeedback",
+                          "Send periodic receiver feedback to the server (needed by GCC/NADA)",
+                          BooleanValue(false),
+                          MakeBooleanAccessor(&BurstyApplicationClient::m_sendFeedback),
+                          MakeBooleanChecker())
             .AddTraceSource("FragmentRx",
                             "A fragment has been received",
                             MakeTraceSourceAccessor(&BurstyApplicationClient::m_rxFragmentTrace),
@@ -507,7 +512,7 @@ void
 BurstyApplicationClient::ReportNetworkFeedback(const SeqTsSizeFragHeader& header,
                                                uint32_t packetSize)
 {
-    if (!m_socket || m_socket->GetSocketType() != Socket::NS3_SOCK_DGRAM)
+    if (!m_sendFeedback || !m_socket || m_socket->GetSocketType() != Socket::NS3_SOCK_DGRAM)
     {
         return;
     }

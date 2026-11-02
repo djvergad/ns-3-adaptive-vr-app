@@ -775,12 +775,16 @@ main(int argc, char* argv[])
         protocol = "ns3::UdpSocketFactory";
         Config::SetDefault("ns3::BurstyApplicationServer::adaptationAlgorithm",
                            StringValue("GccAlgorithmServer"));
+        Config::SetDefault("ns3::BurstyApplicationClient::SendCongestionFeedback",
+                           BooleanValue(true));
     }
     else if (burstGeneratorType == "nada")
     {
         protocol = "ns3::UdpSocketFactory";
         Config::SetDefault("ns3::BurstyApplicationServer::adaptationAlgorithm",
                            StringValue("NadaAlgorithmServer"));
+        Config::SetDefault("ns3::BurstyApplicationClient::SendCongestionFeedback",
+                           BooleanValue(true));
     }
     else if (burstGeneratorType == "bola")
     {

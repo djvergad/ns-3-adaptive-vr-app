@@ -474,12 +474,16 @@ main(int argc, char* argv[])
         // Delay/loss-based controllers driven by UDP receiver feedback.
         Config::SetDefault("ns3::BurstyApplicationServer::adaptationAlgorithm",
                            StringValue("GccAlgorithmServer"));
+        Config::SetDefault("ns3::BurstyApplicationClient::SendCongestionFeedback",
+                           BooleanValue(true));
     }
     else if (burstGeneratorType == "nada")
     {
         // Delay/loss-based controllers driven by UDP receiver feedback.
         Config::SetDefault("ns3::BurstyApplicationServer::adaptationAlgorithm",
                            StringValue("NadaAlgorithmServer"));
+        Config::SetDefault("ns3::BurstyApplicationClient::SendCongestionFeedback",
+                           BooleanValue(true));
     }
     else if (burstGeneratorType == "oran-util-udp")
     {

@@ -253,6 +253,7 @@ class BurstyApplicationClient : public Application
     Time m_requestTimeout{Seconds(0.02)}; //!< Timeout before resending the UDP request
     EventId m_requestEvent;               //!< Event for the scheduled UDP request retransmission
 
+    bool m_sendFeedback{false};                   ///< Whether congestion feedback is sent.
     Time m_feedbackInterval{MilliSeconds(100)};   ///< Receiver feedback interval.
     Time m_nextFeedbackTime{Seconds(0)};          ///< Earliest next feedback transmission time.
     double m_delayWindowSumSeconds{0.0};          ///< Sum of one-way delays in the current window.
