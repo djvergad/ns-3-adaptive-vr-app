@@ -2,6 +2,8 @@
 #include "ns3/log.h"
 #include "ns3/simulator.h"
 
+#include <algorithm>
+
 namespace ns3 {
 
 NS_LOG_COMPONENT_DEFINE ("AdaptationAlgorithmServer");
@@ -26,6 +28,30 @@ AdaptationAlgorithmServer::AdaptationAlgorithmServer ()
 AdaptationAlgorithmServer::~AdaptationAlgorithmServer ()
 {
   NS_LOG_FUNCTION (this);
+}
+
+void
+AdaptationAlgorithmServer::SetInitialRate (DataRate rate)
+{
+  NS_LOG_FUNCTION (this << rate);
+  m_targetRate = rate;
+}
+
+void
+AdaptationAlgorithmServer::ReportFeedback (Time queueDelay, Time delayGradient,
+                                          DataRate receiveRate, double lossFraction)
+{
+  NS_LOG_FUNCTION (this << queueDelay << delayGradient << receiveRate << lossFraction);
+  m_queueDelay = std::max (queueDelay, Seconds (0));
+  m_delayGradient = delayGradient;
+  m_receiveRate = receiveRate;
+  m_lossFraction = std::clamp (lossFraction, 0.0, 1.0);
+}
+
+DataRate
+AdaptationAlgorithmServer::GetTargetRate () const
+{
+  return m_targetRate;
 }
 
 DataRate

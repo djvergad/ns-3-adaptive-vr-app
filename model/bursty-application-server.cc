@@ -28,6 +28,9 @@
 #include "ns3/festive.h"
 #include "ns3/mpc.h"
 #include "ns3/google-algorithm-server.h"
+#include "ns3/gcc-algorithm-server.h"
+#include "ns3/nada-algorithm-server.h"
+#include "ns3/congestion-feedback-header.h"
 #include "ns3/oran-cell-utilization-udp-adaptation-algorithm.h"
 #include "ns3/oran-cell-utilization-udp-no-queue-adaptation-algorithm.h"
 #include "ns3/inet-socket-address.h"
@@ -76,7 +79,8 @@ BurstyApplicationServer::GetTypeId(void)
                           MakeTypeIdChecker())
             .AddAttribute("adaptationAlgorithm",
                           "The adaptation algorithm used, empty string for no adaptation. Other "
-                          "allowed values are FuzzyAlgorithmServer and GoogleAlgorithmServer",
+                          "allowed values include FuzzyAlgorithmServer, GoogleAlgorithmServer, "
+                          "GccAlgorithmServer, and NadaAlgorithmServer. GCC and NADA require UDP.",
                           StringValue(""),
                           MakeStringAccessor(&BurstyApplicationServer::m_adaptationAlgorithm),
                           MakeStringChecker())
@@ -236,17 +240,41 @@ BurstyApplicationServer::HandleRead(Ptr<Socket> socket)
          m_socket->GetSocketType() != Socket::NS3_SOCK_SEQPACKET))
     {
         Address peer;
-        Ptr<Packet> packet = socket->RecvFrom(peer);
+        Ptr<Packet> packet;
+        while ((packet = socket->RecvFrom(peer)))
+        {
+            CongestionFeedbackHeader feedback;
+            if (packet->GetSize() >= feedback.GetSerializedSize() &&
+                packet->PeekHeader(feedback) == feedback.GetSerializedSize() &&
+                feedback.IsValid())
+            {
+                auto instance = m_server_instances.find(peer);
+                if (instance != m_server_instances.end() &&
+                    instance->second.m_adaptationAlgorithmServer)
+                {
+                    packet->RemoveHeader(feedback);
+                    instance->second.m_adaptationAlgorithmServer->ReportFeedback(
+                        feedback.GetQueueDelay(),
+                        feedback.GetDelayGradient(),
+                        feedback.GetReceiveRate(),
+                        feedback.GetLossFraction());
+                }
+                else
+                {
+                    NS_LOG_WARN("Received congestion feedback for an unknown or non-adaptive peer");
+                }
+                continue;
+            }
 
-        // NEW: Check if an instance for this peer is already active to prevent duplicate flows
-        if (m_server_instances.find(peer) == m_server_instances.end())
-        {
-            CreateInstance(socket, peer);
-            NS_LOG_INFO("Created new server instance for peer.");
-        }
-        else
-        {
-            NS_LOG_INFO("Ignored duplicate UDP request from already registered peer.");
+            if (m_server_instances.find(peer) == m_server_instances.end())
+            {
+                CreateInstance(socket, peer);
+                NS_LOG_INFO("Created new server instance for peer.");
+            }
+            else
+            {
+                NS_LOG_INFO("Ignored duplicate UDP request from already registered peer.");
+            }
         }
     }
 }
@@ -346,6 +374,20 @@ BurstyApplicationServer::CreateInstance(Ptr<Socket> socket, Address peer)
         m_server_instances[peer].m_adaptationAlgorithmServer =
             CreateObject<GoogleAlgorithmServer>();
     }
+    else if (m_adaptationAlgorithm == "GccAlgorithmServer" || m_adaptationAlgorithm == "GCC")
+    {
+        NS_ABORT_MSG_IF(socket->GetSocketType() != Socket::NS3_SOCK_DGRAM,
+                        "GCC adaptation requires a UDP socket for receiver feedback");
+        m_server_instances[peer].m_adaptationAlgorithmServer =
+            CreateObject<GccAlgorithmServer>();
+    }
+    else if (m_adaptationAlgorithm == "NadaAlgorithmServer" || m_adaptationAlgorithm == "NADA")
+    {
+        NS_ABORT_MSG_IF(socket->GetSocketType() != Socket::NS3_SOCK_DGRAM,
+                        "NADA adaptation requires a UDP socket for receiver feedback");
+        m_server_instances[peer].m_adaptationAlgorithmServer =
+            CreateObject<NadaAlgorithmServer>();
+    }
     else if (m_adaptationAlgorithm == "OranCellUtilizationUdpAdaptationAlgorithm")
     {
         Ptr<OranCellUtilizationUdpAdaptationAlgorithm> oranUdpAlgo =
@@ -369,6 +411,11 @@ BurstyApplicationServer::CreateInstance(Ptr<Socket> socket, Address peer)
         DynamicCast<VrBurstGenerator>(m_server_instances[peer].GetBurstGenerator());
 
     m_server_instances[peer].m_initRate = vrBurstGenerator->GetTargetDataRate();
+    if (m_server_instances[peer].m_adaptationAlgorithmServer)
+    {
+        m_server_instances[peer].m_adaptationAlgorithmServer->SetInitialRate(
+            m_server_instances[peer].m_initRate);
+    }
 
     Simulator::Schedule(m_appDuration,
                         &BurstyApplicationServerInstance::StopBursts,

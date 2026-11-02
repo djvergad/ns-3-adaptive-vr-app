@@ -18,6 +18,9 @@ set(source_files
     model/adaptation-algorithms/fuzzy-algorithm-server.cc
     model/adaptation-algorithms/adaptation-algorithm-server.cc
     model/adaptation-algorithms/google-algorithm-server.cc
+    model/adaptation-algorithms/congestion-feedback-header.cc
+    model/adaptation-algorithms/gcc-algorithm-server.cc
+    model/adaptation-algorithms/nada-algorithm-server.cc
     model/adaptation-algorithms/tcp-stream-adaptation-algorithm.cc
     model/adaptation-algorithms/bola.cc
     model/adaptation-algorithms/mpc.cc
@@ -54,6 +57,9 @@ set(header_files
     model/adaptation-algorithms/fuzzy-algorithm-server.h
     model/adaptation-algorithms/adaptation-algorithm-server.h
     model/adaptation-algorithms/google-algorithm-server.h
+    model/adaptation-algorithms/congestion-feedback-header.h
+    model/adaptation-algorithms/gcc-algorithm-server.h
+    model/adaptation-algorithms/nada-algorithm-server.h
     model/adaptation-algorithms/tcp-stream-interface.h
     model/adaptation-algorithms/tcp-stream-adaptation-algorithm.h
     model/adaptation-algorithms/bola.h
@@ -73,7 +79,7 @@ set(header_files
 
 
 set(test_sources
-
+    test/gcc-nada-adaptation-algorithm-test.cc
 )
 
 build_lib(

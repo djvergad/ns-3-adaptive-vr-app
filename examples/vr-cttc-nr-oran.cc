@@ -182,8 +182,7 @@ main(int argc, char* argv[])
     std::string vrAppName = "VirusPopper"; // the app name
     bool e2Network = true; // carry the E2 interface (UE/gNB <-> RIC) over the network
     bool ricNetwork = true; // query the RIC over the network instead of a direct call
-    std::string burstGeneratorType =
-        "model"; // type of burst generator {"model", "trace", "deterministic"}
+    std::string burstGeneratorType = "model";
 
     // Where we will store the output files.
     std::string simTag = "default";
@@ -241,7 +240,8 @@ main(int argc, char* argv[])
     cmd.AddValue("vrAppName", "the app name", vrAppName);
     cmd.AddValue(
         "burstGeneratorType",
-        "type of burst generator {\"model\", \"google\", \"fuzzy\", \"oran-util-udp\"}",
+        "type of burst generator {\"model\", \"google\", \"fuzzy\", \"gcc\", \"nada\", "
+        "\"oran-util-udp\"}",
         burstGeneratorType);
 
     cmd.AddValue("simTag",
@@ -769,6 +769,18 @@ main(int argc, char* argv[])
         protocol = "ns3::TcpSocketFactory";
         Config::SetDefault("ns3::BurstyApplicationServer::adaptationAlgorithm",
                            StringValue("FuzzyAlgorithmServer"));
+    }
+    else if (burstGeneratorType == "gcc")
+    {
+        protocol = "ns3::UdpSocketFactory";
+        Config::SetDefault("ns3::BurstyApplicationServer::adaptationAlgorithm",
+                           StringValue("GccAlgorithmServer"));
+    }
+    else if (burstGeneratorType == "nada")
+    {
+        protocol = "ns3::UdpSocketFactory";
+        Config::SetDefault("ns3::BurstyApplicationServer::adaptationAlgorithm",
+                           StringValue("NadaAlgorithmServer"));
     }
     else if (burstGeneratorType == "bola")
     {
@@ -1392,4 +1404,3 @@ main(int argc, char* argv[])
         return EXIT_SUCCESS; // we dont check other parameters configurations at the moment
     }
 }
-

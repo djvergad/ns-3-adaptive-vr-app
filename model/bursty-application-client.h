@@ -22,6 +22,7 @@
 
 #include "ns3/address.h"
 #include "ns3/application.h"
+#include "ns3/data-rate.h"
 #include "ns3/event-id.h"
 #include "ns3/inet-socket-address.h"
 #include "ns3/ptr.h"
@@ -31,6 +32,7 @@
 
 #include <unordered_map>
 #include <map>
+#include <set>
 
 namespace ns3
 {
@@ -179,6 +181,12 @@ class BurstyApplicationClient : public Application
                                   const Ptr<Packet>& f,
                                   const Address& from,
                                   const Address& localAddress);
+    /**
+     * @brief Send periodic receiver measurements to the UDP streaming server.
+     * @param header Metadata for the received media fragment.
+     * @param packetSize Received fragment size in bytes.
+     */
+    void ReportNetworkFeedback(const SeqTsSizeFragHeader& header, uint32_t packetSize);
 
     /**
      * \brief Hashing for the Address class
@@ -243,7 +251,24 @@ class BurstyApplicationClient : public Application
 
     // Retransmission state variables
     Time m_requestTimeout{Seconds(0.02)}; //!< Timeout before resending the UDP request
-    EventId m_requestEvent;              //!< Event for the scheduled UDP request retransmission
+    EventId m_requestEvent;               //!< Event for the scheduled UDP request retransmission
+
+    Time m_feedbackInterval{MilliSeconds(100)};   ///< Receiver feedback interval.
+    Time m_nextFeedbackTime{Seconds(0)};          ///< Earliest next feedback transmission time.
+    double m_delayWindowSumSeconds{0.0};          ///< Sum of one-way delays in the current window.
+    uint32_t m_delayWindowCount{0};               ///< Fragments in the current delay window.
+    double m_previousWindowDelaySeconds{0.0};     ///< Mean one-way delay of the previous window.
+    bool m_hasPreviousWindowDelay{false};         ///< Whether a previous delay window exists.
+    Time m_minimumOneWayDelay{Seconds(0)};        ///< Minimum observed one-way delay.
+    Time m_feedbackWindowStart{Seconds(0)};       ///< Start of the receive-rate window.
+    DataRate m_feedbackReceiveRate{DataRate(0)};  ///< Estimated receive bitrate.
+    uint64_t m_feedbackWindowBytes{0};            ///< Bytes received in the current rate window.
+    uint32_t m_feedbackBurstSequence{0};          ///< Burst sequence used for loss accounting.
+    uint16_t m_feedbackExpectedFragments{0};      ///< Expected fragment count in the current burst.
+    std::set<uint16_t> m_feedbackReceivedFragments; ///< Unique fragments in the current burst.
+    double m_feedbackLossFraction{0.0}; ///< Smoothed loss fraction from completed bursts.
+    bool m_hasFeedbackSample{false};    ///< Whether prior arrival and departure times exist.
+    bool m_hasFeedbackBurst{false};     ///< Whether a burst is being tracked for loss.
 };
 
 } // namespace ns3

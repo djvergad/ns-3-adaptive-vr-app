@@ -32,6 +32,7 @@
 #include "ns3/socket-factory.h"
 #include "ns3/socket.h"
 #include "ns3/trace-source-accessor.h"
+#include "ns3/congestion-feedback-header.h"
 #include "ns3/udp-socket-factory.h"
 #include "ns3/udp-socket.h"
 
@@ -403,6 +404,8 @@ BurstyApplicationClient::FragmentReceived(BurstHandler& burstHandler,
         return;
     }
 
+    ReportNetworkFeedback(header, f->GetSize());
+
     m_totRxFragments++;
     m_rxFragmentTrace(f,
                       m_peer,
@@ -498,6 +501,95 @@ BurstyApplicationClient::FragmentReceived(BurstHandler& burstHandler,
                        localAddress,
                        header); // TODO header size does not include payload, why?
     }
+}
+
+void
+BurstyApplicationClient::ReportNetworkFeedback(const SeqTsSizeFragHeader& header,
+                                               uint32_t packetSize)
+{
+    if (!m_socket || m_socket->GetSocketType() != Socket::NS3_SOCK_DGRAM)
+    {
+        return;
+    }
+
+    const Time now = Simulator::Now();
+    const Time oneWayDelay = std::max(now - header.GetTs(), Seconds(0));
+    if (!m_hasFeedbackSample || oneWayDelay < m_minimumOneWayDelay)
+    {
+        m_minimumOneWayDelay = oneWayDelay;
+    }
+    const Time queueDelay = oneWayDelay - m_minimumOneWayDelay;
+
+    m_delayWindowSumSeconds += oneWayDelay.GetSeconds();
+    m_delayWindowCount++;
+    m_hasFeedbackSample = true;
+
+    if (!m_hasFeedbackBurst || header.GetSeq() > m_feedbackBurstSequence)
+    {
+        if (m_hasFeedbackBurst && m_feedbackExpectedFragments > 0)
+        {
+            const double received =
+                std::min<size_t>(m_feedbackReceivedFragments.size(), m_feedbackExpectedFragments);
+            const double burstLoss =
+                (m_feedbackExpectedFragments - received) / m_feedbackExpectedFragments;
+            m_feedbackLossFraction = 0.75 * m_feedbackLossFraction + 0.25 * burstLoss;
+        }
+        m_feedbackBurstSequence = header.GetSeq();
+        m_feedbackExpectedFragments = header.GetFrags();
+        m_feedbackReceivedFragments.clear();
+        m_hasFeedbackBurst = true;
+    }
+    if (header.GetSeq() == m_feedbackBurstSequence)
+    {
+        m_feedbackReceivedFragments.insert(header.GetFragSeq());
+    }
+
+    if (m_feedbackWindowStart == Seconds(0))
+    {
+        m_feedbackWindowStart = now;
+    }
+    m_feedbackWindowBytes += packetSize;
+    const Time feedbackWindow = now - m_feedbackWindowStart;
+    if (feedbackWindow >= m_feedbackInterval)
+    {
+        m_feedbackReceiveRate =
+            DataRate(static_cast<uint64_t>(m_feedbackWindowBytes * 8.0 /
+                                           feedbackWindow.GetSeconds()));
+        m_feedbackWindowBytes = 0;
+        m_feedbackWindowStart = now;
+    }
+
+    if (now < m_nextFeedbackTime)
+    {
+        return;
+    }
+
+    // Fragments of a burst arrive back to back, so per-fragment gradients are
+    // meaningless; report the change in mean one-way delay between windows.
+    Time delayGradient = Seconds(0);
+    const double meanDelay = m_delayWindowSumSeconds / m_delayWindowCount;
+    if (m_hasPreviousWindowDelay)
+    {
+        delayGradient = Seconds(meanDelay - m_previousWindowDelaySeconds);
+    }
+    m_previousWindowDelaySeconds = meanDelay;
+    m_hasPreviousWindowDelay = true;
+    m_delayWindowSumSeconds = 0.0;
+    m_delayWindowCount = 0;
+
+    CongestionFeedbackHeader feedback;
+    feedback.SetMetrics(queueDelay,
+                        delayGradient,
+                        m_feedbackReceiveRate,
+                        m_feedbackLossFraction);
+    Ptr<Packet> packet = Create<Packet>();
+    packet->AddHeader(feedback);
+    const int sent = m_socket->Send(packet);
+    if (sent < 0 || static_cast<uint32_t>(sent) != feedback.GetSerializedSize())
+    {
+        NS_LOG_WARN("Failed to send congestion feedback to the streaming server");
+    }
+    m_nextFeedbackTime = now + m_feedbackInterval;
 }
 
 void
