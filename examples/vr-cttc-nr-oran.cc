@@ -294,7 +294,7 @@ main(int argc, char* argv[])
     // LogComponentEnable("OranCellUtilizationCollector", LOG_LEVEL_ALL);
     // LogComponentEnable("OranCellUtilizationAdaptationAlgorithm", LOG_LEVEL_ALL);
     // LogComponentEnable("OranCellUtilizationUdpAdaptationAlgorithm", LOG_LEVEL_ALL);
-    LogComponentEnable("OranLogicVrBitrate", LOG_LEVEL_ALL);
+    // LogComponentEnable("OranLogicVrBitrate", LOG_LEVEL_ALL);
     // LogComponentEnable("OranDataRepositorySqlite", LOG_LEVEL_ALL);
     // LogComponentEnable("NrRlc", LOG_LEVEL_ALL);
     // LogComponentEnable("NrRlcUm", LOG_LEVEL_ALL);
@@ -1142,7 +1142,8 @@ main(int argc, char* argv[])
     e2NodeTerminatorsEnbs.Add(deployedEnbTerminators);
 
     // Connect each gNB MAC BufferStatusReportTrace to the corresponding
-    if (burstGeneratorType == "oran-util-udp" || burstGeneratorType == "oran-util-udp-no-queue")
+    if (burstGeneratorType == "oran-util-udp" || burstGeneratorType == "oran-util-udp-no-queue" ||
+        burstGeneratorType == "netxrate-udp")
     {
         for (uint32_t idx = 0; idx < gnbNetDev.GetN(); ++idx)
         {

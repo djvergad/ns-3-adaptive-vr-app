@@ -1386,7 +1386,8 @@ main(int argc, char* argv[])
     e2NodeTerminatorsEnbs.Add(deployedEnbTerminators);
 
     // Connect each gNB MAC BufferStatusReportTrace to the corresponding
-    if (burstGeneratorType == "oran-util-udp" || burstGeneratorType == "oran-util-udp-no-queue")
+    if (burstGeneratorType == "oran-util-udp" || burstGeneratorType == "oran-util-udp-no-queue" ||
+        burstGeneratorType == "netxrate-udp")
     {
         for (uint32_t idx = 0; idx < gnbNetDev.GetN(); ++idx)
         {

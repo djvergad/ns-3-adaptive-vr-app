@@ -85,7 +85,7 @@ NetXRateUdpAdaptationAlgorithm::adaptation_algorithm(double, double, DataRate)
 
     m_cachedRecommendation =
         std::min(m_initialRate,
-                 m_lm->GetNetXRateRecommendation(m_server_instance->m_peer, m_lcid, m_initialRate));
+                 m_lm->GetNetXRateRecommendation(m_server_instance->m_peer, m_lcid, DataRate("50Mbps")));
     m_lastRecommendationTime = now;
     m_hasRecommendation = true;
     NS_LOG_DEBUG("NetXRate application cap: " << m_cachedRecommendation.GetBitRate() << " bps");
