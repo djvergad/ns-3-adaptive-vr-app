@@ -17,14 +17,20 @@ out = sys.argv[3] if len(sys.argv) > 3 else "vr-handover-comparison.png"
 runs = [("with handover", with_ho, "tab:blue"), ("without handover", without_ho, "tab:red")]
 
 
-def read(name):
-    """Read a CSV file into a dict of column name -> list of floats."""
+def read(name, ue=None):
+    """Read a CSV file into a dict of column name -> list of floats.
+
+    If ue is given, keep only the rows of that UE (UeId column) and the numeric columns.
+    """
     with open(name) as f:
         rows = list(csv.DictReader(f))
-    return {k: [float(r[k]) for r in rows] for k in rows[0]}
+    if ue is not None:
+        rows = [r for r in rows if int(r["UeId"]) == ue]
+    return {k: [float(r[k]) for r in rows] for k in rows[0] if k != "UeType"}
 
 
-data = {label: read(f"{p}-timeseries.csv") for label, p, _ in runs}
+# UE 0 is the moving UE
+data = {label: read(f"{p}-timeseries.csv", ue=0) for label, p, _ in runs}
 gnbs = read(f"{with_ho}-gnb-positions.csv")
 
 fig, axs = plt.subplots(5, 1, figsize=(10, 15), sharex=False)

@@ -42,6 +42,7 @@ endforeach()
 
 set(nr_examples
   vr-cttc-nr-oran
+  vr-cttc-nr-oran-distance
   vr-nr-oran-handover
   vr-nr-oran-handover-bg
 )
