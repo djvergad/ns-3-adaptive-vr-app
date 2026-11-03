@@ -27,6 +27,7 @@ set(source_files
     model/adaptation-algorithms/festive.cc
     model/adaptation-algorithms/oran-cell-utilization-udp-adaptation-algorithm.cc
     model/adaptation-algorithms/oran-cell-utilization-udp-no-queue-adaptation-algorithm.cc
+    model/adaptation-algorithms/netxrate-udp-adaptation-algorithm.cc
     model/bursty-application-client.cc
     model/oran-vr-bitrate-service.cc
     model/bursty-application-server.cc
@@ -67,6 +68,7 @@ set(header_files
     model/adaptation-algorithms/festive.h
     model/adaptation-algorithms/oran-cell-utilization-udp-adaptation-algorithm.h
     model/adaptation-algorithms/oran-cell-utilization-udp-no-queue-adaptation-algorithm.h
+    model/adaptation-algorithms/netxrate-udp-adaptation-algorithm.h
     model/bursty-application-client.h
     model/oran-vr-bitrate-service.h
     model/bursty-application-server.h

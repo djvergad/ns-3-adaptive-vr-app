@@ -8,6 +8,7 @@
 #include "ns3/congestion-feedback-header.h"
 #include "ns3/gcc-algorithm-server.h"
 #include "ns3/nada-algorithm-server.h"
+#include "ns3/oran-logic-vr-bitrate.h"
 #include "ns3/test.h"
 
 namespace ns3
@@ -115,6 +116,60 @@ class NadaFeedbackTestCase : public TestCase
     }
 };
 
+class NetXRateWaterFillingTestCase : public TestCase
+{
+  public:
+    NetXRateWaterFillingTestCase()
+        : TestCase("NetXRate water filling respects weighted demand and capacity")
+    {
+    }
+
+  private:
+    void DoRun() override
+    {
+        const auto weightedAllocations = OranLogicVrBitrate::CalculateNetXRateAllocations(
+            {DataRate("100Mbps"), DataRate("100Mbps")},
+            {1.0, 0.5},
+            DataRate("100Mbps"));
+        NS_TEST_ASSERT_MSG_EQ(weightedAllocations[0].GetBitRate(),
+                              DataRate("50Mbps").GetBitRate(),
+                              "First UE should receive half the cell capacity");
+        NS_TEST_ASSERT_MSG_EQ(weightedAllocations[1].GetBitRate(),
+                              DataRate("25Mbps").GetBitRate(),
+                              "Second UE recommendation should include its capacity ratio");
+
+        const auto demandLimitedAllocations = OranLogicVrBitrate::CalculateNetXRateAllocations(
+            {DataRate("10Mbps"), DataRate("100Mbps")},
+            {1.0, 1.0},
+            DataRate("100Mbps"));
+        NS_TEST_ASSERT_MSG_EQ(demandLimitedAllocations[0].GetBitRate(),
+                              DataRate("10Mbps").GetBitRate(),
+                              "A UE below the water level should receive its full demand");
+        NS_TEST_ASSERT_MSG_EQ(demandLimitedAllocations[1].GetBitRate(),
+                              DataRate("90Mbps").GetBitRate(),
+                              "Unused capacity should be shared with unsatisfied UEs");
+
+        const auto unconstrainedAllocations = OranLogicVrBitrate::CalculateNetXRateAllocations(
+            {DataRate("10Mbps"), DataRate("20Mbps")},
+            {0.5, 1.0},
+            DataRate("100Mbps"));
+        NS_TEST_ASSERT_MSG_EQ(unconstrainedAllocations[0].GetBitRate(),
+                              DataRate("10Mbps").GetBitRate(),
+                              "NetXRate should not exceed weighted demand");
+        NS_TEST_ASSERT_MSG_EQ(unconstrainedAllocations[1].GetBitRate(),
+                              DataRate("20Mbps").GetBitRate(),
+                              "NetXRate should preserve demand when capacity is sufficient");
+
+        const auto zeroCapacityRatioAllocation =
+            OranLogicVrBitrate::CalculateNetXRateAllocations({DataRate("5Mbps")},
+                                                             {0.0},
+                                                             DataRate("100Mbps"));
+        NS_TEST_ASSERT_MSG_EQ(zeroCapacityRatioAllocation[0].GetBitRate(),
+                              0,
+                              "A UE with no effective radio capacity should receive no rate");
+    }
+};
+
 class GccNadaAdaptationAlgorithmTestSuite : public TestSuite
 {
   public:
@@ -124,6 +179,7 @@ class GccNadaAdaptationAlgorithmTestSuite : public TestSuite
         AddTestCase(new CongestionFeedbackHeaderTestCase(), TestCase::Duration::QUICK);
         AddTestCase(new GccFeedbackTestCase(), TestCase::Duration::QUICK);
         AddTestCase(new NadaFeedbackTestCase(), TestCase::Duration::QUICK);
+        AddTestCase(new NetXRateWaterFillingTestCase(), TestCase::Duration::QUICK);
     }
 };
 

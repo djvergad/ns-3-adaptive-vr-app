@@ -238,11 +238,10 @@ main(int argc, char* argv[])
                  "Request the VR bitrate from the RIC xApp over the network",
                  ricNetwork);
     cmd.AddValue("vrAppName", "the app name", vrAppName);
-    cmd.AddValue(
-        "burstGeneratorType",
-        "type of burst generator {\"model\", \"google\", \"fuzzy\", \"gcc\", \"nada\", "
-        "\"oran-util-udp\"}",
-        burstGeneratorType);
+    cmd.AddValue("burstGeneratorType",
+                 "type of burst generator {\"model\", \"google\", \"fuzzy\", \"gcc\", \"nada\", "
+                 "\"oran-util-udp\", \"netxrate-udp\"}",
+                 burstGeneratorType);
 
     cmd.AddValue("simTag",
                  "tag to be appended to output filenames to distinguish simulation campaigns",
@@ -832,6 +831,14 @@ main(int argc, char* argv[])
         Config::SetDefault(
             "ns3::OranCellUtilizationUdpNoQueueAdaptationAlgorithm::OranLogicVrBitrate",
             PointerValue(Ptr<OranLogicVrBitrate>(oranLogicVrBitrate)));
+    }
+    else if (burstGeneratorType == "netxrate-udp")
+    {
+        protocol = "ns3::UdpSocketFactory";
+        Config::SetDefault("ns3::BurstyApplicationServer::adaptationAlgorithm",
+                           StringValue("NetXRateUdpAdaptationAlgorithm"));
+        Config::SetDefault("ns3::NetXRateUdpAdaptationAlgorithm::OranLogicVrBitrate",
+                           PointerValue(Ptr<OranLogicVrBitrate>(oranLogicVrBitrate)));
     }
     else
     {

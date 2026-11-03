@@ -1105,6 +1105,14 @@ main(int argc, char* argv[])
             "ns3::OranCellUtilizationUdpNoQueueAdaptationAlgorithm::OranLogicVrBitrate",
             PointerValue(Ptr<OranLogicVrBitrate>(oranLogicVrBitrate)));
     }
+    else if (burstGeneratorType == "netxrate-udp")
+    {
+        protocol = "ns3::UdpSocketFactory";
+        Config::SetDefault("ns3::BurstyApplicationServer::adaptationAlgorithm",
+                           StringValue("NetXRateUdpAdaptationAlgorithm"));
+        Config::SetDefault("ns3::NetXRateUdpAdaptationAlgorithm::OranLogicVrBitrate",
+                           PointerValue(Ptr<OranLogicVrBitrate>(oranLogicVrBitrate)));
+    }
     else
     {
         NS_ABORT_MSG("Wrong burstGeneratorType type");

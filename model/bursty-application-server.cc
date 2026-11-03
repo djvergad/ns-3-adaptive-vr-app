@@ -31,6 +31,7 @@
 #include "ns3/gcc-algorithm-server.h"
 #include "ns3/nada-algorithm-server.h"
 #include "ns3/congestion-feedback-header.h"
+#include "ns3/netxrate-udp-adaptation-algorithm.h"
 #include "ns3/oran-cell-utilization-udp-adaptation-algorithm.h"
 #include "ns3/oran-cell-utilization-udp-no-queue-adaptation-algorithm.h"
 #include "ns3/inet-socket-address.h"
@@ -401,6 +402,14 @@ BurstyApplicationServer::CreateInstance(Ptr<Socket> socket, Address peer)
             CreateObject<OranCellUtilizationUdpNoQueueAdaptationAlgorithm>();
         m_server_instances[peer].m_adaptationAlgorithmServer = oranUdpAlgo;
         oranUdpAlgo->m_server_instance = &m_server_instances[peer];
+    }
+    else if (m_adaptationAlgorithm == "NetXRateUdpAdaptationAlgorithm" ||
+             m_adaptationAlgorithm == "NetXRate")
+    {
+        Ptr<NetXRateUdpAdaptationAlgorithm> netXRateAlgo =
+            CreateObject<NetXRateUdpAdaptationAlgorithm>();
+        m_server_instances[peer].m_adaptationAlgorithmServer = netXRateAlgo;
+        netXRateAlgo->m_server_instance = &m_server_instances[peer];
     }
     else if (m_adaptationAlgorithm != "")
     {

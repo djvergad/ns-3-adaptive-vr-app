@@ -281,7 +281,8 @@ main(int argc, char* argv[])
     std::string vrAppName = "VirusPopper";
     bool e2Network = true; // carry the E2 interface (UE/gNB <-> RIC) over the network
     bool ricNetwork = true; // query the RIC over the network instead of a direct call
-    std::string burstGeneratorType = "model"; // {"model", "fuzzy", "gcc", "nada", "oran-util-udp", "oran-util-udp-no-queue"}
+    std::string burstGeneratorType =
+        "model"; // {"model", "fuzzy", "gcc", "nada", "oran-util-udp", "oran-util-udp-no-queue", "netxrate-udp"}
 
     // O-RAN
     Time lmQueryInterval = MilliSeconds(200);
@@ -309,7 +310,7 @@ main(int argc, char* argv[])
     cmd.AddValue("appRate", "VR application target data rate", appRate);
     cmd.AddValue("frameRate", "VR application frame rate [FPS]", frameRate);
     cmd.AddValue("burstGeneratorType",
-                 "VR burst generator {\"model\", \"fuzzy\", \"gcc\", \"nada\", \"oran-util-udp\", \"oran-util-udp-no-queue\"}",
+                 "VR burst generator {\"model\", \"fuzzy\", \"gcc\", \"nada\", \"oran-util-udp\", \"oran-util-udp-no-queue\", \"netxrate-udp\"}",
                  burstGeneratorType);
     cmd.AddValue("e2Network",
                  "Carry the E2 messages between the UEs/gNBs and the RIC over the network",
@@ -448,7 +449,8 @@ main(int argc, char* argv[])
     const uint16_t port = 1234;
     std::string protocol = "ns3::UdpSocketFactory";
     const bool oranUtil =
-        (burstGeneratorType == "oran-util-udp" || burstGeneratorType == "oran-util-udp-no-queue");
+        (burstGeneratorType == "oran-util-udp" || burstGeneratorType == "oran-util-udp-no-queue" ||
+         burstGeneratorType == "netxrate-udp");
     NS_ABORT_MSG_IF(!oranUtil && burstGeneratorType != "model" && burstGeneratorType != "fuzzy" &&
                         burstGeneratorType != "gcc" && burstGeneratorType != "nada",
                     "Wrong burstGeneratorType: " << burstGeneratorType);
@@ -490,6 +492,13 @@ main(int argc, char* argv[])
         Config::SetDefault("ns3::BurstyApplicationServer::adaptationAlgorithm",
                            StringValue("OranCellUtilizationUdpAdaptationAlgorithm"));
         Config::SetDefault("ns3::OranCellUtilizationUdpAdaptationAlgorithm::OranLogicVrBitrate",
+                           PointerValue(vrBitrateLm));
+    }
+    else if (burstGeneratorType == "netxrate-udp")
+    {
+        Config::SetDefault("ns3::BurstyApplicationServer::adaptationAlgorithm",
+                           StringValue("NetXRateUdpAdaptationAlgorithm"));
+        Config::SetDefault("ns3::NetXRateUdpAdaptationAlgorithm::OranLogicVrBitrate",
                            PointerValue(vrBitrateLm));
     }
     else
