@@ -9,16 +9,20 @@
  * xApp, optionally with one stationary UE next to each gNB.
  *
  * Scenario: a row of gNBs (default 3) and one UE that moves along the row at constant speed.
- * A remote host streams VR traffic (BurstyApplicationServer with the VrBurstGenerator) to the
- * UE through the core network. The Near-RT RIC runs OranLmNr2NrRsrpHandover, which hands the
- * UE over to the strongest gNB. With the default parameters the UE crosses two cell borders,
- * so two handovers happen. With --handover=false the UE stays attached to the first gNB and,
- * as it moves away, the received VR throughput degrades and finally drops to zero.
+ * A remote (edge) host streams VR traffic (BurstyApplicationServer with the VrBurstGenerator)
+ * to the UE through the core network. The VR application, transport and O-RAN settings are
+ * the common ones of vr-nr-oran-common.h. The Near-RT RIC runs OranLmNr2NrRsrpHandover, which hands
+ * the UE over to the strongest gNB. With the default parameters the UE crosses two cell borders, so
+ * two handovers happen. With --handover=false the UE stays attached to the first gNB and, as it
+ * moves away, the received VR throughput degrades and finally drops to zero.
  *
  * With --backgroundUes one stationary UE is placed next to every gNB and receives the same VR
  * traffic. This shows the adaptation algorithm (e.g. --burstGeneratorType=oran-util-udp)
  * sharing the capacity of each cell between several UEs, and the moving UE changing the load
  * of the cells it is handed over to.
+ *
+ * Every UE starts its stream at 1 s and receives --simTime of VR traffic. The simulation ends
+ * 1 s after the streams, so that the last frames can arrive.
  *
  * Programs: vr-nr-oran-handover.cc (single UE) and vr-nr-oran-handover-bg.cc (background
  * UEs). Every default can be overridden from the command line; see --PrintHelp.
@@ -62,7 +66,7 @@ struct HandoverOptions
     bool backgroundUes{true};  ///< One stationary UE with VR traffic next to each gNB
     double bgOffsetX{10};      ///< x offset of the stationary UEs from their gNB [m]
     double bgOffsetY{10};      ///< y offset of the stationary UEs from their gNB [m]
-    Time simTime{Seconds(22)}; ///< Simulation time
+    Time simTime{Seconds(22)}; ///< Duration of each UE's VR stream
 
     // Radio
     double centralFrequency{3.5e9}; ///< Central frequency [Hz]
@@ -70,24 +74,13 @@ struct HandoverOptions
     /// LOS/NLOS state of every gNB-UE pair; "Default" draws it randomly per RngRun, which can
     /// make a distant gNB the strongest one and send the moving UE to the wrong cell
     std::string channelCondition{"LOS"};
-    uint16_t numerology{1};                              ///< NR numerology
-    double txPower{20};                                  ///< gNB total TX power [dBm]
-    double ueTxPower{2};                                 ///< UE TX power [dBm]
-    std::string scheduler{"ns3::NrMacSchedulerOfdmaRR"}; ///< gNB MAC scheduler
+    uint16_t numerology{1}; ///< NR numerology
+    double txPower{20};     ///< gNB total TX power [dBm]
 
-    // VR traffic
-    VrOranOptions vr;                   ///< VR application and O-RAN options
-    std::string tcpType{"ns3::TcpBbr"}; ///< TCP variant of the TCP-based algorithms
-    uint32_t tcpBufferSize{0};          ///< TCP send/receive buffer size [bytes], 0: default
-
-    // O-RAN
-    Time lmQueryInterval{MilliSeconds(200)};   ///< Interval at which the RIC queries the LM
-    Time reportPeriod{MilliSeconds(100)};      ///< Period of the periodic E2 reports
-    Time sendInterval{MilliSeconds(50)};       ///< Interval at which E2 terminators send reports
-    Time holDelayTrigger{MilliSeconds(20)};    ///< HOL delay that triggers a UE stats report
-    double hysteresisDb{2.0};                  ///< Handover RSRP hysteresis [dB]
-    Time timeToTrigger{MilliSeconds(200)};     ///< Handover time-to-trigger
-    std::string dbFile{"oran-vr-handover.db"}; ///< SQLite database file of the Near-RT RIC
+    // VR application, transport and O-RAN
+    VrOranOptions vr;                      ///< Common options
+    double hysteresisDb{2.0};              ///< Handover RSRP hysteresis [dB]
+    Time timeToTrigger{MilliSeconds(200)}; ///< Handover time-to-trigger
 
     // Output
     std::string outPrefix{"vr-handover-bg"}; ///< Prefix of the output files
@@ -481,81 +474,40 @@ RunVrNrOranHandover(int argc, char* argv[], const std::string& program, Handover
     cmd.AddValue("gnbSpacing", "Distance between neighbouring gNBs [m]", o.gnbSpacing);
     cmd.AddValue("speed", "UE speed [m/s]", o.speed);
     cmd.AddValue("ueOffsetY", "Lateral distance of the UE path from the gNB row [m]", o.ueOffsetY);
-    cmd.AddValue("dbFile", "SQLite database file of the Near-RT RIC", o.dbFile);
     cmd.AddValue("outPrefix", "Prefix of the output files", o.outPrefix);
     cmd.AddValue("backgroundUes",
                  "Add one stationary UE with VR traffic next to each gNB",
                  o.backgroundUes);
     cmd.AddValue("bgOffsetX", "x offset of the stationary UEs from their gNB [m]", o.bgOffsetX);
     cmd.AddValue("bgOffsetY", "y offset of the stationary UEs from their gNB [m]", o.bgOffsetY);
-    cmd.AddValue("simTime", "Simulation time", o.simTime);
+    cmd.AddValue("simTime", "Duration of the VR stream of each UE", o.simTime);
     cmd.AddValue("frequency", "Central frequency [Hz]", o.centralFrequency);
     cmd.AddValue("bandwidth", "Bandwidth [Hz]", o.bandwidth);
     cmd.AddValue("numerology", "NR numerology", o.numerology);
     cmd.AddValue("txPower", "gNB total TX power [dBm]", o.txPower);
-    cmd.AddValue("ueTxPower", "UE TX power [dBm]", o.ueTxPower);
-    cmd.AddValue("scheduler", "gNB MAC scheduler type", o.scheduler);
-    o.vr.AddCommandLineArgs(cmd);
-    cmd.AddValue("tcpType", "TCP variant of the TCP-based adaptation algorithms", o.tcpType);
-    cmd.AddValue("tcpBufferSize",
-                 "TCP send/receive buffer size [bytes] (0: ns-3 default)",
-                 o.tcpBufferSize);
-    cmd.AddValue("lmQueryInterval", "Interval at which the RIC queries the LM", o.lmQueryInterval);
-    cmd.AddValue("reportPeriod", "Period of the periodic E2 reports", o.reportPeriod);
-    cmd.AddValue("sendInterval", "Interval at which E2 terminators send reports", o.sendInterval);
-    cmd.AddValue("holDelayTrigger",
-                 "HOL delay that triggers an immediate UE stats report (0 disables)",
-                 o.holDelayTrigger);
-    cmd.AddValue("hysteresisDb", "Handover RSRP hysteresis [dB]", o.hysteresisDb);
-    cmd.AddValue("timeToTrigger", "Handover time-to-trigger", o.timeToTrigger);
     cmd.AddValue("channelCondition",
                  "Channel condition {\"LOS\", \"NLOS\", \"Default\" (random 3GPP UMi)}",
                  o.channelCondition);
+    o.vr.AddCommandLineArgs(cmd);
+    cmd.AddValue("hysteresisDb", "Handover RSRP hysteresis [dB]", o.hysteresisDb);
+    cmd.AddValue("timeToTrigger", "Handover time-to-trigger", o.timeToTrigger);
     cmd.AddValue("reportInterval", "Interval of the summary output", o.reportInterval);
     cmd.Parse(argc, argv);
-    s.interval = o.reportInterval;
-    s.stopReporting = o.simTime;
 
     NS_ABORT_MSG_IF(o.numGnbs < 2, "At least two gNBs are needed");
 
-    Config::SetDefault("ns3::OranReportTriggerPeriodic::IntervalRv",
-                       StringValue(ConstantRv(o.reportPeriod)));
-    Config::SetDefault("ns3::NrRlcUm::MaxTxBufferSize", UintegerValue(9999999));
-    ConfigureVrApplicationDefaults(o.vr, 1200, o.simTime);
+    // Every stream starts at streamStart and lasts simTime
+    const Time streamStart = ORAN_START;
+    const Time streamEnd = streamStart + o.simTime;
+    const Time stopTime = streamEnd + Seconds(1); // drain the last frames
+    s.interval = o.reportInterval;
+    s.stopReporting = streamEnd;
 
+    ConfigureCommonDefaults(o.vr, o.simTime);
     LogComponentEnable("OranNearRtRic", (LogLevel)(LOG_PREFIX_TIME | LOG_WARN));
 
-    // Core network and remote host (the VR server)
-    Ptr<NrPointToPointEpcHelper> epcHelper = CreateObject<NrPointToPointEpcHelper>();
-    Ptr<IdealBeamformingHelper> beamformingHelper = CreateObject<IdealBeamformingHelper>();
-    Ptr<NrHelper> nrHelper = CreateObject<NrHelper>();
-    beamformingHelper->SetAttribute("BeamformingMethod",
-                                    TypeIdValue(DirectPathBeamforming::GetTypeId()));
-    beamformingHelper->SetAttribute("BeamformingPeriodicity", TimeValue(MilliSeconds(100)));
-    nrHelper->SetBeamformingHelper(beamformingHelper);
-    nrHelper->SetEpcHelper(epcHelper);
-    nrHelper->SetSchedulerTypeId(TypeId::LookupByName(o.scheduler));
-
-    Ptr<Node> pgw = epcHelper->GetPgwNode();
-    NodeContainer remoteHostContainer;
-    remoteHostContainer.Create(1);
-    Ptr<Node> remoteHost = remoteHostContainer.Get(0);
-    InternetStackHelper internet;
-    internet.Install(remoteHostContainer);
-
-    PointToPointHelper p2ph;
-    p2ph.SetDeviceAttribute("DataRate", DataRateValue(DataRate("100Gb/s")));
-    p2ph.SetDeviceAttribute("Mtu", UintegerValue(2500));
-    p2ph.SetChannelAttribute("Delay", TimeValue(MilliSeconds(1)));
-    NetDeviceContainer internetDevices = p2ph.Install(pgw, remoteHost);
-    Ipv4AddressHelper ipv4h;
-    ipv4h.SetBase("1.0.0.0", "255.0.0.0");
-    Ipv4InterfaceContainer internetIpIfaces = ipv4h.Assign(internetDevices);
-    Ipv4Address remoteHostAddr = internetIpIfaces.GetAddress(1);
-
-    Ipv4StaticRoutingHelper ipv4RoutingHelper;
-    ipv4RoutingHelper.GetStaticRouting(remoteHost->GetObject<Ipv4>())
-        ->AddNetworkRouteTo(Ipv4Address("7.0.0.0"), Ipv4Mask("255.0.0.0"), 1);
+    NrHelpers nr = CreateNrHelpers(o.vr);
+    RemoteHost remoteHost = CreateRemoteHost(nr.epc, o.vr);
 
     // Nodes and mobility: gNBs in a row, UE 0 moves along it, UE i > 0 sits at gNB i - 1
     NodeContainer gnbNodes;
@@ -605,32 +557,31 @@ RunVrNrOranHandover(int argc, char* argv[], const std::string& program, Handover
     channelHelper->AssignChannelsToBands({band});
     BandwidthPartInfoPtrVector allBwps = CcBwpCreator::GetAllBwps({band});
 
-    NetDeviceContainer gnbDevs = nrHelper->InstallGnbDevice(gnbNodes, allBwps);
-    NetDeviceContainer ueDevs = nrHelper->InstallUeDevice(ueNodes, allBwps);
+    NetDeviceContainer gnbDevs = nr.nr->InstallGnbDevice(gnbNodes, allBwps);
+    NetDeviceContainer ueDevs = nr.nr->InstallUeDevice(ueNodes, allBwps);
     for (uint32_t i = 0; i < gnbDevs.GetN(); ++i)
     {
         NrHelper::GetGnbPhy(gnbDevs.Get(i), 0)
             ->SetAttribute("Numerology", UintegerValue(o.numerology));
         NrHelper::GetGnbPhy(gnbDevs.Get(i), 0)->SetAttribute("TxPower", DoubleValue(o.txPower));
     }
-    for (uint32_t i = 0; i < ueDevs.GetN(); ++i)
-    {
-        NrHelper::GetUePhy(ueDevs.Get(i), 0)->SetAttribute("TxPower", DoubleValue(o.ueTxPower));
-    }
+    SetUeTxPower(ueDevs, o.vr.ueTxPower);
 
     // IP configuration of the UEs
+    InternetStackHelper internet;
     internet.Install(ueNodes);
-    Ipv4InterfaceContainer ueIpIface = epcHelper->AssignUeIpv4Address(NetDeviceContainer(ueDevs));
-    SetUeDefaultRoutes(ueNodes, epcHelper);
+    Ipv4InterfaceContainer ueIpIface = nr.epc->AssignUeIpv4Address(NetDeviceContainer(ueDevs));
+    SetUeDefaultRoutes(ueNodes, nr.epc);
 
     // X2 between all gNBs (needed for X2 handover); initial attachment of the moving UE to
     // the first gNB and of each stationary UE to its gNB
-    nrHelper->AddX2Interface(gnbNodes);
-    nrHelper->AttachToGnb(ueDevs.Get(0), gnbDevs.Get(0));
+    nr.nr->AddX2Interface(gnbNodes);
+    nr.nr->AttachToGnb(ueDevs.Get(0), gnbDevs.Get(0));
     for (uint32_t u = 1; u < numUes; ++u)
     {
-        nrHelper->AttachToGnb(ueDevs.Get(u), gnbDevs.Get(u - 1));
+        nr.nr->AttachToGnb(ueDevs.Get(u), gnbDevs.Get(u - 1));
     }
+    ActivateVrQosFlow(nr.nr, ueDevs, o.vr);
 
     for (uint32_t u = 0; u < numUes; ++u)
     {
@@ -648,51 +599,11 @@ RunVrNrOranHandover(int argc, char* argv[], const std::string& program, Handover
     s.gnbDlBytes.assign(o.numGnbs, 0);
     s.rsrp.assign(o.numGnbs, std::nan(""));
 
-    // Downlink VR traffic: server on the remote host, one client per UE
-    const uint16_t port = 1234;
+    // O-RAN: Near-RT RIC with the NR RSRP handover logic module (or a no-op one)
     Ptr<OranLogicVrBitrate> vrBitrateLm = CreateObject<OranLogicVrBitrate>();
     const BurstGeneratorSetup generator =
         ConfigureBurstGenerator(o.vr.burstGeneratorType, vrBitrateLm);
-    const std::string protocol = generator.socketFactory;
-    const bool oranUtil = generator.usesOranLm;
-    if (protocol == "ns3::TcpSocketFactory")
-    {
-        // TCP hides packet loss behind retransmissions, so the loss columns stay zero and
-        // congestion shows up as delay.
-        Config::SetDefault("ns3::TcpL4Protocol::SocketType",
-                           TypeIdValue(TypeId::LookupByName(o.tcpType)));
-        if (o.tcpBufferSize > 0)
-        {
-            Config::SetDefault("ns3::TcpSocket::SndBufSize", UintegerValue(o.tcpBufferSize));
-            Config::SetDefault("ns3::TcpSocket::RcvBufSize", UintegerValue(o.tcpBufferSize));
-        }
-    }
-    Ptr<Node> e2RicHost; // set when a RIC host node exists
-    if (oranUtil && o.vr.ricNetwork)
-    {
-        // The RIC xApp host is a separate node behind the PGW and serves bitrate requests
-        RicHost ricHost = CreateRicHost(pgw, remoteHost, internet);
-        InstallRicBitrateServer(ricHost, vrBitrateLm, o.simTime + Seconds(1));
-        e2RicHost = ricHost.node;
-    }
-    ApplicationContainer serverApp =
-        InstallVrServer(protocol, port, remoteHost, o.simTime + Seconds(1));
-    ApplicationContainer clientApps =
-        InstallVrClients(protocol, remoteHostAddr, port, ueNodes, ueIpIface);
-    for (uint32_t u = 0; u < numUes; ++u)
-    {
-        Ptr<Application> client = clientApps.Get(u);
-        client->SetStartTime(Seconds(1));
-        client->SetStopTime(o.simTime + Seconds(1));
-        client->TraceConnectWithoutContext("FragmentRx", MakeBoundCallback(&FragmentRx, u));
-    }
-
-    // O-RAN: Near-RT RIC with the NR RSRP handover logic module (or a no-op one)
-    OranRicConfig ricConfig;
-    ricConfig.lmQueryInterval = o.lmQueryInterval;
-    ricConfig.e2NodeInactivityInterval = Seconds(2);
-    ricConfig.dbFile = o.dbFile;
-    Ptr<OranHelper> oranHelper = CreateOranHelper(ricConfig);
+    Ptr<OranHelper> oranHelper = CreateOranHelper(o.vr);
     if (o.handover)
     {
         oranHelper->SetDefaultLogicModule(
@@ -708,51 +619,33 @@ RunVrNrOranHandover(int argc, char* argv[], const std::string& program, Handover
     {
         oranHelper->SetDefaultLogicModule("ns3::OranLmNoop");
     }
-    Ptr<OranNearRtRic> nearRtRic = oranHelper->CreateNearRtRic();
-    if (o.vr.e2Network && e2RicHost)
-    {
-        EnableE2NetworkTransport(nearRtRic, e2RicHost);
-    }
-
-    for (uint32_t u = 0; u < numUes; ++u)
-    {
-        DeployUeTerminator(ueNodes.Get(u),
-                           nearRtRic,
-                           MilliSeconds(500),
-                           o.sendInterval,
-                           Seconds(1));
-    }
+    OranDeployment oran;
+    DeployOran(oranHelper,
+               o.vr,
+               generator,
+               vrBitrateLm,
+               nr.epc->GetPgwNode(),
+               remoteHost.node,
+               gnbNodes,
+               gnbDevs,
+               ueNodes,
+               stopTime,
+               oran);
     // RSRP of the moving UE towards each gNB, for the gNB load trace
     s.ueDevs[0]->GetPhy(0)->TraceConnectWithoutContext("ReportUeMeasurements",
                                                        MakeCallback(&UeMeasurements));
 
-    if (oranUtil)
+    // Downlink VR traffic: server on the remote host, one client per UE
+    ApplicationContainer serverApp =
+        InstallVrServer(generator.socketFactory, remoteHost.node, stopTime);
+    ApplicationContainer clientApps =
+        InstallVrClients(generator.socketFactory, remoteHost.address, ueNodes, ueIpIface, stopTime);
+    for (uint32_t u = 0; u < numUes; ++u)
     {
-        AddUeStatsReporter(oranHelper, o.holDelayTrigger);
+        Ptr<Application> client = clientApps.Get(u);
+        client->SetStartTime(streamStart);
+        client->TraceConnectWithoutContext("FragmentRx", MakeBoundCallback(&FragmentRx, u));
     }
-    oranHelper->SetE2NodeTerminator("ns3::OranE2NodeTerminatorNrGnb",
-                                    "RegistrationIntervalRv",
-                                    StringValue(ConstantRv(MilliSeconds(500))),
-                                    "SendIntervalRv",
-                                    StringValue(ConstantRv(o.sendInterval)));
-    oranHelper->AddReporter("ns3::OranReporterLocation",
-                            "Trigger",
-                            StringValue("ns3::OranReportTriggerPeriodic"));
-    OranE2NodeTerminatorContainer gnbTerminators =
-        oranHelper->DeployTerminators(nearRtRic, gnbNodes);
-
-    if (oranUtil)
-    {
-        vrBitrateLm->SetDataRepository(nearRtRic->Data());
-        // Feed the gNB MAC buffer status and scheduler statistics to the stats reporters
-        ConnectUeStatsReporters(gnbDevs, gnbTerminators);
-    }
-
-    Simulator::Schedule(Seconds(1), &OranHelper::ActivateAndStartNearRtRic, oranHelper, nearRtRic);
-    Simulator::Schedule(Seconds(1.5),
-                        &OranHelper::ActivateE2NodeTerminators,
-                        oranHelper,
-                        gnbTerminators);
 
     // Traces
     AsciiTraceHelper ascii;
@@ -768,7 +661,7 @@ RunVrNrOranHandover(int argc, char* argv[], const std::string& program, Handover
         Vector p = gnbNodes.Get(i)->GetObject<MobilityModel>()->GetPosition();
         *gnbPosTrace->GetStream() << s.cellIds[i] << "," << p.x << "," << p.y << "," << p.z << "\n";
     }
-    internetDevices.Get(1)->TraceConnectWithoutContext("MacTx", MakeCallback(&ServerTx));
+    remoteHost.device->TraceConnectWithoutContext("MacTx", MakeCallback(&ServerTx));
     Config::Connect("/NodeList/*/ApplicationList/*/$ns3::NrEpcGnbApplication/RxFromS1u",
                     MakeCallback(&GnbRxFromS1u));
     Config::ConnectWithoutContext("/NodeList/*/DeviceList/*/NrGnbRrc/HandoverStart",
@@ -784,7 +677,7 @@ RunVrNrOranHandover(int argc, char* argv[], const std::string& program, Handover
               << o.speed << " m/s, VR rate " << o.vr.appRate << ", burst generator "
               << o.vr.burstGeneratorType << std::endl;
 
-    Simulator::Stop(o.simTime + Seconds(1));
+    Simulator::Stop(stopTime);
     Simulator::Run();
 
     WriteTimeSeries(*summaryTrace->GetStream(), numUes);
@@ -796,6 +689,7 @@ RunVrNrOranHandover(int argc, char* argv[], const std::string& program, Handover
         std::cout << "UE " << u << (u == 0 ? " (moving)" : " (static)") << ": received "
                   << s.ueTotalRxBytes[u] * 8 / 1e6 << " Mbit" << std::endl;
     }
+    oran.e2Stats.Print(std::cout);
     Simulator::Destroy();
     return 0;
 }

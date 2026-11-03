@@ -7,12 +7,11 @@
  * @file vr-nr-oran-common.h
  * @brief Building blocks shared by the VR over NR with O-RAN examples.
  *
- * Used by vr-cttc-nr-oran.cc, vr-cttc-nr-oran-distance.cc, vr-nr-oran-handover.cc and
- * vr-nr-oran-handover-bg.cc. The functions are header-only so that the examples can also be
- * built as single-file scratch programs (scratch/ needs a link to this header as well).
- *
- * Each function wraps one setup step; the examples call them in the order they need. The
- * order matters for reproducibility: it decides node ids and random stream assignment.
+ * Used by the scenarios in vr-cttc-nr-oran-scenario.h and vr-nr-oran-handover-scenario.h.
+ * Everything that is not specific to a scenario (VR application, QoS flow, transport, core
+ * network delays, O-RAN reporting and RIC configuration) is configured here, so that all the
+ * scenarios use the same settings. The functions are header-only so that the examples can
+ * also be built as single-file scratch programs (scratch/ needs links to the headers).
  */
 
 #include "ns3/applications-module.h"
@@ -38,22 +37,54 @@ namespace ns3
 namespace vrnr
 {
 
+/// UDP/TCP port of the VR server.
+const uint16_t VR_PORT = 1234;
+/// Size of the VR fragments [bytes].
+const uint32_t VR_FRAGMENT_SIZE = 1200;
+/// LCID of the VR QoS flow. In the NR module the LCID is the DRB id; DRB ids 0, 1, 2 and 4
+/// are not allocated, so the default DRB has LCID 3 and the first dedicated DRB LCID 5.
+const uint8_t VR_LCID = 5;
 /// UDP port of the RIC VR bitrate service (OranVrBitrateServer).
 const uint16_t RIC_BITRATE_PORT = 9000;
+/// Registration interval of the E2 terminators.
+const Time E2_REGISTRATION_INTERVAL = MilliSeconds(500);
+/// Time at which the RIC and the UE E2 terminators are activated.
+const Time ORAN_START = Seconds(1);
+/// Time at which the gNB E2 terminators are activated.
+const Time ORAN_GNB_START = MilliSeconds(1500);
 
 /**
- * VR application and O-RAN options common to all the examples.
+ * VR application, transport and O-RAN options common to all the scenarios.
  *
- * The examples set their own defaults before calling AddCommandLineArgs().
+ * The scenarios register them with AddCommandLineArgs(); the defaults are the same for all.
  */
 struct VrOranOptions
 {
-    std::string appRate{"20Mbps"};           ///< VR application target data rate
+    // VR application
+    std::string appRate{"50Mbps"};           ///< VR application target data rate
     double frameRate{60};                    ///< VR application frame rate [FPS]
     std::string vrAppName{"VirusPopper"};    ///< VR application name (VrBurstGenerator model)
     std::string burstGeneratorType{"model"}; ///< Adaptation algorithm, see ConfigureBurstGenerator
+    std::string vrQosFlow{"DGBR_VISUAL_CONTENT_89"}; ///< 5QI of the VR QoS flow
+    std::string tcpType{"ns3::TcpBbr"};              ///< TCP variant of the TCP-based algorithms
+    /// Discard the packets that wait at the gNB longer than the packet delay budget of their
+    /// QoS flow (NrRlcUm PDCP discarding). Disabled by default, so that late packets show up
+    /// as delay rather than as losses.
+    bool pdbDiscard{false};
+
+    // Radio and core network
+    double ueTxPower{23};                  ///< UE TX power [dBm]
+    Time remoteHostDelay{MilliSeconds(5)}; ///< Delay of the PGW - VR server (edge) link
+    Time s1uDelay{MilliSeconds(1)};        ///< Delay of the S1-U (gNB - SGW) links
+
+    // O-RAN
     bool e2Network{true};  ///< Carry the E2 interface (UEs/gNBs <-> RIC) over the network
     bool ricNetwork{true}; ///< Query the RIC bitrate service over the network
+    Time reportPeriod{MilliSeconds(100)};     ///< Period of the periodic E2 report triggers
+    Time sendInterval{MilliSeconds(50)};      ///< Interval at which E2 terminators send reports
+    Time holDelayTrigger{MilliSeconds(20)};   ///< HOL delay that triggers a UE stats report
+    std::string dbFile{"oran-repository.db"}; ///< SQLite database file of the Near-RT RIC
+    bool e2Trace{false}; ///< Print every E2 message sent/received over the network
 
     /**
      * Register the options with the command line.
@@ -70,12 +101,32 @@ struct VrOranOptions
                      "\"nada\", \"bola\", \"mpc\", \"festive\", \"oran-util\", \"oran-util-udp\", "
                      "\"oran-util-udp-no-queue\", \"netxrate-udp\"}",
                      burstGeneratorType);
+        cmd.AddValue("vrQosFlow",
+                     "5QI of the dedicated QoS flow carrying the VR traffic (NrQosFlow name, "
+                     "e.g. DGBR_VISUAL_CONTENT_89, NGBR_LOW_LAT_EMBB)",
+                     vrQosFlow);
+        cmd.AddValue("tcpType", "TCP variant of the TCP-based adaptation algorithms", tcpType);
+        cmd.AddValue("pdbDiscard",
+                     "Discard packets that wait at the gNB longer than the packet delay budget",
+                     pdbDiscard);
+        cmd.AddValue("ueTxPower", "UE TX power [dBm]", ueTxPower);
+        cmd.AddValue("remoteHostDelay",
+                     "One-way delay of the link between the PGW and the VR server",
+                     remoteHostDelay);
+        cmd.AddValue("s1uDelay", "One-way delay of the S1-U links", s1uDelay);
         cmd.AddValue("e2Network",
                      "Carry the E2 messages between the UEs/gNBs and the RIC over the network",
                      e2Network);
         cmd.AddValue("ricNetwork",
                      "Request the VR bitrate from the RIC xApp over the network",
                      ricNetwork);
+        cmd.AddValue("reportPeriod", "Period of the periodic E2 reports", reportPeriod);
+        cmd.AddValue("sendInterval", "Interval at which E2 terminators send reports", sendInterval);
+        cmd.AddValue("holDelayTrigger",
+                     "HOL delay that triggers an immediate UE stats report (0 disables)",
+                     holDelayTrigger);
+        cmd.AddValue("dbFile", "SQLite database file of the Near-RT RIC", dbFile);
+        cmd.AddValue("e2Trace", "Print every E2 message sent/received over the network", e2Trace);
     }
 };
 
@@ -92,7 +143,7 @@ struct BurstGeneratorSetup
  *
  * Sets the adaptationAlgorithm default, the client congestion feedback for the UDP
  * delay-based algorithms, and the OranLogicVrBitrate of the O-RAN based algorithms.
- * Aborts on an unknown type. The TCP variant is left to the caller.
+ * Aborts on an unknown type.
  *
  * @param type The burst generator type.
  * @param lm The VR bitrate logic module used by the O-RAN based algorithms.
@@ -169,24 +220,6 @@ ConfigureBurstGenerator(const std::string& type, Ptr<OranLogicVrBitrate> lm)
 }
 
 /**
- * Set the defaults of the VR burst generator and of the bursty application server.
- *
- * @param opts The VR options.
- * @param fragmentSize The fragment size [bytes].
- * @param appDuration The BurstyApplicationServer application duration.
- */
-inline void
-ConfigureVrApplicationDefaults(const VrOranOptions& opts, uint32_t fragmentSize, Time appDuration)
-{
-    Config::SetDefault("ns3::BurstyApplicationServer::appDuration", TimeValue(appDuration));
-    Config::SetDefault("ns3::BurstyApplicationServer::FragmentSize", UintegerValue(fragmentSize));
-    Config::SetDefault("ns3::VrBurstGenerator::FrameRate", DoubleValue(opts.frameRate));
-    Config::SetDefault("ns3::VrBurstGenerator::TargetDataRate",
-                       DataRateValue(DataRate(opts.appRate)));
-    Config::SetDefault("ns3::VrBurstGenerator::VrAppName", StringValue(opts.vrAppName));
-}
-
-/**
  * @param t A time.
  * @return A ConstantRandomVariable string with the value of t in seconds.
  */
@@ -194,6 +227,111 @@ inline std::string
 ConstantRv(Time t)
 {
     return "ns3::ConstantRandomVariable[Constant=" + std::to_string(t.GetSeconds()) + "]";
+}
+
+/**
+ * Set the defaults shared by all the scenarios: VR burst generator and server, RLC buffer,
+ * TCP variant, E2 report period and the LCID queried by the O-RAN adaptation algorithms.
+ *
+ * @param opts The options.
+ * @param streamDuration How long each server instance sends VR traffic.
+ */
+inline void
+ConfigureCommonDefaults(const VrOranOptions& opts, Time streamDuration)
+{
+    Config::SetDefault("ns3::BurstyApplicationServer::appDuration", TimeValue(streamDuration));
+    Config::SetDefault("ns3::BurstyApplicationServer::FragmentSize",
+                       UintegerValue(VR_FRAGMENT_SIZE));
+    Config::SetDefault("ns3::VrBurstGenerator::FrameRate", DoubleValue(opts.frameRate));
+    Config::SetDefault("ns3::VrBurstGenerator::TargetDataRate",
+                       DataRateValue(DataRate(opts.appRate)));
+    Config::SetDefault("ns3::VrBurstGenerator::VrAppName", StringValue(opts.vrAppName));
+
+    // Very large RLC buffers, so that the VR traffic is not dropped at the gNB
+    Config::SetDefault("ns3::NrRlcUm::MaxTxBufferSize", UintegerValue(9999999));
+    Config::SetDefault("ns3::NrRlcUm::EnablePdcpDiscarding", BooleanValue(opts.pdbDiscard));
+    Config::SetDefault("ns3::TcpL4Protocol::SocketType",
+                       TypeIdValue(TypeId::LookupByName(opts.tcpType)));
+
+    Config::SetDefault("ns3::OranReportTriggerPeriodic::IntervalRv",
+                       StringValue(ConstantRv(opts.reportPeriod)));
+
+    // The O-RAN algorithms ask the RIC about the VR QoS flow
+    Config::SetDefault("ns3::OranCellUtilizationUdpAdaptationAlgorithm::Lcid",
+                       UintegerValue(VR_LCID));
+    Config::SetDefault("ns3::OranCellUtilizationUdpNoQueueAdaptationAlgorithm::Lcid",
+                       UintegerValue(VR_LCID));
+    Config::SetDefault("ns3::NetXRateUdpAdaptationAlgorithm::Lcid", UintegerValue(VR_LCID));
+}
+
+/// The NR helpers of a scenario.
+struct NrHelpers
+{
+    Ptr<NrPointToPointEpcHelper> epc;        ///< Core network
+    Ptr<IdealBeamformingHelper> beamforming; ///< Beamforming
+    Ptr<NrHelper> nr;                        ///< NR stack
+};
+
+/**
+ * Create the NR helpers with the settings shared by all the scenarios: direct-path ideal
+ * beamforming, OFDMA round robin scheduler and the S1-U delay.
+ *
+ * @param opts The options.
+ * @return The helpers.
+ */
+inline NrHelpers
+CreateNrHelpers(const VrOranOptions& opts)
+{
+    NrHelpers h;
+    h.epc = CreateObject<NrPointToPointEpcHelper>();
+    h.beamforming = CreateObject<IdealBeamformingHelper>();
+    h.nr = CreateObject<NrHelper>();
+    h.beamforming->SetAttribute("BeamformingMethod",
+                                TypeIdValue(DirectPathBeamforming::GetTypeId()));
+    h.beamforming->SetAttribute("BeamformingPeriodicity", TimeValue(MilliSeconds(100)));
+    h.epc->SetAttribute("S1uLinkDelay", TimeValue(opts.s1uDelay));
+    h.nr->SetBeamformingHelper(h.beamforming);
+    h.nr->SetEpcHelper(h.epc);
+    h.nr->SetSchedulerTypeId(TypeId::LookupByName("ns3::NrMacSchedulerOfdmaRR"));
+    return h;
+}
+
+/// The VR server node.
+struct RemoteHost
+{
+    Ptr<Node> node;        ///< The remote host node
+    Ipv4Address address;   ///< Its address
+    Ptr<NetDevice> device; ///< Its device on the link to the PGW
+};
+
+/**
+ * Create the VR server (an edge server behind the PGW: 100 Gb/s, MTU 2500 B, remoteHostDelay).
+ *
+ * @param epc The EPC helper.
+ * @param opts The options.
+ * @return The remote host.
+ */
+inline RemoteHost
+CreateRemoteHost(Ptr<NrPointToPointEpcHelper> epc, const VrOranOptions& opts)
+{
+    auto [node, address] = epc->SetupRemoteHost("100Gb/s", 2500, opts.remoteHostDelay);
+    // Device 0 is the loopback, device 1 the link to the PGW
+    return {node, address, node->GetDevice(1)};
+}
+
+/**
+ * Set the TX power of the UEs.
+ *
+ * @param ueDevs The UE devices.
+ * @param txPower The TX power [dBm].
+ */
+inline void
+SetUeTxPower(const NetDeviceContainer& ueDevs, double txPower)
+{
+    for (uint32_t i = 0; i < ueDevs.GetN(); ++i)
+    {
+        NrHelper::GetUePhy(ueDevs.Get(i), 0)->SetAttribute("TxPower", DoubleValue(txPower));
+    }
 }
 
 /**
@@ -216,6 +354,62 @@ SetUeDefaultRoutes(const NodeContainer& ues, Ptr<NrPointToPointEpcHelper> epc)
     }
 }
 
+/**
+ * @param name A 5QI name of NrQosFlow (e.g. "DGBR_VISUAL_CONTENT_89").
+ * @return The corresponding 5QI.
+ */
+inline NrQosFlow::FiveQi
+QosFlowFromName(const std::string& name)
+{
+    static const std::map<std::string, NrQosFlow::FiveQi> flows = {
+        {"GBR_CONV_VOICE", NrQosFlow::GBR_CONV_VOICE},
+        {"GBR_CONV_VIDEO", NrQosFlow::GBR_CONV_VIDEO},
+        {"GBR_GAMING", NrQosFlow::GBR_GAMING},
+        {"GBR_NON_CONV_VIDEO", NrQosFlow::GBR_NON_CONV_VIDEO},
+        {"NGBR_VOICE_VIDEO_GAMING", NrQosFlow::NGBR_VOICE_VIDEO_GAMING},
+        {"NGBR_VIDEO_TCP_DEFAULT", NrQosFlow::NGBR_VIDEO_TCP_DEFAULT},
+        {"NGBR_LOW_LAT_EMBB", NrQosFlow::NGBR_LOW_LAT_EMBB},
+        {"DGBR_INTER_SERV_87", NrQosFlow::DGBR_INTER_SERV_87},
+        {"DGBR_INTER_SERV_88", NrQosFlow::DGBR_INTER_SERV_88},
+        {"DGBR_VISUAL_CONTENT_89", NrQosFlow::DGBR_VISUAL_CONTENT_89},
+        {"DGBR_VISUAL_CONTENT_90", NrQosFlow::DGBR_VISUAL_CONTENT_90},
+    };
+    auto it = flows.find(name);
+    NS_ABORT_MSG_IF(it == flows.end(), "Unsupported vrQosFlow: " << name);
+    return it->second;
+}
+
+/**
+ * Activate the dedicated QoS flow of the VR traffic on every UE. The filter on the server
+ * port matches the downlink (server is the remote source) and the uplink (server is the
+ * remote destination), so the VR data, the client requests, the congestion feedback and the
+ * TCP acknowledgements all use it.
+ *
+ * @param nrHelper The NR helper.
+ * @param ueDevs The UE devices.
+ * @param opts The options.
+ */
+inline void
+ActivateVrQosFlow(Ptr<NrHelper> nrHelper,
+                  const NetDeviceContainer& ueDevs,
+                  const VrOranOptions& opts)
+{
+    if (opts.vrQosFlow == "default")
+    {
+        return; // the VR traffic stays on the default QoS flow
+    }
+    NrQosFlow vrFlow(QosFlowFromName(opts.vrQosFlow));
+    Ptr<NrQosRule> vrRule = Create<NrQosRule>();
+    NrQosRule::PacketFilter vrFilter;
+    vrFilter.remotePortStart = VR_PORT;
+    vrFilter.remotePortEnd = VR_PORT;
+    vrRule->Add(vrFilter);
+    for (uint32_t i = 0; i < ueDevs.GetN(); ++i)
+    {
+        nrHelper->ActivateDedicatedQosFlow(ueDevs.Get(i), vrFlow, vrRule);
+    }
+}
+
 /// The node that hosts the RIC services.
 struct RicHost
 {
@@ -229,15 +423,15 @@ struct RicHost
  *
  * @param pgw The PGW node.
  * @param remoteHost The remote host, which gets a route to the RIC host.
- * @param internet The internet stack helper to install on the RIC host.
  * @return The RIC host.
  */
 inline RicHost
-CreateRicHost(Ptr<Node> pgw, Ptr<Node> remoteHost, InternetStackHelper& internet)
+CreateRicHost(Ptr<Node> pgw, Ptr<Node> remoteHost)
 {
     NodeContainer ricHostContainer;
     ricHostContainer.Create(1);
     Ptr<Node> ricHost = ricHostContainer.Get(0);
+    InternetStackHelper internet;
     internet.Install(ricHostContainer);
 
     PointToPointHelper ricP2p;
@@ -297,63 +491,46 @@ EnableE2NetworkTransport(Ptr<OranNearRtRic> ric, Ptr<Node> ricHost)
     return e2Transport;
 }
 
-/// Near-RT RIC configuration shared by the examples.
-struct OranRicConfig
-{
-    bool verbose{false};                       ///< OranHelper verbosity
-    Time lmQueryInterval{Seconds(5)};          ///< Interval of the logic module queries
-    Time lmQueryMaxWaitTime{Seconds(0)};       ///< Max wait for the LMs, 0 waits for all
-    Time e2NodeInactivityInterval{Seconds(2)}; ///< Interval of the E2 node inactivity checks
-    std::string dbFile{"oran-repository.db"};  ///< SQLite data repository file
-};
-
 /**
  * Create an OranHelper with an SQLite data repository (the old database is deleted), the
- * no-op conflict mitigation module and the given query settings. The caller sets the
- * default logic module.
+ * no-op conflict mitigation module, a 200 ms logic module query interval and no wait for
+ * late logic modules. The caller sets the default logic module.
  *
- * @param config The RIC configuration.
+ * @param opts The options.
  * @return The O-RAN helper.
  */
 inline Ptr<OranHelper>
-CreateOranHelper(const OranRicConfig& config)
+CreateOranHelper(const VrOranOptions& opts)
 {
-    std::remove(config.dbFile.c_str());
-    std::remove((config.dbFile + "-wal").c_str());
-    std::remove((config.dbFile + "-shm").c_str());
+    std::remove(opts.dbFile.c_str());
+    std::remove((opts.dbFile + "-wal").c_str());
+    std::remove((opts.dbFile + "-shm").c_str());
 
     Ptr<OranHelper> oranHelper = CreateObject<OranHelper>();
-    oranHelper->SetAttribute("Verbose", BooleanValue(config.verbose));
-    oranHelper->SetAttribute("LmQueryInterval", TimeValue(config.lmQueryInterval));
+    oranHelper->SetAttribute("Verbose", BooleanValue(false));
+    oranHelper->SetAttribute("LmQueryInterval", TimeValue(MilliSeconds(200)));
     oranHelper->SetAttribute("E2NodeInactivityThreshold", TimeValue(Seconds(2)));
-    oranHelper->SetAttribute("E2NodeInactivityIntervalRv",
-                             StringValue(ConstantRv(config.e2NodeInactivityInterval)));
-    oranHelper->SetAttribute("LmQueryMaxWaitTime", TimeValue(config.lmQueryMaxWaitTime));
+    oranHelper->SetAttribute("E2NodeInactivityIntervalRv", StringValue(ConstantRv(Seconds(2))));
+    oranHelper->SetAttribute("LmQueryMaxWaitTime", TimeValue(Seconds(0)));
     oranHelper->SetAttribute("LmQueryLateCommandPolicy", StringValue("DROP"));
     oranHelper->SetDataRepository("ns3::OranDataRepositorySqlite",
                                   "DatabaseFile",
-                                  StringValue(config.dbFile));
+                                  StringValue(opts.dbFile));
     oranHelper->SetConflictMitigationModule("ns3::OranCmmNoop");
     return oranHelper;
 }
 
 /**
  * Create the E2 terminator of a UE with location, cell info and RSRP/RSRQ reporters, attach
- * it to the UE and schedule its activation.
+ * it to the UE and schedule its activation at ORAN_START.
  *
  * @param ue The UE node.
  * @param ric The Near-RT RIC.
- * @param registrationInterval The registration interval.
  * @param sendInterval The report send interval.
- * @param activationTime When the terminator is activated.
  * @return The UE terminator.
  */
 inline Ptr<OranE2NodeTerminatorNrUe>
-DeployUeTerminator(Ptr<Node> ue,
-                   Ptr<OranNearRtRic> ric,
-                   Time registrationInterval,
-                   Time sendInterval,
-                   Time activationTime)
+DeployUeTerminator(Ptr<Node> ue, Ptr<OranNearRtRic> ric, Time sendInterval)
 {
     Ptr<OranReporterLocation> locationReporter = CreateObject<OranReporterLocation>();
     Ptr<OranReporterNrUeCellInfo> cellInfoReporter = CreateObject<OranReporterNrUeCellInfo>();
@@ -377,32 +554,15 @@ DeployUeTerminator(Ptr<Node> ue,
 
     ueTerminator->SetAttribute("NearRtRic", PointerValue(ric));
     ueTerminator->SetAttribute("RegistrationIntervalRv",
-                               StringValue(ConstantRv(registrationInterval)));
+                               StringValue(ConstantRv(E2_REGISTRATION_INTERVAL)));
     ueTerminator->SetAttribute("SendIntervalRv", StringValue(ConstantRv(sendInterval)));
     ueTerminator->AddReporter(locationReporter);
     ueTerminator->AddReporter(cellInfoReporter);
     ueTerminator->AddReporter(rsrpReporter);
     ueTerminator->Attach(ue);
 
-    Simulator::Schedule(activationTime, &OranE2NodeTerminatorNrUe::Activate, ueTerminator);
+    Simulator::Schedule(ORAN_START, &OranE2NodeTerminatorNrUe::Activate, ueTerminator);
     return ueTerminator;
-}
-
-/**
- * Add a periodic OranReporterNrUeStats to the reporters of the gNB terminators deployed
- * next by the helper.
- *
- * @param oranHelper The O-RAN helper.
- * @param holDelayTrigger The HOL delay that triggers an immediate report (0 disables).
- */
-inline void
-AddUeStatsReporter(Ptr<OranHelper> oranHelper, Time holDelayTrigger)
-{
-    oranHelper->AddReporter("ns3::OranReporterNrUeStats",
-                            "HolDelayTrigger",
-                            TimeValue(holDelayTrigger),
-                            "Trigger",
-                            StringValue("ns3::OranReportTriggerPeriodic"));
 }
 
 /**
@@ -458,57 +618,6 @@ ConnectUeStatsReporters(const NetDeviceContainer& gnbDevs,
     }
 }
 
-/**
- * Install the VR server (BurstyApplicationServer) on the remote host.
- *
- * @param socketFactory The socket factory type id.
- * @param port The server port.
- * @param remoteHost The remote host.
- * @param stopTime The stop time of the server.
- * @return The server application.
- */
-inline ApplicationContainer
-InstallVrServer(const std::string& socketFactory,
-                uint16_t port,
-                Ptr<Node> remoteHost,
-                Time stopTime)
-{
-    BurstyApplicationServerHelper server(socketFactory,
-                                         InetSocketAddress(Ipv4Address::GetAny(), port));
-    ApplicationContainer serverApp = server.Install(remoteHost);
-    serverApp.Start(Seconds(0));
-    serverApp.Stop(stopTime);
-    return serverApp;
-}
-
-/**
- * Install a VR client (BurstyApplicationClient) on each UE, bound to the UE address.
- * The caller sets the start and stop times.
- *
- * @param socketFactory The socket factory type id.
- * @param server The address of the VR server.
- * @param port The server port.
- * @param ues The UE nodes.
- * @param ueIfaces The UE IPv4 interfaces, in the same order as ues.
- * @return The client applications, in the same order as ues.
- */
-inline ApplicationContainer
-InstallVrClients(const std::string& socketFactory,
-                 Ipv4Address server,
-                 uint16_t port,
-                 const NodeContainer& ues,
-                 const Ipv4InterfaceContainer& ueIfaces)
-{
-    BurstyApplicationClientHelper client(socketFactory, InetSocketAddress(server, port));
-    ApplicationContainer clientApps = client.Install(ues);
-    for (uint32_t u = 0; u < clientApps.GetN(); ++u)
-    {
-        clientApps.Get(u)->SetAttribute("Local",
-                                        AddressValue(InetSocketAddress(ueIfaces.GetAddress(u), 0)));
-    }
-    return clientApps;
-}
-
 /// Per-node statistics of the E2 messages carried over the network.
 class E2TransportStats
 {
@@ -523,18 +632,23 @@ class E2TransportStats
      */
     void Connect(Ptr<OranE2NetworkTransport> transport, uint32_t ricNodeId)
     {
+        m_connected = true;
         m_ricNodeId = ricNodeId;
         transport->TraceConnectWithoutContext("E2Tx", MakeCallback(&E2TransportStats::Tx, this));
         transport->TraceConnectWithoutContext("E2Rx", MakeCallback(&E2TransportStats::Rx, this));
     }
 
     /**
-     * Print the statistics.
+     * Print the statistics, if the E2 interface was carried over the network.
      *
      * @param os The output stream.
      */
     void Print(std::ostream& os) const
     {
+        if (!m_connected)
+        {
+            return;
+        }
         os << "\nE2 transport statistics (node, role, tx msgs, rx msgs, mean/max delay ms):\n";
         for (const auto& [id, st] : m_stats)
         {
@@ -605,7 +719,150 @@ class E2TransportStats
 
     std::map<uint32_t, NodeStats> m_stats; ///< Statistics by node id
     uint32_t m_ricNodeId{0};               ///< Node id of the RIC host
+    bool m_connected{false};               ///< Connect() was called
 };
+
+/// The deployed O-RAN components.
+struct OranDeployment
+{
+    Ptr<OranNearRtRic> ric;                       ///< The Near-RT RIC
+    OranE2NodeTerminatorContainer gnbTerminators; ///< The gNB E2 terminators
+    E2TransportStats e2Stats;                     ///< E2 transport statistics
+};
+
+/**
+ * Deploy the O-RAN components, identically in every scenario and for every algorithm:
+ *  - the Near-RT RIC (the caller has set its logic module on oranHelper), whose data
+ *    repository is shared with the VR bitrate logic module;
+ *  - the RIC host behind the PGW, if the E2 interface or the bitrate queries use the network,
+ *    with the bitrate service if the algorithm queries it;
+ *  - one E2 terminator per UE (location, cell info, RSRP/RSRQ reporters) and per gNB
+ *    (location and OranReporterNrUeStats reporters, fed by the MAC and scheduler traces);
+ *  - their activation: RIC and UE terminators at ORAN_START, gNB terminators at
+ *    ORAN_GNB_START.
+ *
+ * @param oranHelper The O-RAN helper (from CreateOranHelper).
+ * @param opts The options.
+ * @param generator The burst generator setup.
+ * @param lm The VR bitrate logic module.
+ * @param pgw The PGW node.
+ * @param remoteHost The VR server node.
+ * @param gnbNodes The gNB nodes.
+ * @param gnbDevs The gNB devices.
+ * @param ueNodes The UE nodes.
+ * @param stopTime The stop time of the RIC bitrate service.
+ * @param deployment The deployed components (output; not copyable because of the trace sinks).
+ */
+inline void
+DeployOran(Ptr<OranHelper> oranHelper,
+           const VrOranOptions& opts,
+           const BurstGeneratorSetup& generator,
+           Ptr<OranLogicVrBitrate> lm,
+           Ptr<Node> pgw,
+           Ptr<Node> remoteHost,
+           const NodeContainer& gnbNodes,
+           const NetDeviceContainer& gnbDevs,
+           const NodeContainer& ueNodes,
+           Time stopTime,
+           OranDeployment& deployment)
+{
+    deployment.ric = oranHelper->CreateNearRtRic();
+    lm->SetDataRepository(deployment.ric->Data());
+
+    const bool ricBitrateOverNetwork = opts.ricNetwork && generator.usesRicServer;
+    if (ricBitrateOverNetwork || opts.e2Network)
+    {
+        RicHost ricHost = CreateRicHost(pgw, remoteHost);
+        if (ricBitrateOverNetwork)
+        {
+            InstallRicBitrateServer(ricHost, lm, stopTime);
+        }
+        if (opts.e2Network)
+        {
+            deployment.e2Stats.printEachMessage = opts.e2Trace;
+            deployment.e2Stats.Connect(EnableE2NetworkTransport(deployment.ric, ricHost.node),
+                                       ricHost.node->GetId());
+        }
+    }
+
+    for (uint32_t i = 0; i < ueNodes.GetN(); ++i)
+    {
+        DeployUeTerminator(ueNodes.Get(i), deployment.ric, opts.sendInterval);
+    }
+
+    oranHelper->SetE2NodeTerminator("ns3::OranE2NodeTerminatorNrGnb",
+                                    "RegistrationIntervalRv",
+                                    StringValue(ConstantRv(E2_REGISTRATION_INTERVAL)),
+                                    "SendIntervalRv",
+                                    StringValue(ConstantRv(opts.sendInterval)));
+    oranHelper->AddReporter("ns3::OranReporterLocation",
+                            "Trigger",
+                            StringValue("ns3::OranReportTriggerPeriodic"));
+    oranHelper->AddReporter("ns3::OranReporterNrUeStats",
+                            "HolDelayTrigger",
+                            TimeValue(opts.holDelayTrigger),
+                            "Trigger",
+                            StringValue("ns3::OranReportTriggerPeriodic"));
+    deployment.gnbTerminators = oranHelper->DeployTerminators(deployment.ric, gnbNodes);
+    ConnectUeStatsReporters(gnbDevs, deployment.gnbTerminators);
+
+    Simulator::Schedule(ORAN_START,
+                        &OranHelper::ActivateAndStartNearRtRic,
+                        oranHelper,
+                        deployment.ric);
+    Simulator::Schedule(ORAN_GNB_START,
+                        &OranHelper::ActivateE2NodeTerminators,
+                        oranHelper,
+                        deployment.gnbTerminators);
+}
+
+/**
+ * Install the VR server (BurstyApplicationServer) on the remote host.
+ *
+ * @param socketFactory The socket factory type id.
+ * @param remoteHost The remote host.
+ * @param stopTime The stop time of the server.
+ * @return The server application.
+ */
+inline ApplicationContainer
+InstallVrServer(const std::string& socketFactory, Ptr<Node> remoteHost, Time stopTime)
+{
+    BurstyApplicationServerHelper server(socketFactory,
+                                         InetSocketAddress(Ipv4Address::GetAny(), VR_PORT));
+    ApplicationContainer serverApp = server.Install(remoteHost);
+    serverApp.Start(Seconds(0));
+    serverApp.Stop(stopTime);
+    return serverApp;
+}
+
+/**
+ * Install a VR client (BurstyApplicationClient) on each UE, bound to the UE address.
+ * The caller sets the start times.
+ *
+ * @param socketFactory The socket factory type id.
+ * @param server The address of the VR server.
+ * @param ues The UE nodes.
+ * @param ueIfaces The UE IPv4 interfaces, in the same order as ues.
+ * @param stopTime The stop time of the clients.
+ * @return The client applications, in the same order as ues.
+ */
+inline ApplicationContainer
+InstallVrClients(const std::string& socketFactory,
+                 Ipv4Address server,
+                 const NodeContainer& ues,
+                 const Ipv4InterfaceContainer& ueIfaces,
+                 Time stopTime)
+{
+    BurstyApplicationClientHelper client(socketFactory, InetSocketAddress(server, VR_PORT));
+    ApplicationContainer clientApps = client.Install(ues);
+    for (uint32_t u = 0; u < clientApps.GetN(); ++u)
+    {
+        clientApps.Get(u)->SetAttribute("Local",
+                                        AddressValue(InetSocketAddress(ueIfaces.GetAddress(u), 0)));
+    }
+    clientApps.Stop(stopTime);
+    return clientApps;
+}
 
 } // namespace vrnr
 } // namespace ns3

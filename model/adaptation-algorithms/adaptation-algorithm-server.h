@@ -56,6 +56,11 @@ class AdaptationAlgorithmServer : public Object
     Time m_lastBurstTime = Seconds(0);
 
     uint64_t m_lastBufferOcc = 0;
+
+    /// Count the bytes sent but not yet acknowledged as send-buffer occupancy. When false,
+    /// only the bytes still waiting to be transmitted are counted, so that the occupancy does
+    /// not grow with the round-trip time.
+    bool m_includeInFlightBytes = false;
 };
 
 } // namespace ns3

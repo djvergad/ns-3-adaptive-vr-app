@@ -1,6 +1,8 @@
 #include "adaptation-algorithm-server.h"
+#include "ns3/boolean.h"
 #include "ns3/log.h"
 #include "ns3/simulator.h"
+#include "ns3/tcp-tx-buffer.h"
 
 #include <algorithm>
 
@@ -14,9 +16,17 @@ TypeId
 AdaptationAlgorithmServer::GetTypeId (void)
 {
   static TypeId tid =
-      TypeId ("ns3::AdaptationAlgorithmServer").SetParent<Object> ().SetGroupName ("Applications")
-      // .AddConstructor<AdaptationAlgorithmServer> ()
-      ;
+      TypeId ("ns3::AdaptationAlgorithmServer")
+          .SetParent<Object> ()
+          .SetGroupName ("Applications")
+          // .AddConstructor<AdaptationAlgorithmServer> ()
+          .AddAttribute ("IncludeInFlightBytes",
+                         "Count the TCP bytes sent but not yet acknowledged as send-buffer "
+                         "occupancy. When false, only the bytes still waiting to be "
+                         "transmitted are counted, so the occupancy does not grow with the RTT.",
+                         BooleanValue (false),
+                         MakeBooleanAccessor (&AdaptationAlgorithmServer::m_includeInFlightBytes),
+                         MakeBooleanChecker ());
   return tid;
 }
 
@@ -82,6 +92,12 @@ AdaptationAlgorithmServer::nextBurstRate (Ptr<Socket> socket, uint64_t bytesAdde
   m_lastBurstTime = Simulator::Now ();
 
   uint64_t buffOcc = buf_size.Get () - socket->GetTxAvailable ();
+  if (tcp && !m_includeInFlightBytes)
+    {
+      // Bytes written by the application that TCP has not transmitted yet
+      Ptr<TcpTxBuffer> txBuffer = tcp->GetTxBuffer ();
+      buffOcc = txBuffer->Size () - std::min (txBuffer->Size (), txBuffer->BytesInFlight ());
+    }
   int128_t diffBuffOcc = buffOcc - m_lastBufferOcc;
   m_lastBufferOcc = buffOcc;
 
