@@ -42,6 +42,16 @@ class AdaptationAlgorithmServer : public Object
      */
     DataRate GetTargetRate() const;
 
+    /**
+     * @brief Set the bytes that wait in the application queue because the socket is full.
+     *
+     * They are part of the backlog seen by the controller: without them, a sender blocked by a
+     * full send buffer would look idle.
+     *
+     * @param bytes The bytes in the application queue.
+     */
+    void SetAppQueueBytes(uint64_t bytes);
+
   protected:
     virtual DataRate adaptation_algorithm(double buff_occ,
                                           double diff_buff_occ,
@@ -56,6 +66,9 @@ class AdaptationAlgorithmServer : public Object
     Time m_lastBurstTime = Seconds(0);
 
     uint64_t m_lastBufferOcc = 0;
+    uint64_t m_appQueueBytes = 0;      ///< Bytes waiting in the application queue.
+    uint64_t m_lastBacklog = 0;        ///< Socket and application backlog at the last decision.
+    DataRate m_lastDrainRate{DataRate(0)}; ///< Last non-zero drain rate estimate.
 
     /// Count the bytes sent but not yet acknowledged as send-buffer occupancy. When false,
     /// only the bytes still waiting to be transmitted are counted, so that the occupancy does

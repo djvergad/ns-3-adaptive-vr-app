@@ -64,6 +64,13 @@ AdaptationAlgorithmServer::GetTargetRate () const
   return m_targetRate;
 }
 
+void
+AdaptationAlgorithmServer::SetAppQueueBytes (uint64_t bytes)
+{
+  NS_LOG_FUNCTION (this << bytes);
+  m_appQueueBytes = bytes;
+}
+
 DataRate
 AdaptationAlgorithmServer::nextBurstRate (Ptr<Socket> socket, uint64_t bytesAddedToSocket,
                                           Time txTime)
@@ -98,12 +105,32 @@ AdaptationAlgorithmServer::nextBurstRate (Ptr<Socket> socket, uint64_t bytesAdde
       Ptr<TcpTxBuffer> txBuffer = tcp->GetTxBuffer ();
       buffOcc = txBuffer->Size () - std::min (txBuffer->Size (), txBuffer->BytesInFlight ());
     }
-  int128_t diffBuffOcc = buffOcc - m_lastBufferOcc;
+  int128_t diffBuffOcc = static_cast<int128_t> (buffOcc) - m_lastBufferOcc;
   m_lastBufferOcc = buffOcc;
 
   uint64_t bytesSent = bytesAddedToSocket - diffBuffOcc;
   // DataRate lastRate = DataRate (bytesSent * 8 / dt.GetSeconds ());
   DataRate lastRate = DataRate (bytesSent * 8 / txTime.GetSeconds ());
+
+  // The backlog seen by the controller includes the frames blocked in the application queue
+  uint64_t backlog = buffOcc;
+  int128_t diffBacklog = diffBuffOcc;
+  if (tcp && !m_includeInFlightBytes)
+    {
+      backlog += m_appQueueBytes;
+      diffBacklog = static_cast<int128_t> (backlog) - m_lastBacklog;
+      m_lastBacklog = backlog;
+
+      // No byte drained during this interval is a missing sample, not a zero-capacity path
+      if (lastRate.GetBitRate () > 0)
+        {
+          m_lastDrainRate = lastRate;
+        }
+      else
+        {
+          lastRate = m_lastDrainRate;
+        }
+    }
 
   // std::cout << "bytesSent " << bytesSent << " txTime " << txTime.GetSeconds () << " dt "
   //           << dt.GetSeconds () << std::endl;
@@ -112,7 +139,7 @@ AdaptationAlgorithmServer::nextBurstRate (Ptr<Socket> socket, uint64_t bytesAdde
                             << lastRate.GetBitRate () / 1e6);
   if (txTime > Seconds (0) || !tcp)
     {
-      return adaptation_algorithm (buffOcc, diffBuffOcc, lastRate);
+      return adaptation_algorithm (backlog, diffBacklog, lastRate);
     }
   else
     {

@@ -41,6 +41,9 @@ namespace vrnr
 const uint16_t VR_PORT = 1234;
 /// Size of the VR fragments [bytes].
 const uint32_t VR_FRAGMENT_SIZE = 1200;
+/// TCP segment size [bytes]. The ns-3 default of 536 bytes is not representative of a path with
+/// a 1500-byte MTU, and it limits the throughput of TCP on links with losses.
+const uint32_t VR_TCP_SEGMENT_SIZE = 1400;
 /// LCID of the VR QoS flow. In the NR module the LCID is the DRB id; DRB ids 0, 1, 2 and 4
 /// are not allocated, so the default DRB has LCID 3 and the first dedicated DRB LCID 5.
 const uint8_t VR_LCID = 5;
@@ -252,6 +255,7 @@ ConfigureCommonDefaults(const VrOranOptions& opts, Time streamDuration)
     Config::SetDefault("ns3::NrRlcUm::EnablePdcpDiscarding", BooleanValue(opts.pdbDiscard));
     Config::SetDefault("ns3::TcpL4Protocol::SocketType",
                        TypeIdValue(TypeId::LookupByName(opts.tcpType)));
+    Config::SetDefault("ns3::TcpSocket::SegmentSize", UintegerValue(VR_TCP_SEGMENT_SIZE));
 
     Config::SetDefault("ns3::OranReportTriggerPeriodic::IntervalRv",
                        StringValue(ConstantRv(opts.reportPeriod)));

@@ -54,8 +54,9 @@ NadaAlgorithmServer::GetTypeId()
                           MakeTimeAccessor(&NadaAlgorithmServer::m_lossPenalty),
                           MakeTimeChecker())
             .AddAttribute("ReferenceQueueDelay",
-                          "Equilibrium queueing delay used by the NADA rate controller.",
-                          TimeValue(MilliSeconds(50)),
+                          "Equilibrium queueing delay used by the NADA rate controller "
+                          "(XREF in RFC 8698).",
+                          TimeValue(MilliSeconds(10)),
                           MakeTimeAccessor(&NadaAlgorithmServer::m_referenceQueueDelay),
                           MakeTimeChecker())
             .AddAttribute("ReferenceLossRate",

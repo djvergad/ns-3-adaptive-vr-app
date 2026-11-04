@@ -113,6 +113,17 @@ class NadaFeedbackTestCase : public TestCase
         NS_TEST_ASSERT_MSG_LT(algorithm.GetTargetRate().GetBitRate(),
                               DataRate("10Mbps").GetBitRate(),
                               "NADA should include packet loss in its congestion signal");
+
+        // With the RFC 8698 reference delay, queueing delay alone must reduce the rate of a
+        // flow above the equilibrium, without any reported loss.
+        NadaAlgorithmServer delayOnly;
+        delayOnly.SetInitialRate(DataRate("50Mbps"));
+        delayOnly.ReportFeedback(Seconds(0), Seconds(0), DataRate("40Mbps"), 0.0);
+        const DataRate rampedRate = delayOnly.GetTargetRate();
+        delayOnly.ReportFeedback(MilliSeconds(30), Seconds(0), DataRate("40Mbps"), 0.0);
+        NS_TEST_ASSERT_MSG_LT(delayOnly.GetTargetRate().GetBitRate(),
+                              rampedRate.GetBitRate(),
+                              "NADA should reduce its target on queueing delay without loss");
     }
 };
 

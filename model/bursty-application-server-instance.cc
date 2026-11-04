@@ -177,6 +177,13 @@ BurstyApplicationServerInstance::AdaptRate()
         m_txTime += Simulator::Now() - m_txStarted;
     }
 
+    uint64_t appQueueBytes = 0;
+    for (const auto& frame : m_queue)
+    {
+        appQueueBytes += frame->GetSize();
+    }
+    m_adaptationAlgorithmServer->SetAppQueueBytes(appQueueBytes);
+
     DataRate nextDataRate = std::max(
         m_adaptationAlgorithmServer->nextBurstRate(m_socket, m_bytesAddedToSocket, m_txTime),
         DataRate("10kbps"));

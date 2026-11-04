@@ -65,7 +65,7 @@ class NadaAlgorithmServer : public AdaptationAlgorithmServer
     DataRate m_maxRate{DataRate("100Mbps")};      ///< Maximum target bitrate.
     Time m_queueDelayThreshold{MilliSeconds(50)}; ///< Delay-warping threshold.
     Time m_lossPenalty{MilliSeconds(50)};         ///< Loss penalty delay.
-    Time m_referenceQueueDelay{MilliSeconds(50)}; ///< Equilibrium queueing delay.
+    Time m_referenceQueueDelay{MilliSeconds(10)}; ///< Equilibrium queueing delay.
     double m_referenceLossRate{0.02};             ///< Reference loss fraction.
     double m_priority{1.0};                       ///< Flow priority.
     double m_gain{0.5};                           ///< Congestion offset gain.
