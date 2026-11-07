@@ -9,6 +9,7 @@
 #include "ns3/gcc-algorithm-server.h"
 #include "ns3/nada-algorithm-server.h"
 #include "ns3/oran-logic-vr-bitrate.h"
+#include "ns3/simulator.h"
 #include "ns3/test.h"
 
 namespace ns3
@@ -89,41 +90,136 @@ class NadaFeedbackTestCase : public TestCase
 {
   public:
     NadaFeedbackTestCase()
-        : TestCase("NADA combines queue delay and loss and ramps up when clear")
+        : TestCase("NADA follows the RFC 8698 rate update, warping and ramp-up rules")
     {
     }
 
   private:
+    /**
+     * @brief Deliver one feedback report at an absolute simulation time.
+     * @param algorithm The controller.
+     * @param when The time of the report.
+     * @param delay The queueing delay.
+     * @param rate The receive rate.
+     * @param loss The loss fraction.
+     */
+    static void Report(Ptr<NadaAlgorithmServer> algorithm,
+                       Time when,
+                       Time delay,
+                       DataRate rate,
+                       double loss)
+    {
+        Simulator::Schedule(when - Simulator::Now(), [=]() {
+            algorithm->ReportFeedback(delay, Seconds(0), rate, loss);
+        });
+        Simulator::Run();
+    }
+
+    /**
+     * @brief Create a controller with a 50 Mb/s ceiling and a 10 Mb/s start.
+     * @return The controller.
+     */
+    static Ptr<NadaAlgorithmServer> Create50Mbps()
+    {
+        Ptr<NadaAlgorithmServer> algorithm = CreateObject<NadaAlgorithmServer>();
+        algorithm->SetInitialRate(DataRate("50Mbps"));
+        return algorithm;
+    }
+
     void DoRun() override
     {
-        NadaAlgorithmServer algorithm;
-        algorithm.SetInitialRate(DataRate("10Mbps"));
-        algorithm.ReportFeedback(MilliSeconds(200), Seconds(0), DataRate("9Mbps"), 0.03);
-        const DataRate congestedRate = algorithm.GetTargetRate();
-        NS_TEST_ASSERT_MSG_LT(congestedRate.GetBitRate(),
-                              DataRate("10Mbps").GetBitRate(),
-                              "NADA should reduce its target for a high congestion signal");
+        const DataRate recv("9Mbps");
+        const Time step = MilliSeconds(100);
 
-        algorithm.ReportFeedback(MilliSeconds(200), Seconds(0), DataRate("9Mbps"), 0.0);
-        NS_TEST_ASSERT_MSG_GT(algorithm.GetTargetRate().GetBitRate(),
-                              congestedRate.GetBitRate(),
-                              "NADA should ramp up when its warped delay signal clears");
+        // Without loss the delay is not warped, so a deep queue must keep lowering the rate
+        // towards its equilibrium, including below the rate at which x_ref reaches QTH.
+        Ptr<NadaAlgorithmServer> noLoss = Create50Mbps();
+        Time now = Seconds(1);
+        for (uint32_t i = 0; i < 60; ++i, now += step)
+        {
+            Report(noLoss, now, MilliSeconds(500), recv, 0.0);
+        }
+        NS_TEST_ASSERT_MSG_LT(noLoss->GetTargetRate().GetBitRate(),
+                              DataRate("2Mbps").GetBitRate(),
+                              "A standing queue without loss should push the rate down");
 
-        algorithm.ReportFeedback(Seconds(0), Seconds(0), DataRate("9Mbps"), 0.10);
-        NS_TEST_ASSERT_MSG_LT(algorithm.GetTargetRate().GetBitRate(),
+        // After a loss the same delay is warped and no longer lowers the rate.
+        Ptr<NadaAlgorithmServer> warped = Create50Mbps();
+        now += step;
+        const Time start = now;
+        Report(warped, start, Seconds(0), recv, 0.0);
+        now = start + Seconds(1);
+        Report(warped, now, Seconds(0), recv, 0.001); // loss_int = 1 s, loss_exp = 7 s
+        for (uint32_t i = 0; i < 10; ++i)
+        {
+            now += step;
+            Report(warped, now, MilliSeconds(500), recv, 0.0);
+        }
+        NS_TEST_ASSERT_MSG_GT(warped->GetTargetRate().GetBitRate(),
+                              DataRate("5Mbps").GetBitRate(),
+                              "The delay should be warped while a loss is recent");
+
+        // Once the loss window has expired, the same delay settles at the unwarped equilibrium
+        // of XREF * RMAX / x = 1 Mb/s.
+        now = start + Seconds(9);
+        for (uint32_t i = 0; i < 60; ++i, now += step)
+        {
+            Report(warped, now, MilliSeconds(500), recv, 0.0);
+        }
+        NS_TEST_ASSERT_MSG_LT(warped->GetTargetRate().GetBitRate(),
+                              DataRate("2Mbps").GetBitRate(),
+                              "The warping should stop after loss_exp");
+
+        // Loss alone raises the congestion signal, through DLOSS and PLRREF.
+        Ptr<NadaAlgorithmServer> lossy = Create50Mbps();
+        now += step;
+        Report(lossy, now, Seconds(0), recv, 0.10);
+        NS_TEST_ASSERT_MSG_LT(lossy->GetTargetRate().GetBitRate(),
                               DataRate("10Mbps").GetBitRate(),
                               "NADA should include packet loss in its congestion signal");
 
-        // With the RFC 8698 reference delay, queueing delay alone must reduce the rate of a
-        // flow above the equilibrium, without any reported loss.
-        NadaAlgorithmServer delayOnly;
-        delayOnly.SetInitialRate(DataRate("50Mbps"));
-        delayOnly.ReportFeedback(Seconds(0), Seconds(0), DataRate("40Mbps"), 0.0);
-        const DataRate rampedRate = delayOnly.GetTargetRate();
-        delayOnly.ReportFeedback(MilliSeconds(30), Seconds(0), DataRate("40Mbps"), 0.0);
-        NS_TEST_ASSERT_MSG_LT(delayOnly.GetTargetRate().GetBitRate(),
-                              rampedRate.GetBitRate(),
-                              "NADA should reduce its target on queueing delay without loss");
+        // Ramp-up from a clear start follows Eqs. 3 and 4: gamma = 50 / (20 + 100 + 120).
+        Ptr<NadaAlgorithmServer> ramp = Create50Mbps();
+        now += step;
+        Report(ramp, now, Seconds(0), DataRate("20Mbps"), 0.0);
+        NS_TEST_ASSERT_MSG_EQ_TOL(static_cast<double>(ramp->GetTargetRate().GetBitRate()),
+                                  20e6 * (1.0 + 50.0 / 240.0),
+                                  1.0,
+                                  "Unexpected accelerated ramp-up rate");
+
+        // Delay buildup blocks ramp-up for LOGWIN, even once the delay has cleared.
+        now += step;
+        Report(ramp, now, MilliSeconds(15), DataRate("20Mbps"), 0.0);
+        const double blockedRate = ramp->GetTargetRate().GetBitRate();
+        now += step;
+        Report(ramp, now, Seconds(0), DataRate("40Mbps"), 0.0);
+        NS_TEST_ASSERT_MSG_LT(ramp->GetTargetRate().GetBitRate(),
+                              DataRate("40Mbps").GetBitRate(),
+                              "Ramp-up should wait for LOGWIN after delay buildup");
+        now += MilliSeconds(500);
+        Report(ramp, now, Seconds(0), DataRate("40Mbps"), 0.0);
+        NS_TEST_ASSERT_MSG_EQ(ramp->GetTargetRate().GetBitRate(),
+                              DataRate("48333333bps").GetBitRate(),
+                              "Ramp-up should resume after LOGWIN");
+        NS_TEST_ASSERT_MSG_GT(ramp->GetTargetRate().GetBitRate(),
+                              blockedRate,
+                              "Ramp-up should raise the rate");
+
+        // Gradual update at a constant signal follows Eq. 7. The first report sets x_prev and
+        // the second has x_diff = 0: x_offset = 30 ms - 10 ms * 50 / r.
+        Ptr<NadaAlgorithmServer> gradual = Create50Mbps();
+        now += step;
+        Report(gradual, now, MilliSeconds(30), recv, 0.0);
+        const double rate = gradual->GetTargetRate().GetBitRate();
+        now += step;
+        Report(gradual, now, MilliSeconds(30), recv, 0.0);
+        const double offset = 0.03 - 0.01 * 50e6 / rate;
+        NS_TEST_ASSERT_MSG_EQ_TOL(static_cast<double>(gradual->GetTargetRate().GetBitRate()),
+                                  rate * (1.0 - 0.5 * (0.1 / 0.5) * (offset / 0.5)),
+                                  1.0,
+                                  "Unexpected gradual update");
+
+        Simulator::Destroy();
     }
 };
 
