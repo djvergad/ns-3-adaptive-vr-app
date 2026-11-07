@@ -604,6 +604,7 @@ ConnectUeStatsReporters(const NetDeviceContainer& gnbDevs,
                 {
                     continue;
                 }
+                stats->SetGnbRrc(gnbDev->GetRrc());
                 for (uint32_t m = 0; m < gnbDev->GetCcMapSize(); ++m)
                 {
                     gnbDev->GetMac(m)->TraceConnectWithoutContext(
