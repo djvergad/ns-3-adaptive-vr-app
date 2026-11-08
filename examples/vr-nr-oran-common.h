@@ -102,7 +102,8 @@ struct VrOranOptions
         cmd.AddValue("burstGeneratorType",
                      "VR adaptation algorithm {\"model\", \"google\", \"fuzzy\", \"gcc\", "
                      "\"nada\", \"bola\", \"mpc\", \"festive\", \"oran-util\", \"oran-util-udp\", "
-                     "\"oran-util-udp-no-queue\", \"netxrate-udp\"}",
+                     "\"oran-util-udp-no-queue\", \"netxrate-udp\", \"gcc-ric-cap\", "
+                     "\"gcc-ric-cap-queue\", \"gcc-netxrate-cap\"}",
                      burstGeneratorType);
         cmd.AddValue("vrQosFlow",
                      "5QI of the dedicated QoS flow carrying the VR traffic (NrQosFlow name, "
@@ -171,6 +172,9 @@ ConfigureBurstGenerator(const std::string& type, Ptr<OranLogicVrBitrate> lm)
         {"fuzzy", true, "FuzzyAlgorithmServer", false, nullptr, false},
         {"gcc", false, "GccAlgorithmServer", true, nullptr, false},
         {"nada", false, "NadaAlgorithmServer", true, nullptr, false},
+        {"gcc-ric-cap", false, "GccRicCapAlgorithmServer", true, nullptr, true},
+        {"gcc-ric-cap-queue", false, "GccRicCapAlgorithmServer", true, nullptr, true},
+        {"gcc-netxrate-cap", false, "GccRicCapAlgorithmServer", true, nullptr, true},
         {"bola", true, "BolaAlgo", false, nullptr, false},
         {"mpc", true, "MPCAlgo", false, nullptr, false},
         {"festive", true, "FestiveAlgorithm", false, nullptr, false},
@@ -194,6 +198,12 @@ ConfigureBurstGenerator(const std::string& type, Ptr<OranLogicVrBitrate> lm)
          "ns3::NetXRateUdpAdaptationAlgorithm::OranLogicVrBitrate",
          false},
     };
+
+    // Source of the cap of the RIC-capped GCC variants
+    Config::SetDefault("ns3::GccRicCapAlgorithmServer::CapSource",
+                       StringValue(type == "gcc-ric-cap-queue"   ? "QueueAware"
+                                   : type == "gcc-netxrate-cap" ? "NetXRate"
+                                                                : "FairShare"));
 
     for (const Entry& e : table)
     {
@@ -266,6 +276,7 @@ ConfigureCommonDefaults(const VrOranOptions& opts, Time streamDuration)
     Config::SetDefault("ns3::OranCellUtilizationUdpNoQueueAdaptationAlgorithm::Lcid",
                        UintegerValue(VR_LCID));
     Config::SetDefault("ns3::NetXRateUdpAdaptationAlgorithm::Lcid", UintegerValue(VR_LCID));
+    Config::SetDefault("ns3::GccRicCapAlgorithmServer::Lcid", UintegerValue(VR_LCID));
 }
 
 /// The NR helpers of a scenario.
@@ -476,6 +487,7 @@ InstallRicBitrateServer(const RicHost& ricHost, Ptr<OranLogicVrBitrate> lm, Time
     const AddressValue ricAddr(InetSocketAddress(ricHost.address, RIC_BITRATE_PORT));
     Config::SetDefault("ns3::OranCellUtilizationUdpAdaptationAlgorithm::RicServer", ricAddr);
     Config::SetDefault("ns3::OranCellUtilizationUdpNoQueueAdaptationAlgorithm::RicServer", ricAddr);
+    Config::SetDefault("ns3::GccRicCapAlgorithmServer::RicServer", ricAddr);
 }
 
 /**

@@ -20,6 +20,7 @@ set(source_files
     model/adaptation-algorithms/google-algorithm-server.cc
     model/adaptation-algorithms/congestion-feedback-header.cc
     model/adaptation-algorithms/gcc-algorithm-server.cc
+    model/adaptation-algorithms/gcc-ric-cap-algorithm-server.cc
     model/adaptation-algorithms/nada-algorithm-server.cc
     model/adaptation-algorithms/tcp-stream-adaptation-algorithm.cc
     model/adaptation-algorithms/bola.cc
@@ -60,6 +61,7 @@ set(header_files
     model/adaptation-algorithms/google-algorithm-server.h
     model/adaptation-algorithms/congestion-feedback-header.h
     model/adaptation-algorithms/gcc-algorithm-server.h
+    model/adaptation-algorithms/gcc-ric-cap-algorithm-server.h
     model/adaptation-algorithms/nada-algorithm-server.h
     model/adaptation-algorithms/tcp-stream-interface.h
     model/adaptation-algorithms/tcp-stream-adaptation-algorithm.h

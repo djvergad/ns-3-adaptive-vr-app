@@ -1,6 +1,7 @@
 #include "fuzzy-algorithm-server.h"
 #include "ns3/log.h"
 #include "ns3/simulator.h"
+#include "ns3/data-rate.h"
 
 namespace ns3 {
 
@@ -14,7 +15,15 @@ FuzzyAlgorithmServer::GetTypeId (void)
   static TypeId tid = TypeId ("ns3::FuzzyAlgorithmServer")
                           .SetParent<AdaptationAlgorithmServer> ()
                           .SetGroupName ("Applications")
-                          .AddConstructor<FuzzyAlgorithmServer> ();
+                          .AddConstructor<FuzzyAlgorithmServer> ()
+                          .AddAttribute ("TopRung",
+                                         "Extra rung added above the 35 Mb/s top of the bitrate "
+                                         "ladder, e.g. the application rate, so that the "
+                                         "controller can request it. Zero keeps the original "
+                                         "ladder.",
+                                         DataRateValue (DataRate (0)),
+                                         MakeDataRateAccessor (&FuzzyAlgorithmServer::m_topRung),
+                                         MakeDataRateChecker ());
   return tid;
 }
 
@@ -104,6 +113,10 @@ FuzzyAlgorithmServer::adaptation_algorithm (double buffOcc, double diffBuffOcc, 
                                           415000,   582000,   814000,  1140000, 1596000, 2234000,
                                           3128000,  3128000,  3254000, 3974000, 4496000, 6408000,
                                           10938000, 17156000, 35018000};
+  if (m_topRung > averageBitrate.back ())
+    {
+      averageBitrate.push_back (m_topRung);
+    }
   for (uint32_t i = 1; i < averageBitrate.size(); i++) {
     if (averageBitrate[i] > result_non_quant) {
       return averageBitrate[i - 1];

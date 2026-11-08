@@ -18,6 +18,8 @@ public:
 
 private:
   DataRate adaptation_algorithm (double buffOcc, double diffBuffOcc, DataRate lastRate);
+
+  DataRate m_topRung{DataRate (0)}; //!< Extra rung above the ladder (0: original ladder)
 };
 
 } // namespace ns3

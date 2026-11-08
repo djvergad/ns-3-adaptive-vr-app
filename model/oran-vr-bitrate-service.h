@@ -37,6 +37,14 @@ class OranVrBitrateServer : public Application
     OranVrBitrateServer();
     ~OranVrBitrateServer() override;
 
+    /** Which bitrate a request asks for. */
+    enum RateMode : uint8_t
+    {
+        QUEUE_AWARE = 0, //!< OranLogicVrBitrate::GetVrBitrate (fair share with queue back-off)
+        NO_QUEUE = 1,    //!< OranLogicVrBitrate::GetVrBitrateNoTxQueue (fair share only)
+        NETXRATE = 2,    //!< OranLogicVrBitrate::GetNetXRateRecommendation
+    };
+
     /** Size in bytes of a request message. */
     static constexpr uint32_t REQUEST_SIZE = 17;
     /** Size in bytes of a response message. */
@@ -64,18 +72,19 @@ class OranVrBitrateServer : public Application
      * @param reqId The request identifier to echo.
      * @param ue The UE address the bitrate is requested for.
      * @param lcid The logical channel ID.
-     * @param noQueue True to ignore the tx queue state.
+     * @param mode The requested bitrate (a RateMode value).
      */
     void Respond(Ptr<Socket> socket,
                  Address from,
                  uint32_t reqId,
                  Address ue,
                  uint16_t lcid,
-                 bool noQueue);
+                 uint8_t mode);
 
     Ptr<OranLogicVrBitrate> m_lm; ///< Logic module computing the bitrates
     uint16_t m_port;              ///< UDP port to listen on
     Time m_processingDelay;       ///< Emulated xApp processing time
+    DataRate m_netXRateRequiredRate; ///< Application demand reported to NetXRate
     Ptr<Socket> m_socket;         ///< Listening socket
 };
 
@@ -114,6 +123,15 @@ class OranVrBitrateClient : public Object
      * @param noQueue True to ignore the tx queue state.
      */
     void Request(const Address& ue, uint16_t lcid, bool noQueue);
+
+    /**
+     * Send a bitrate request unless one is already outstanding.
+     *
+     * @param ue The UE address the bitrate is requested for.
+     * @param lcid The logical channel ID.
+     * @param mode The requested bitrate.
+     */
+    void Request(const Address& ue, uint16_t lcid, OranVrBitrateServer::RateMode mode);
 
     /**
      * Get the most recent bitrate received from the server.

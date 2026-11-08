@@ -29,6 +29,7 @@
 #include "ns3/mpc.h"
 #include "ns3/google-algorithm-server.h"
 #include "ns3/gcc-algorithm-server.h"
+#include "ns3/gcc-ric-cap-algorithm-server.h"
 #include "ns3/nada-algorithm-server.h"
 #include "ns3/congestion-feedback-header.h"
 #include "ns3/netxrate-udp-adaptation-algorithm.h"
@@ -381,6 +382,14 @@ BurstyApplicationServer::CreateInstance(Ptr<Socket> socket, Address peer)
                         "GCC adaptation requires a UDP socket for receiver feedback");
         m_server_instances[peer].m_adaptationAlgorithmServer =
             CreateObject<GccAlgorithmServer>();
+    }
+    else if (m_adaptationAlgorithm == "GccRicCapAlgorithmServer")
+    {
+        NS_ABORT_MSG_IF(socket->GetSocketType() != Socket::NS3_SOCK_DGRAM,
+                        "GCC adaptation requires a UDP socket for receiver feedback");
+        Ptr<GccRicCapAlgorithmServer> gccCap = CreateObject<GccRicCapAlgorithmServer>();
+        m_server_instances[peer].m_adaptationAlgorithmServer = gccCap;
+        gccCap->m_server_instance = &m_server_instances[peer];
     }
     else if (m_adaptationAlgorithm == "NadaAlgorithmServer" || m_adaptationAlgorithm == "NADA")
     {

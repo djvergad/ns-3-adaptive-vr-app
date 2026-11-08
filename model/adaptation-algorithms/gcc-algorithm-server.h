@@ -49,7 +49,7 @@ class GccAlgorithmServer : public AdaptationAlgorithmServer
                         DataRate receiveRate,
                         double lossFraction) override;
 
-  private:
+  protected:
     /**
      * @brief Return the current feedback-controlled bitrate.
      * @param buffOcc Unused socket buffer occupancy.

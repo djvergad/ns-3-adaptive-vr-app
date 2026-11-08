@@ -72,7 +72,12 @@ OranVrBitrateServer::GetTypeId()
                           "Emulated xApp processing time before answering a request.",
                           TimeValue(Seconds(0)),
                           MakeTimeAccessor(&OranVrBitrateServer::m_processingDelay),
-                          MakeTimeChecker());
+                          MakeTimeChecker())
+            .AddAttribute("NetXRateRequiredRate",
+                          "Application demand reported to NetXRate for NETXRATE requests.",
+                          DataRateValue(DataRate("50Mbps")),
+                          MakeDataRateAccessor(&OranVrBitrateServer::m_netXRateRequiredRate),
+                          MakeDataRateChecker());
     return tid;
 }
 
@@ -139,7 +144,7 @@ OranVrBitrateServer::HandleRead(Ptr<Socket> socket)
         const Ipv4Address ueIp(Get32(buf + 4));
         const uint16_t uePort = Get16(buf + 8);
         const uint16_t lcid = Get16(buf + 10);
-        const bool noQueue = buf[12] != 0;
+        const uint8_t mode = buf[12];
 
         Simulator::Schedule(m_processingDelay,
                             &OranVrBitrateServer::Respond,
@@ -149,7 +154,7 @@ OranVrBitrateServer::HandleRead(Ptr<Socket> socket)
                             reqId,
                             Address(InetSocketAddress(ueIp, uePort)),
                             lcid,
-                            noQueue);
+                            mode);
     }
 }
 
@@ -159,10 +164,21 @@ OranVrBitrateServer::Respond(Ptr<Socket> socket,
                              uint32_t reqId,
                              Address ue,
                              uint16_t lcid,
-                             bool noQueue)
+                             uint8_t mode)
 {
-    const DataRate rate = noQueue ? m_lm->GetVrBitrateNoTxQueue(ue, lcid)
-                                  : m_lm->GetVrBitrate(ue, lcid);
+    DataRate rate;
+    switch (mode)
+    {
+    case NO_QUEUE:
+        rate = m_lm->GetVrBitrateNoTxQueue(ue, lcid);
+        break;
+    case NETXRATE:
+        rate = m_lm->GetNetXRateRecommendation(ue, lcid, m_netXRateRequiredRate);
+        break;
+    default:
+        rate = m_lm->GetVrBitrate(ue, lcid);
+        break;
+    }
     NS_LOG_DEBUG("Answering request " << reqId << " with " << rate.GetBitRate() / 1e6 << " Mbps");
 
     uint8_t buf[RESPONSE_SIZE];
@@ -231,7 +247,15 @@ OranVrBitrateClient::Setup(Ptr<Node> socketNode, const Address& server)
 void
 OranVrBitrateClient::Request(const Address& ue, uint16_t lcid, bool noQueue)
 {
-    NS_LOG_FUNCTION(this << lcid << noQueue);
+    Request(ue,
+            lcid,
+            noQueue ? OranVrBitrateServer::NO_QUEUE : OranVrBitrateServer::QUEUE_AWARE);
+}
+
+void
+OranVrBitrateClient::Request(const Address& ue, uint16_t lcid, OranVrBitrateServer::RateMode mode)
+{
+    NS_LOG_FUNCTION(this << lcid << static_cast<uint32_t>(mode));
     NS_ABORT_MSG_IF(!m_socket, "OranVrBitrateClient::Setup() must be called first");
     NS_ABORT_MSG_IF(!InetSocketAddress::IsMatchingType(ue), "Only IPv4 UE addresses supported");
 
@@ -249,7 +273,7 @@ OranVrBitrateClient::Request(const Address& ue, uint16_t lcid, bool noQueue)
     Put32(buf + 4, ueAddr.GetIpv4().Get());
     Put16(buf + 8, ueAddr.GetPort());
     Put16(buf + 10, lcid);
-    buf[12] = noQueue ? 1 : 0;
+    buf[12] = mode;
     m_socket->SendTo(Create<Packet>(buf, OranVrBitrateServer::REQUEST_SIZE), 0, m_server);
 }
 
