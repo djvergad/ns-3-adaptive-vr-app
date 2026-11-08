@@ -57,6 +57,7 @@ class NetXRateUdpAdaptationAlgorithm : public AdaptationAlgorithmServer
     DataRate m_initialRate{DataRate("100kbps")};          ///< Configured application-rate demand.
     DataRate m_cachedRecommendation{DataRate("100kbps")}; ///< Last reported cell allocation.
     bool m_hasRecommendation{false}; ///< Whether a recommendation has been calculated.
+    bool m_queueAware{false};        ///< Apply the queue back-off to the recommendation.
 };
 
 } // namespace ns3

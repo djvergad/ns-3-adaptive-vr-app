@@ -43,6 +43,7 @@ class OranVrBitrateServer : public Application
         QUEUE_AWARE = 0, //!< OranLogicVrBitrate::GetVrBitrate (fair share with queue back-off)
         NO_QUEUE = 1,    //!< OranLogicVrBitrate::GetVrBitrateNoTxQueue (fair share only)
         NETXRATE = 2,    //!< OranLogicVrBitrate::GetNetXRateRecommendation
+        NETXRATE_QUEUE_AWARE = 3, //!< OranLogicVrBitrate::GetNetXRateQueueAware
     };
 
     /** Size in bytes of a request message. */

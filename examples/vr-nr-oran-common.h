@@ -103,7 +103,8 @@ struct VrOranOptions
                      "VR adaptation algorithm {\"model\", \"google\", \"fuzzy\", \"gcc\", "
                      "\"nada\", \"bola\", \"mpc\", \"festive\", \"oran-util\", \"oran-util-udp\", "
                      "\"oran-util-udp-no-queue\", \"netxrate-udp\", \"gcc-ric-cap\", "
-                     "\"gcc-ric-cap-queue\", \"gcc-netxrate-cap\"}",
+                     "\"gcc-ric-cap-queue\", \"gcc-netxrate-cap\", "
+                     "\"gcc-netxrate-cap-queue\", \"netxrate-queue-udp\"}",
                      burstGeneratorType);
         cmd.AddValue("vrQosFlow",
                      "5QI of the dedicated QoS flow carrying the VR traffic (NrQosFlow name, "
@@ -175,6 +176,7 @@ ConfigureBurstGenerator(const std::string& type, Ptr<OranLogicVrBitrate> lm)
         {"gcc-ric-cap", false, "GccRicCapAlgorithmServer", true, nullptr, true},
         {"gcc-ric-cap-queue", false, "GccRicCapAlgorithmServer", true, nullptr, true},
         {"gcc-netxrate-cap", false, "GccRicCapAlgorithmServer", true, nullptr, true},
+        {"gcc-netxrate-cap-queue", false, "GccRicCapAlgorithmServer", true, nullptr, true},
         {"bola", true, "BolaAlgo", false, nullptr, false},
         {"mpc", true, "MPCAlgo", false, nullptr, false},
         {"festive", true, "FestiveAlgorithm", false, nullptr, false},
@@ -197,13 +199,27 @@ ConfigureBurstGenerator(const std::string& type, Ptr<OranLogicVrBitrate> lm)
          false,
          "ns3::NetXRateUdpAdaptationAlgorithm::OranLogicVrBitrate",
          false},
+        {"netxrate-queue-udp",
+         false,
+         "NetXRateUdpAdaptationAlgorithm",
+         false,
+         "ns3::NetXRateUdpAdaptationAlgorithm::OranLogicVrBitrate",
+         false},
     };
 
     // Source of the cap of the RIC-capped GCC variants
     Config::SetDefault("ns3::GccRicCapAlgorithmServer::CapSource",
-                       StringValue(type == "gcc-ric-cap-queue"   ? "QueueAware"
-                                   : type == "gcc-netxrate-cap" ? "NetXRate"
-                                                                : "FairShare"));
+                       StringValue(type == "gcc-ric-cap-queue"        ? "QueueAware"
+                                   : type == "gcc-netxrate-cap"       ? "NetXRate"
+                                   : type == "gcc-netxrate-cap-queue" ? "NetXRateQueueAware"
+                                                                      : "FairShare"));
+    // Queue-aware NetXRate on its own: the queue back-off needs a recommendation at every E2
+    // report (100 ms) rather than every 500 ms
+    const bool netXRateQueue = type == "netxrate-queue-udp";
+    Config::SetDefault("ns3::NetXRateUdpAdaptationAlgorithm::QueueAware",
+                       BooleanValue(netXRateQueue));
+    Config::SetDefault("ns3::NetXRateUdpAdaptationAlgorithm::RecommendationPeriod",
+                       TimeValue(netXRateQueue ? MilliSeconds(100) : MilliSeconds(500)));
 
     for (const Entry& e : table)
     {

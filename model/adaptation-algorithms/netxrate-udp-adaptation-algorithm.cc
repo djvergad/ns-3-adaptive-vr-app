@@ -2,6 +2,7 @@
 
 #include "netxrate-udp-adaptation-algorithm.h"
 
+#include "ns3/boolean.h"
 #include "ns3/log.h"
 #include "ns3/nstime.h"
 #include "ns3/pointer.h"
@@ -37,7 +38,13 @@ NetXRateUdpAdaptationAlgorithm::GetTypeId()
                           "Minimum period between NetXRate recommendations.",
                           TimeValue(MilliSeconds(500)),
                           MakeTimeAccessor(&NetXRateUdpAdaptationAlgorithm::m_recommendationPeriod),
-                          MakeTimeChecker());
+                          MakeTimeChecker())
+            .AddAttribute("QueueAware",
+                          "Multiply the recommendation by the queue back-off factor of the "
+                          "UE (OranLogicVrBitrate::GetNetXRateQueueAware).",
+                          BooleanValue(false),
+                          MakeBooleanAccessor(&NetXRateUdpAdaptationAlgorithm::m_queueAware),
+                          MakeBooleanChecker());
     return tid;
 }
 
@@ -85,7 +92,13 @@ NetXRateUdpAdaptationAlgorithm::adaptation_algorithm(double, double, DataRate)
 
     m_cachedRecommendation =
         std::min(m_initialRate,
-                 m_lm->GetNetXRateRecommendation(m_server_instance->m_peer, m_lcid, DataRate("50Mbps")));
+                 m_queueAware
+                     ? m_lm->GetNetXRateQueueAware(m_server_instance->m_peer,
+                                                   m_lcid,
+                                                   DataRate("50Mbps"))
+                     : m_lm->GetNetXRateRecommendation(m_server_instance->m_peer,
+                                                       m_lcid,
+                                                       DataRate("50Mbps")));
     m_lastRecommendationTime = now;
     m_hasRecommendation = true;
     NS_LOG_DEBUG("NetXRate application cap: " << m_cachedRecommendation.GetBitRate() << " bps");

@@ -23,7 +23,8 @@ namespace ns3
  * The end-to-end GCC controller runs unchanged, and its target rate is limited to the latest
  * bitrate received from an OranVrBitrateServer, as when a network-assisted cap is placed over
  * an over-the-top controller. The cap (CapSource) is the fair share of the cell, the fair share
- * with the queue back-off of the RIC, or the NetXRate recommendation. The internal rates of GCC
+ * with the queue back-off of the RIC, or the NetXRate recommendation, alone or with the queue
+ * back-off. The internal rates of GCC
  * are limited to the cap as well, so
  * that they do not wind up above it while the cap is binding. Until the first answer from the
  * RIC arrives, the controller behaves as plain GCC.

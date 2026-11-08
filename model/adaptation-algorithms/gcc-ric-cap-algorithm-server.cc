@@ -40,7 +40,8 @@ GccRicCapAlgorithmServer::GetTypeId()
                           MakeUintegerChecker<uint8_t>())
             .AddAttribute("CapSource",
                           "Bitrate of the RIC used as the cap: the fair share alone, the fair "
-                          "share with the queue back-off, or the NetXRate recommendation.",
+                          "share with the queue back-off, the NetXRate recommendation, or the "
+                          "NetXRate recommendation with the queue back-off.",
                           EnumValue(OranVrBitrateServer::NO_QUEUE),
                           MakeEnumAccessor<OranVrBitrateServer::RateMode>(
                               &GccRicCapAlgorithmServer::m_capSource),
@@ -49,7 +50,9 @@ GccRicCapAlgorithmServer::GetTypeId()
                                           OranVrBitrateServer::QUEUE_AWARE,
                                           "QueueAware",
                                           OranVrBitrateServer::NETXRATE,
-                                          "NetXRate"));
+                                          "NetXRate",
+                                          OranVrBitrateServer::NETXRATE_QUEUE_AWARE,
+                                          "NetXRateQueueAware"));
     return tid;
 }
 
