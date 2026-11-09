@@ -56,9 +56,6 @@ private:
 
   // Minimum time between adaptations for up/down to avoid too frequent tiny changes
   Time m_minAdaptInterval = MilliSeconds (30);
-  // Random jitter for multiplicative decrease (percent)
-  Ptr<UniformRandomVariable> m_random = CreateObject<UniformRandomVariable> ();
-  double m_decreaseJitterPercent = 10.0; // +/- percent around multiplicative factor
 
   // Logical Channel ID for VR traffic (configurable to match actual bearer LCID)
   uint8_t m_lcid = 5; // Default to 5, but can be configured from script
