@@ -54,7 +54,7 @@ class GccRicCapAlgorithmServer : public GccAlgorithmServer
                         double lossFraction) override;
 
     /**
-     * @brief Get the latest cap received from the RIC.
+     * @brief Get the latest bitrate received from the RIC, multiplied by CapScale.
      * @return The cap, or DataRate(0) if none has been received.
      */
     DataRate GetCap() const;
@@ -80,6 +80,7 @@ class GccRicCapAlgorithmServer : public GccAlgorithmServer
     Address m_ricServer;                ///< Address of the OranVrBitrateServer
     uint8_t m_lcid{5};                  ///< Logical channel of the VR traffic
     OranVrBitrateServer::RateMode m_capSource{OranVrBitrateServer::NO_QUEUE}; ///< Cap source
+    double m_capScale{1.0};             ///< Factor applied to the bitrate of the RIC
     Ptr<OranVrBitrateClient> m_ricClient; ///< Client for the RIC bitrate service
 };
 

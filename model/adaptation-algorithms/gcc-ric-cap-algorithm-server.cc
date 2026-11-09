@@ -7,6 +7,7 @@
 
 #include "gcc-ric-cap-algorithm-server.h"
 
+#include "ns3/double.h"
 #include "ns3/enum.h"
 #include "ns3/log.h"
 #include "ns3/uinteger.h"
@@ -52,7 +53,13 @@ GccRicCapAlgorithmServer::GetTypeId()
                                           OranVrBitrateServer::NETXRATE,
                                           "NetXRate",
                                           OranVrBitrateServer::NETXRATE_QUEUE_AWARE,
-                                          "NetXRateQueueAware"));
+                                          "NetXRateQueueAware"))
+            .AddAttribute("CapScale",
+                          "Factor applied to the bitrate of the RIC before it is used as the "
+                          "cap, to trace the trade-off of a more or less conservative cap.",
+                          DoubleValue(1.0),
+                          MakeDoubleAccessor(&GccRicCapAlgorithmServer::m_capScale),
+                          MakeDoubleChecker<double>(0.0));
     return tid;
 }
 
@@ -77,7 +84,17 @@ GccRicCapAlgorithmServer::DoDispose()
 DataRate
 GccRicCapAlgorithmServer::GetCap() const
 {
-    return m_ricClient ? m_ricClient->GetLatestBitrate() : DataRate(0);
+    if (!m_ricClient)
+    {
+        return DataRate(0);
+    }
+    const DataRate ricRate = m_ricClient->GetLatestBitrate();
+    if (m_capScale == 1.0 || ricRate.GetBitRate() == 0)
+    {
+        return ricRate;
+    }
+    // At least 1 b/s, so that a scaled cap is never mistaken for "no answer yet"
+    return DataRate(std::max<uint64_t>(1, static_cast<uint64_t>(ricRate.GetBitRate() * m_capScale)));
 }
 
 void
