@@ -22,7 +22,9 @@
  * of the cells it is handed over to.
  *
  * Every UE starts its stream at 1 s and receives --simTime of VR traffic. The simulation ends
- * 1 s after the streams, so that the last frames can arrive.
+ * 1 s after the streams, so that the last frames can arrive. With --moveStart, the moving UE waits
+ * at its start position until that time and then follows the same path, which leaves the
+ * controllers a warm-up before the first handover.
  *
  * Programs: vr-nr-oran-handover.cc (single UE) and vr-nr-oran-handover-bg.cc (background
  * UEs). Every default can be overridden from the command line; see --PrintHelp.
@@ -61,6 +63,7 @@ struct HandoverOptions
     uint16_t numGnbs{3};       ///< gNBs placed in a row
     double gnbSpacing{200};    ///< Distance between neighbouring gNBs [m]
     double speed{20};          ///< Speed of the moving UE [m/s]
+    Time moveStart{Seconds(0)}; ///< Time at which the moving UE starts to move
     double gnbHeight{10};      ///< gNB antenna height [m]
     double ueOffsetY{20};      ///< Lateral distance of the UE path from the gNB row [m]
     bool backgroundUes{true};  ///< One stationary UE with VR traffic next to each gNB
@@ -473,6 +476,10 @@ RunVrNrOranHandover(int argc, char* argv[], const std::string& program, Handover
     cmd.AddValue("numGnbs", "Number of gNBs in the row", o.numGnbs);
     cmd.AddValue("gnbSpacing", "Distance between neighbouring gNBs [m]", o.gnbSpacing);
     cmd.AddValue("speed", "UE speed [m/s]", o.speed);
+    cmd.AddValue("moveStart",
+                 "Time at which the moving UE starts to move; until then it waits at its start "
+                 "position",
+                 o.moveStart);
     cmd.AddValue("ueOffsetY", "Lateral distance of the UE path from the gNB row [m]", o.ueOffsetY);
     cmd.AddValue("outPrefix", "Prefix of the output files", o.outPrefix);
     cmd.AddValue("backgroundUes",
@@ -532,7 +539,18 @@ RunVrNrOranHandover(int argc, char* argv[], const std::string& program, Handover
     Ptr<ConstantVelocityMobilityModel> ueMobility =
         ueNodes.Get(0)->GetObject<ConstantVelocityMobilityModel>();
     ueMobility->SetPosition(Vector(0, o.ueOffsetY, 1.5));
-    ueMobility->SetVelocity(Vector(o.speed, 0, 0));
+    if (o.moveStart.IsStrictlyPositive())
+    {
+        ueMobility->SetVelocity(Vector(0, 0, 0));
+        Simulator::Schedule(o.moveStart,
+                            &ConstantVelocityMobilityModel::SetVelocity,
+                            ueMobility,
+                            Vector(o.speed, 0, 0));
+    }
+    else
+    {
+        ueMobility->SetVelocity(Vector(o.speed, 0, 0));
+    }
     for (uint32_t u = 1; u < numUes; ++u)
     {
         Ptr<ConstantVelocityMobilityModel> bgMob =

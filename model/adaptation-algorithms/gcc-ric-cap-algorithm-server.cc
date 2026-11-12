@@ -81,6 +81,9 @@ GccRicCapAlgorithmServer::DoDispose()
     GccAlgorithmServer::DoDispose();
 }
 
+/// The bitrate the RIC answers when it has no statistics for the UE (OranLogicVrBitrate)
+static constexpr uint64_t RIC_NO_STATS_BPS = 100000;
+
 DataRate
 GccRicCapAlgorithmServer::GetCap() const
 {
@@ -89,6 +92,14 @@ GccRicCapAlgorithmServer::GetCap() const
         return DataRate(0);
     }
     const DataRate ricRate = m_ricClient->GetLatestBitrate();
+    // Before the RIC has E2 statistics for the UE (e.g. a stream that starts before the first
+    // report), it answers a 100 kb/s placeholder. That is no capacity estimate: used as a cap, it
+    // would pull GCC's rate estimates down to 100 kb/s, from where GCC needs seconds to recover.
+    // So it counts as "no answer yet", and GCC runs uncapped until a real answer arrives.
+    if (ricRate.GetBitRate() == RIC_NO_STATS_BPS)
+    {
+        return DataRate(0);
+    }
     if (m_capScale == 1.0 || ricRate.GetBitRate() == 0)
     {
         return ricRate;
