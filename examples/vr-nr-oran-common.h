@@ -104,7 +104,8 @@ struct VrOranOptions
                      "\"nada\", \"bola\", \"mpc\", \"festive\", \"oran-util\", \"oran-util-udp\", "
                      "\"oran-util-udp-no-queue\", \"netxrate-udp\", \"gcc-ric-cap\", "
                      "\"gcc-ric-cap-queue\", \"gcc-netxrate-cap\", "
-                     "\"gcc-netxrate-cap-queue\", \"netxrate-queue-udp\"}",
+                     "\"gcc-netxrate-cap-queue\", \"netxrate-queue-udp\", \"oran-rcp-udp\", "
+                     "\"gcc-ric-cap-rcp\", \"oran-holpi-udp\", \"gcc-ric-cap-holpi\"}",
                      burstGeneratorType);
         cmd.AddValue("vrQosFlow",
                      "5QI of the dedicated QoS flow carrying the VR traffic (NrQosFlow name, "
@@ -177,11 +178,25 @@ ConfigureBurstGenerator(const std::string& type, Ptr<OranLogicVrBitrate> lm)
         {"gcc-ric-cap-queue", false, "GccRicCapAlgorithmServer", true, nullptr, true},
         {"gcc-netxrate-cap", false, "GccRicCapAlgorithmServer", true, nullptr, true},
         {"gcc-netxrate-cap-queue", false, "GccRicCapAlgorithmServer", true, nullptr, true},
+        {"gcc-ric-cap-rcp", false, "GccRicCapAlgorithmServer", true, nullptr, true},
+        {"gcc-ric-cap-holpi", false, "GccRicCapAlgorithmServer", true, nullptr, true},
         {"bola", true, "BolaAlgo", false, nullptr, false},
         {"mpc", true, "MPCAlgo", false, nullptr, false},
         {"festive", true, "FestiveAlgorithm", false, nullptr, false},
         {"oran-util", true, "OranCellUtilizationAdaptationAlgorithm", false, nullptr, false},
         {"oran-util-udp",
+         false,
+         "OranCellUtilizationUdpAdaptationAlgorithm",
+         false,
+         "ns3::OranCellUtilizationUdpAdaptationAlgorithm::OranLogicVrBitrate",
+         true},
+        {"oran-holpi-udp",
+         false,
+         "OranCellUtilizationUdpAdaptationAlgorithm",
+         false,
+         "ns3::OranCellUtilizationUdpAdaptationAlgorithm::OranLogicVrBitrate",
+         true},
+        {"oran-rcp-udp",
          false,
          "OranCellUtilizationUdpAdaptationAlgorithm",
          false,
@@ -212,7 +227,17 @@ ConfigureBurstGenerator(const std::string& type, Ptr<OranLogicVrBitrate> lm)
                        StringValue(type == "gcc-ric-cap-queue"        ? "QueueAware"
                                    : type == "gcc-netxrate-cap"       ? "NetXRate"
                                    : type == "gcc-netxrate-cap-queue" ? "NetXRateQueueAware"
+                                   : type == "gcc-ric-cap-rcp"        ? "Rcp"
+                                   : type == "gcc-ric-cap-holpi"      ? "HolPi"
                                                                       : "FairShare"));
+    // The RCP-style controller of the RIC needs the window statistics of the gNB reporters
+    const bool rcp = type == "oran-rcp-udp" || type == "gcc-ric-cap-rcp";
+    const bool holPi = type == "oran-holpi-udp" || type == "gcc-ric-cap-holpi";
+    Config::SetDefault("ns3::OranCellUtilizationUdpAdaptationAlgorithm::RateMode",
+                       StringValue(rcp     ? "Rcp"
+                                   : holPi ? "HolPi"
+                                           : "QueueAware"));
+    Config::SetDefault("ns3::OranReporterNrUeStats::ExtendedStats", BooleanValue(rcp || holPi));
     // Queue-aware NetXRate on its own: the queue back-off needs a recommendation at every E2
     // report (100 ms) rather than every 500 ms
     const bool netXRateQueue = type == "netxrate-queue-udp";
@@ -638,6 +663,12 @@ ConnectUeStatsReporters(const NetDeviceContainer& gnbDevs,
                     gnbDev->GetMac(m)->TraceConnectWithoutContext(
                         "BufferStatusReportTrace",
                         MakeCallback(&OranReporterNrUeStats::OnBufferStatusReport, stats));
+                    if (stats->IsExtended())
+                    {
+                        gnbDev->GetMac(m)->TraceConnectWithoutContext(
+                            "DlHarqFeedback",
+                            MakeCallback(&OranReporterNrUeStats::OnDlHarqFeedback, stats));
+                    }
                     Ptr<NrMacScheduler> sched = NrHelper::GetScheduler(gnbDevs.Get(i), m);
                     if (sched)
                     {

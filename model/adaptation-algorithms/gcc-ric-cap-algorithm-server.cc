@@ -53,7 +53,11 @@ GccRicCapAlgorithmServer::GetTypeId()
                                           OranVrBitrateServer::NETXRATE,
                                           "NetXRate",
                                           OranVrBitrateServer::NETXRATE_QUEUE_AWARE,
-                                          "NetXRateQueueAware"))
+                                          "NetXRateQueueAware",
+                                          OranVrBitrateServer::RCP,
+                                          "Rcp",
+                                          OranVrBitrateServer::HOL_PI,
+                                          "HolPi"))
             .AddAttribute("CapScale",
                           "Factor applied to the bitrate of the RIC before it is used as the "
                           "cap, to trace the trade-off of a more or less conservative cap.",

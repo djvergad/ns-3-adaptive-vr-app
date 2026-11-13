@@ -1,6 +1,7 @@
 #include "oran-cell-utilization-udp-adaptation-algorithm.h"
 
 #include "ns3/address.h"
+#include "ns3/enum.h"
 #include "ns3/log.h"
 #include "ns3/pointer.h"
 
@@ -35,7 +36,19 @@ OranCellUtilizationUdpAdaptationAlgorithm::GetTypeId(void)
                 "Logical Channel ID for VR traffic bearer (typically 4-10 for dedicated bearers)",
                 UintegerValue(5),
                 MakeUintegerAccessor(&OranCellUtilizationUdpAdaptationAlgorithm::m_lcid),
-                MakeUintegerChecker<uint8_t>(3, 32));
+                MakeUintegerChecker<uint8_t>(3, 32))
+            .AddAttribute("RateMode",
+                          "Bitrate requested from the RIC over the network: the fair share with "
+                          "the step queue back-off (QARA), or the RCP-style controller.",
+                          EnumValue(OranVrBitrateServer::QUEUE_AWARE),
+                          MakeEnumAccessor<OranVrBitrateServer::RateMode>(
+                              &OranCellUtilizationUdpAdaptationAlgorithm::m_rateMode),
+                          MakeEnumChecker(OranVrBitrateServer::QUEUE_AWARE,
+                                          "QueueAware",
+                                          OranVrBitrateServer::RCP,
+                                          "Rcp",
+                                          OranVrBitrateServer::HOL_PI,
+                                          "HolPi"));
     return tid;
 }
 
@@ -75,7 +88,7 @@ OranCellUtilizationUdpAdaptationAlgorithm::adaptation_algorithm(double buffOcc,
             m_ricClient->Setup(m_server_instance->GetSocket()->GetNode(), m_ricServer);
         }
         // Asynchronous: ask the RIC for a fresh value and use the latest answer received
-        m_ricClient->Request(m_server_instance->m_peer, m_lcid, false);
+        m_ricClient->Request(m_server_instance->m_peer, m_lcid, m_rateMode);
         result_non_quant = m_ricClient->GetLatestBitrate();
         if (result_non_quant.GetBitRate() == 0)
         {

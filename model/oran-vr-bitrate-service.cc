@@ -178,6 +178,12 @@ OranVrBitrateServer::Respond(Ptr<Socket> socket,
     case NETXRATE_QUEUE_AWARE:
         rate = m_lm->GetNetXRateQueueAware(ue, lcid, m_netXRateRequiredRate);
         break;
+    case RCP:
+        rate = m_lm->GetVrBitrateRcp(ue, lcid);
+        break;
+    case HOL_PI:
+        rate = m_lm->GetVrBitrateHolPi(ue, lcid);
+        break;
     default:
         rate = m_lm->GetVrBitrate(ue, lcid);
         break;

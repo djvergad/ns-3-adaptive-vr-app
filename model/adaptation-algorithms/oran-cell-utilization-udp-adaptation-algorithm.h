@@ -59,6 +59,9 @@ private:
 
   // Logical Channel ID for VR traffic (configurable to match actual bearer LCID)
   uint8_t m_lcid = 5; // Default to 5, but can be configured from script
+
+  // Bitrate requested from the RIC over the network
+  OranVrBitrateServer::RateMode m_rateMode = OranVrBitrateServer::QUEUE_AWARE;
 };
 
 } // namespace ns3
